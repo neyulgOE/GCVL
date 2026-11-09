@@ -16,11 +16,6 @@ import math
 from src.settings import TILE_SIZE, MAP_COLS, MAP_ROWS, WORLD_WIDTH, WORLD_HEIGHT
 from src.entities.obstacles import Obstacle
 
-# Giữ hằng số tương thích nếu code bên ngoài có import
-ZONE_FARM = "wilderness"
-ZONE_TOWN = "wilderness"
-
-
 class MultiOctaveNoise2D:
     """Bộ sinh nhiễu Perlin 2D đa tầng (FBM) & Domain Warping tạo địa hình tự nhiên."""
 
@@ -83,7 +78,7 @@ class MapManager:
         self.cols = MAP_COLS
         self.rows = MAP_ROWS
         self.seed = seed
-        self.current_zone = ZONE_FARM
+        self.current_zone = "wilderness"
 
         # Bộ sinh nhiễu địa chất, độ ẩm và thực vật
         self.elev_noise = MultiOctaveNoise2D(seed=seed)

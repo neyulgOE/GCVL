@@ -17,7 +17,7 @@ from src.core.camera import Camera
 from src.core.free_camera import FreeCamera
 from src.world.time_system import TimeSystem
 from src.world.weather_system import WeatherSystem
-from src.world.map_manager import MapManager, ZONE_FARM
+from src.world.map_manager import MapManager
 from src.world.natural_terrain_renderer import NaturalTerrainRenderer
 from src.world.particle_system import ParticleSystem
 from src.world.wildlife_manager import WildlifeManager
