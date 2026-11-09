@@ -119,17 +119,15 @@ class MapManager:
 
         # --- Lớp 4 & 5: Thực vật đa tầng, Chướng ngại vật & Điểm mốc ---
         self.farm_obstacles = {}
-        self.farm_crops = {}
         self.farm_water_tiles = set()
         self.farm_solid_tiles = set()
-        self.farmable_tiles = set()
         self.natural_landmarks = []  # Hóa thạch xương khổng lồ, tảng đá rêu, ghềnh thác
         self.npcs = {}               # Trống hoàn toàn (không có con người)
 
         # Con trỏ tương thích ngược
         self.terrain = self.farm_terrain
         self.obstacles = self.farm_obstacles
-        self.crops = self.farm_crops
+        self.crops = {}
         self.water_tiles = self.farm_water_tiles
         self.solid_tiles = self.farm_solid_tiles
         self.world = self
