@@ -58,21 +58,10 @@ class AssetManager:
         ts = TILE_SIZE  # 64
 
         # ---------------------------------------------------------
-        # 1. WORLD COMPOSITE & TERRAIN
+        # 1. WORLD COMPOSITE & TERRAIN FALLBACK
         # ---------------------------------------------------------
-        from src.world.scenery_builder import SceneryBuilder
-        comp_path = "assets/pydew/world/world_composite.png"
-        if os.path.exists(comp_path):
-            raw_comp = pygame.image.load(comp_path).convert_alpha()
-            self.textures["world_composite"] = SceneryBuilder.enhance_farm_composite(raw_comp, ts, self.fonts)
-        else:
-            # Fallback to ground.png
-            g_path = "assets/pydew/world/ground.png"
-            if os.path.exists(g_path):
-                self.textures["world_composite"] = pygame.image.load(g_path).convert_alpha()
-            else:
-                self.textures["world_composite"] = pygame.Surface((3200, 2560))
-                self.textures["world_composite"].fill((160, 185, 104))
+        self.textures["world_composite"] = pygame.Surface((3200, 2560))
+        self.textures["world_composite"].fill((160, 185, 104))
 
         # Animated River Water (64x64)
         for i in range(4):
@@ -909,19 +898,9 @@ class AssetManager:
 
     def _gen_town_and_rare_assets(self, ts):
         """Generates town square composite terrain, shopfronts, NPCs, and rare artifact icons."""
-        # 1. Town Composite Surface & Store Fronts (High Fidelity Pixel Art Scenery)
-        from src.world.scenery_builder import SceneryBuilder
-        town_surf, lamp_positions = SceneryBuilder.build_town_composite(ts, self.fonts)
-        self.textures["town_composite"] = town_surf
-        self.town_lamp_positions = lamp_positions
-
-        storefronts = SceneryBuilder.build_storefront_sprites(ts, self.fonts)
-        self.textures.update(storefronts)
-
-        self.textures["farmhouse_exterior"] = SceneryBuilder.build_farmhouse_exterior(ts)
-
-        env_props = SceneryBuilder.load_environmental_props()
-        self.textures.update(env_props)
+        self.textures["town_composite"] = pygame.Surface((ts, ts))
+        self.town_lamp_positions = []
+        self.textures["farmhouse_exterior"] = pygame.Surface((ts, ts))
 
         # 3. Teleport Waypoint Pillar (64x64)
         wp_surf = pygame.Surface((ts, ts), pygame.SRCALPHA)
