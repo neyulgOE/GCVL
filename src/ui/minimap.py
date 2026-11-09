@@ -1,9 +1,8 @@
 """
-Minimap & World Map View with Fast Travel / Teleportation for Green Valley Tales.
-- Corner minimap showing real-time current zone overview
-- 'M' key toggles World Map with multi-zone tabs (🌾 Nông Trại vs 🏘️ Thị Trấn)
-- Fast Travel Teleportation buttons to instantly teleport between Farm and Town!
-- Visual waypoint indicators with pulsing glow animations
+Minimap & Overworld Atlas for Stone Age: Primeval World.
+- Real-time natural terrain & wildlife tracking minimap with prehistoric frame
+- 'M' key toggles Full Continent Atlas with biome exploration
+- Autonomous megafauna wildlife markers and free spectator camera tracking
 """
 
 import pygame
@@ -13,13 +12,14 @@ from src.settings import (
     MAP_COLS, MAP_ROWS, WORLD_WIDTH, WORLD_HEIGHT
 )
 
+
 class MinimapSystem:
     # Corner minimap dimensions
     MINI_W = 160
     MINI_H = 128
     MINI_MARGIN = 12
 
-    # Tile colors for minimap
+    # Tile colors for natural minimap
     COLORS = {
         "grass": (145, 170, 80),
         "biome_steppe": (145, 170, 80),
@@ -30,49 +30,32 @@ class MinimapSystem:
         "trail": (195, 165, 115),
         "bridge": (165, 125, 75),
         "water": (60, 130, 185),
-        "dirt_tilled": (148, 100, 58),
-        "dirt_watered": (100, 68, 38),
         "solid": (90, 70, 55),
-        "farmable": (130, 190, 85),
-        "cobble": (175, 168, 155),
-        "stone_road": (185, 160, 130),
-        "shelter": (90, 85, 80),
-        "campfire": (255, 140, 25),
         "tree": (35, 80, 38),
         "boulder": (95, 90, 85),
         "bone": (235, 230, 210),
         "berry": (210, 50, 60),
         "obstacle": (130, 120, 110),
-        "crop": (200, 180, 50),
-        "player": (255, 60, 60),
         "animal": (255, 200, 100),
-        "merchant": (200, 80, 200),
-        "shipping_bin": (170, 110, 50),
-        "house": (180, 140, 90),
-        "barn": (165, 120, 75),
-        "shop": (175, 105, 65),
-        "waypoint": (80, 220, 255),
-        "npc": (255, 140, 200)
+        "waypoint": (80, 220, 255)
     }
 
     def __init__(self):
         self.show_full_map = False
         self.viewing_zone = "macro"
-        self._farm_surface = None
-        self._town_surface = None
+        self._valley_surface = None
         self._dirty = True
         self._rebuild_timer = 0
         self._modal_alpha = 0.0
 
         # UI Rects
-        self.btn_teleport_rect = pygame.Rect(0, 0, 0, 0)
-        self.tab_farm_rect = pygame.Rect(0, 0, 0, 0)
-        self.tab_town_rect = pygame.Rect(0, 0, 0, 0)
         self.tab_macro_rect = pygame.Rect(0, 0, 0, 0)
+        self.tab_valley_rect = pygame.Rect(0, 0, 0, 0)
         self.tab_flora_rect = pygame.Rect(0, 0, 0, 0)
         self.close_btn_rect = pygame.Rect(0, 0, 0, 0)
         self._macro_map_surface = None
         self._flora_map_surface = None
+        self._bone_frame = None
 
     def toggle_full_map(self):
         self.show_full_map = not self.show_full_map
@@ -95,7 +78,7 @@ class MinimapSystem:
     # -------------------------------------------------------------
     # MAP SURFACE BUILDERS
     # -------------------------------------------------------------
-    def _build_farm_surface(self, map_mgr, wildlife_mgr=None, fog_of_war=None):
+    def _build_valley_surface(self, map_mgr, wildlife_mgr=None, fog_of_war=None):
         base = pygame.Surface((MAP_COLS, MAP_ROWS), pygame.SRCALPHA)
         for r in range(MAP_ROWS):
             for c in range(MAP_COLS):
@@ -148,20 +131,19 @@ class MinimapSystem:
                     if not fog_of_war.is_tile_explored(c, r):
                         base.set_at((c, r), (14, 12, 10))
 
-        self._farm_surface = base
-        self._town_surface = base
+        self._valley_surface = base
 
     # -------------------------------------------------------------
     # CORNER MINIMAP
     # -------------------------------------------------------------
-    def draw_minimap(self, screen, map_mgr, animals_mgr, player, camera, fog_of_war=None):
+    def draw_minimap(self, screen, map_mgr, wildlife_mgr, spectator_pos, camera, fog_of_war=None):
         """Draw real-time corner minimap with Fog of War exploration mask."""
         self._rebuild_timer += 1
-        if self._dirty or self._farm_surface is None or (self._rebuild_timer % 30 == 0):
-            self._build_farm_surface(map_mgr, animals_mgr, fog_of_war)
+        if self._dirty or self._valley_surface is None or (self._rebuild_timer % 30 == 0):
+            self._build_valley_surface(map_mgr, wildlife_mgr, fog_of_war)
             self._dirty = False
 
-        surface = self._farm_surface if map_mgr.current_zone == "farm" else self._town_surface
+        surface = self._valley_surface
 
         x = self.MINI_MARGIN
         y = SCREEN_HEIGHT - self.MINI_H - self.MINI_MARGIN - 60
@@ -172,10 +154,10 @@ class MinimapSystem:
         pygame.draw.rect(panel, (20, 16, 12, 195), (0, 0, self.MINI_W + 8, self.MINI_H + 28), border_radius=6)
         screen.blit(panel, (x - 4, y - 24))
 
-        # Zone Label tag
-        zone_name = "Thế Giới Tiền Sử"
+        # Region Label tag
+        region_name = "Thế Giới Tiền Sử"
         font = pygame.font.SysFont("dejavusans", 11, bold=True)
-        z_lbl = font.render(zone_name, True, (255, 235, 180))
+        z_lbl = font.render(region_name, True, (255, 235, 180))
         screen.blit(z_lbl, (x, y - 20))
 
         screen.blit(scaled, (x, y))
@@ -188,10 +170,10 @@ class MinimapSystem:
         pygame.draw.rect(screen, (255, 255, 255, 180),
                         (x + view_x, y + view_y, view_w, view_h), 1)
 
-        # Viewport center or observer target dot
-        if player:
-            px = player.x / WORLD_WIDTH * self.MINI_W
-            py = player.y / WORLD_HEIGHT * self.MINI_H
+        # Observer spectator dot
+        if spectator_pos:
+            px = spectator_pos.x / WORLD_WIDTH * self.MINI_W
+            py = spectator_pos.y / WORLD_HEIGHT * self.MINI_H
             pulse = 0.5 + 0.5 * math.sin(pygame.time.get_ticks() / 200.0)
             dot_size = int(2 + pulse * 2)
             pygame.draw.circle(screen, (100, 220, 255), (int(x + px), int(y + py)), dot_size)
@@ -200,8 +182,8 @@ class MinimapSystem:
         # Border
         pygame.draw.rect(screen, (100, 75, 50, 200), (x - 1, y - 1, self.MINI_W + 2, self.MINI_H + 2), 2, border_radius=3)
 
-        # Prehistoric Animal Bone & Amber Minimap Frame
-        if not hasattr(self, "_bone_frame") or self._bone_frame is None:
+        # Prehistoric Frame
+        if self._bone_frame is None:
             import os
             for bf_path in [
                 "assets/stone_age/07_ui_hud_and_tech_icons/03_hud_bone_amber_minimap_ring.png",
@@ -213,22 +195,21 @@ class MinimapSystem:
                     self._bone_frame = pygame.transform.smoothscale(raw_bf, (self.MINI_W + 36, self.MINI_H + 36))
                     break
 
-        if getattr(self, "_bone_frame", None):
+        if self._bone_frame:
             screen.blit(self._bone_frame, (x - 18, y - 18))
 
     # -------------------------------------------------------------
-    # FULL-SCREEN MAP & FAST TRAVEL TELEPORTATION
+    # FULL-SCREEN MAP
     # -------------------------------------------------------------
-    def draw_full_map(self, screen, map_mgr, animals_mgr, player, font_small, font_normal, font_large, fog_of_war=None):
-        """Draw interactive full-screen map with Zone selection and Fast Travel Teleportation."""
+    def draw_full_map(self, screen, map_mgr, wildlife_mgr, spectator_pos, font_small, font_normal, font_large, fog_of_war=None):
+        """Draw interactive full-screen map with Overworld Atlas exploration."""
         if self._modal_alpha < 0.01:
             return
 
         alpha = self._modal_alpha
 
-        if self._dirty or self._farm_surface is None or self._town_surface is None:
-            self._build_farm_surface(map_mgr, animals_mgr, fog_of_war)
-            self._build_town_surface(map_mgr)
+        if self._dirty or self._valley_surface is None:
+            self._build_valley_surface(map_mgr, wildlife_mgr, fog_of_war)
             self._dirty = False
 
         # Dim backdrop
@@ -257,15 +238,14 @@ class MinimapSystem:
         title_surf = font_large.render("BẢN ĐỒ ĐẠI LỤC HOANG DÃ THỜI TIỀN SỬ (PRIMEVAL CONTINENT EXPEDITION)", True, (45, 30, 18))
         screen.blit(title_surf, (px + (pw - title_surf.get_width()) // 2, py + 12))
 
-        # Zone Tabs: [🗺️ ĐẠI LỤC TIỀN SỬ], [🏞️ THUNG LŨNG QUAN SÁT], [🌿 SINH THÁI THẢO MỘC]
+        # Tabs: [🗺️ ĐẠI LỤC TIỀN SỬ], [🏞️ THUNG LŨNG QUAN SÁT], [🌿 SINH THÁI THẢO MỘC]
         self.tab_macro_rect = pygame.Rect(px + 24, py + 48, 235, 32)
-        self.tab_farm_rect = pygame.Rect(px + 269, py + 48, 235, 32)
+        self.tab_valley_rect = pygame.Rect(px + 269, py + 48, 235, 32)
         self.tab_flora_rect = pygame.Rect(px + 514, py + 48, 235, 32)
-        self.tab_town_rect = pygame.Rect(0, 0, 0, 0)
         self.close_btn_rect = pygame.Rect(px + pw - 38, py + 12, 26, 26)
 
         is_view_macro = (self.viewing_zone == "macro")
-        is_view_farm = (self.viewing_zone == "farm")
+        is_view_valley = (self.viewing_zone == "valley")
         is_view_flora = (self.viewing_zone == "flora")
 
         # Tab 1: Macro World Continent
@@ -276,11 +256,11 @@ class MinimapSystem:
         screen.blit(lbl_m, (self.tab_macro_rect.x + (self.tab_macro_rect.w - lbl_m.get_width()) // 2, self.tab_macro_rect.y + 6))
 
         # Tab 2: Local River Valley
-        col_f = (110, 75, 45) if is_view_farm else (210, 195, 175)
-        txt_f = (255, 255, 255) if is_view_farm else (90, 65, 40)
-        pygame.draw.rect(screen, col_f, self.tab_farm_rect, border_radius=6)
-        lbl_f = font_normal.render("🏞️ Thung Lũng Quan Sát", True, txt_f)
-        screen.blit(lbl_f, (self.tab_farm_rect.x + (self.tab_farm_rect.w - lbl_f.get_width()) // 2, self.tab_farm_rect.y + 6))
+        col_v = (110, 75, 45) if is_view_valley else (210, 195, 175)
+        txt_v = (255, 255, 255) if is_view_valley else (90, 65, 40)
+        pygame.draw.rect(screen, col_v, self.tab_valley_rect, border_radius=6)
+        lbl_v = font_normal.render("🏞️ Thung Lũng Quan Sát", True, txt_v)
+        screen.blit(lbl_v, (self.tab_valley_rect.x + (self.tab_valley_rect.w - lbl_v.get_width()) // 2, self.tab_valley_rect.y + 6))
 
         # Tab 3: Botany & Foraging Atlas
         col_fl = (110, 75, 45) if is_view_flora else (210, 195, 175)
@@ -302,7 +282,7 @@ class MinimapSystem:
 
         if is_view_flora:
             # Render Prehistoric Flora & Foraging Atlas
-            if not hasattr(self, "_flora_map_surface") or self._flora_map_surface is None:
+            if self._flora_map_surface is None:
                 import os
                 flora_atlas_path = "assets/sprites/stone_age_flora_foraging_atlas.png"
                 if os.path.exists(flora_atlas_path):
@@ -351,36 +331,33 @@ class MinimapSystem:
             screen.blit(spec_lbl, (spec_x - spec_lbl.get_width() // 2, spec_y - 23))
 
         else:
-            active_surf = self._farm_surface if is_view_farm else self._town_surface
-            scaled_map = pygame.transform.scale(active_surf, (map_w, map_h))
+            scaled_map = pygame.transform.scale(self._valley_surface, (map_w, map_h))
             screen.blit(scaled_map, (map_x, map_y))
             pygame.draw.rect(screen, (100, 75, 50), (map_x - 1, map_y - 1, map_w + 2, map_h + 2), 2)
 
-            # Player / Observer marker (only if in the currently viewed zone)
-            if map_mgr.current_zone == self.viewing_zone and player:
-                pl_x = player.x / WORLD_WIDTH * map_w
-                pl_y = player.y / WORLD_HEIGHT * map_h
+            # Observer spectator marker
+            if spectator_pos:
+                pl_x = spectator_pos.x / WORLD_WIDTH * map_w
+                pl_y = spectator_pos.y / WORLD_HEIGHT * map_h
                 pulse = 0.5 + 0.5 * math.sin(pygame.time.get_ticks() / 150.0)
 
-                # Glow ring
                 glow_r = int(7 + pulse * 4)
                 glow_surf = pygame.Surface((glow_r * 2 + 4, glow_r * 2 + 4), pygame.SRCALPHA)
-                pygame.draw.circle(glow_surf, (255, 80, 80, 70), (glow_r + 2, glow_r + 2), glow_r)
+                pygame.draw.circle(glow_surf, (80, 180, 255, 80), (glow_r + 2, glow_r + 2), glow_r)
                 screen.blit(glow_surf, (int(map_x + pl_x) - glow_r - 2, int(map_y + pl_y) - glow_r - 2))
 
-                pygame.draw.circle(screen, (255, 50, 50), (int(map_x + pl_x), int(map_y + pl_y)), 5)
+                pygame.draw.circle(screen, (80, 200, 255), (int(map_x + pl_x), int(map_y + pl_y)), 5)
                 pygame.draw.circle(screen, (255, 255, 255), (int(map_x + pl_x), int(map_y + pl_y)), 5, 1)
 
-                p_lbl = font_small.render("Bạn", True, (255, 255, 255))
+                p_lbl = font_small.render("Camera", True, (255, 255, 255))
                 p_bg = pygame.Surface((p_lbl.get_width() + 8, 16), pygame.SRCALPHA)
-                pygame.draw.rect(p_bg, (255, 50, 50, 200), (0, 0, p_bg.get_width(), 16), border_radius=3)
+                pygame.draw.rect(p_bg, (40, 100, 160, 200), (0, 0, p_bg.get_width(), 16), border_radius=3)
                 screen.blit(p_bg, (int(map_x + pl_x) - p_bg.get_width() // 2, int(map_y + pl_y) - 22))
                 screen.blit(p_lbl, (int(map_x + pl_x) - p_lbl.get_width() // 2, int(map_y + pl_y) - 21))
 
-            # Waypoint Marker with pulsing cyan glow
-            wp_pos = map_mgr.farm_waypoint if is_view_farm else map_mgr.town_waypoint
-            wpx = wp_pos[0] / MAP_COLS * map_w
-            wpy = wp_pos[1] / MAP_ROWS * map_h
+            # Prehistoric Natural Monolith Marker
+            wpx = 40.0 / MAP_COLS * map_w
+            wpy = 38.0 / MAP_ROWS * map_h
             wp_pulse = 0.5 + 0.5 * math.sin(pygame.time.get_ticks() / 180.0)
 
             wp_r = int(8 + wp_pulse * 4)
@@ -391,8 +368,8 @@ class MinimapSystem:
             pygame.draw.circle(screen, (60, 210, 255), (int(map_x + wpx), int(map_y + wpy)), 5)
             pygame.draw.circle(screen, (255, 255, 255), (int(map_x + wpx), int(map_y + wpy)), 5, 1)
 
-            # Waypoint Label
-            wp_name = "Cột Đá Tổ (Khai Hoang)" if is_view_farm else "Cột Đá Tổ (Bản Doanh)"
+            # Marker Label
+            wp_name = "Cột Đá Tổ Tiền Sử"
             wp_lbl = font_small.render(wp_name, True, (255, 255, 255))
             wp_tag = pygame.Surface((wp_lbl.get_width() + 10, 18), pygame.SRCALPHA)
             pygame.draw.rect(wp_tag, (110, 60, 30, 210), (0, 0, wp_tag.get_width(), 18), border_radius=4)
@@ -417,7 +394,7 @@ class MinimapSystem:
     # -------------------------------------------------------------
     def handle_mouse_down(self, pos, button, map_mgr):
         """
-        Handles mouse clicks on Full Map:
+        Handles mouse clicks on Full Map tabs:
         """
         if not self.show_full_map or self._modal_alpha < 0.8:
             return None
@@ -436,8 +413,8 @@ class MinimapSystem:
             return None
 
         # Tab Local Valley
-        if self.tab_farm_rect.collidepoint(pos):
-            self.viewing_zone = "farm"
+        if hasattr(self, "tab_valley_rect") and self.tab_valley_rect.collidepoint(pos):
+            self.viewing_zone = "valley"
             return None
 
         # Tab Flora Ecology Atlas

@@ -356,6 +356,6 @@ class Game:
             draw_fn()
 
     def _render_lighting(self):
-        """Natural day/night atmospheric tint (amber dawn, golden afternoon, starry twilight)."""
+        """Natural day/night atmospheric tint (amber dawn, sunlit afternoon, starry twilight)."""
         light_sources = []
         self.weather_sys.draw_lighting(self.screen, self.time_sys.hour, self.time_sys.minute, light_sources)

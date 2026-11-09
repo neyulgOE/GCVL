@@ -1,7 +1,7 @@
 """
-Particle System for Green Valley Tales.
-Handles tool-use effects (soil dust, wood chips, water splashes),
-ambient seasonal particles (leaves, pollen, snow), and UI sparkles.
+Particle System for Stone Age: Primeval World.
+Handles environmental impact effects (soil dust, wood chips, river splashes),
+ambient seasonal particles (leaves, pollen, snow), and natural sparkles.
 """
 
 import pygame
@@ -235,7 +235,7 @@ class ParticleSystem:
     # ----- Tool Effect Emitters -----
 
     def emit_dirt_puff(self, world_x, world_y, count=8):
-        """Soil dust when using hoe."""
+        """Soil dust when impacting earth."""
         if len(self.particles) >= self._max_particles:
             return
         for _ in range(count):
@@ -289,7 +289,7 @@ class ParticleSystem:
             )
 
     def emit_water_splash(self, world_x, world_y, count=6):
-        """Water splash when watering crops."""
+        """Water splash when stepping or splashing in river."""
         if len(self.particles) >= self._max_particles:
             return
         for _ in range(count):
@@ -307,7 +307,7 @@ class ParticleSystem:
             )
 
     def emit_harvest_sparkle(self, world_x, world_y, count=10):
-        """Sparkle effect when harvesting crops."""
+        """Sparkle effect for prehistoric discoveries."""
         if len(self.particles) >= self._max_particles:
             return
         for _ in range(count):

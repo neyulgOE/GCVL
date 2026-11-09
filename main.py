@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Stone Age: Primeval World - Bộ Mô Phỏng & Quan Sát Hệ Sinh Thái Tiền Sử.
 Thế giới hoang dã tự nhiên 100% (Pure Primeval Nature Simulator).

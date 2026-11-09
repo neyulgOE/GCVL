@@ -1,5 +1,5 @@
 """
-Smooth 2D Camera for Green Valley Tales.
+Smooth 2D Camera for Stone Age: Primeval World.
 Tracks target entity with dt-based exponential smoothing
 and clamps to world boundaries. Supports screen shake.
 """

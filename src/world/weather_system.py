@@ -1,5 +1,5 @@
 """
-Weather and Dynamic Lighting System for Green Valley Tales.
+Weather and Dynamic Lighting System for Stone Age: Primeval World.
 Handles Weather (Sunny, Rain, Storm, Snow), Day/Night ambient lighting mask,
 soft radial cutouts for lanterns, fireflies with proper glow halos,
 morning mist, rain splash pools, and smooth screen-shake during storms.
@@ -256,7 +256,7 @@ class WeatherSystem:
 
         screen.blit(dark_mask, (0, 0))
 
-        # Add warm golden halo on lanterns / street lamps / player light at dusk and night
+        # Add warm amber halo on natural light sources at dusk and night
         if alpha >= 35:
             for (pos_x, pos_y), radius in light_sources:
                 glow_r = int(radius * 0.75)

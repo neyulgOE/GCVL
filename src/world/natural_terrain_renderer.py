@@ -111,7 +111,7 @@ class NaturalTerrainRenderer:
             pts_sh_l.append((s_xl + 26.0, sy))
             pts_sh_r.append((s_xr - 26.0, sy))
 
-            # Inner bend forms sunlit golden pebble point bar; outer bend forms steep cutbank
+            # Inner bend forms sunlit amber pebble point bar; outer bend forms steep cutbank
             point_bar_deposit = 58.0 * math.exp(-((row_f - 39.0) ** 2) / 64.0)
             bw_l = 36.0 + 8.0 * math.sin(row_f * 0.75 + 1.2) + point_bar_deposit
             cutbank_pinch = 14.0 * math.exp(-((row_f - 39.0) ** 2) / 64.0)
@@ -140,7 +140,7 @@ class NaturalTerrainRenderer:
             poly_fade_r = pts_beach_outer_r + list(reversed(pts_beach_fade_r))
             pygame.draw.polygon(river_surf, (198, 185, 142, 110), poly_fade_r)
 
-            # Main golden sandy beach & pebble point bar
+            # Main amber sandy beach & pebble point bar
             poly_beach_l = pts_beach_outer_l + list(reversed(pts_l))
             pygame.draw.polygon(river_surf, (216, 202, 164, 255), poly_beach_l)
 

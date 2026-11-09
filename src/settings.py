@@ -17,18 +17,8 @@ WORLD_WIDTH = MAP_COLS * TILE_SIZE  # 5120 px
 WORLD_HEIGHT = MAP_ROWS * TILE_SIZE  # 5120 px
 
 # Player Settings
-PLAYER_SPEED = 252.0
-PLAYER_MAX_STAMINA = 100.0
-STAMINA_RECOVERY_SLEEP = 100.0
-
-# Tool Stamina Costs
-STAMINA_COST_HANDS = 0.5
-STAMINA_COST_HOE = 2.0
-STAMINA_COST_WATER = 1.0
-STAMINA_COST_AXE = 2.5
-STAMINA_COST_PICKAXE = 3.0
-STAMINA_COST_SCYTHE = 1.5
-STAMINA_COST_FISHING = 3.5
+# Spectator Camera Speed
+SPECTATOR_SPEED = 360.0
 
 # Time & Season System (Stone Age Seasons)
 START_YEAR = 1
@@ -65,7 +55,7 @@ ERAS_DATA = {
         "subtitle": "Kỷ Định Cư - Nông Nghiệp & Thuần Hóa",
         "description": "Đẽo đá mài bóng, nung gốm đất sét, khai mở trồng trọt và thuần hóa muôn loài.",
         "badge_color": (90, 160, 100),
-        "icon": "stone_hoe"
+        "icon": "polished_celt"
     },
     ERA_BRONZE: {
         "name": "Thời Đồ Đồng (Bronze Age)",
@@ -75,11 +65,6 @@ ERAS_DATA = {
         "icon": "bronze_axe"
     }
 }
-
-# Empty compatibility dicts (no human economy / agriculture)
-CROPS_DATA = {}
-FISH_DATA = {}
-ANIMAL_DATA = {}
 
 # Stone Age Palette (Earthy, Warm Primitive Pixel Art Palette)
 PALETTE = {

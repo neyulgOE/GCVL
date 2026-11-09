@@ -5,7 +5,7 @@ Noise is sampled in normalized world coordinates u, v in [0, 1], not tile indexe
 so any map dimensions (40x40, 80x80, 200x200) maintain the exact same landforms.
 Heights are stretched across the full dynamic range [0, 1] via percentile normalization (_stretch),
 guaranteeing sharp shores, floodplains, hills, and crags without flat single-color tiers.
-(Pure Primeval Nature — Zero human camp, town, or farming artifacts).
+(Pure Primeval Nature — Zero human structures or artificial elements).
 """
 
 from __future__ import annotations
@@ -19,8 +19,8 @@ Pos = Tuple[int, int]
 class GradientNoise2D:
     """Self-contained 2D gradient noise with Fractal Brownian Motion (fBm)."""
 
-    def __init__(self, seed: int = 42) -> None:
-        rng = random.Random(seed)
+    def __init__(self, noise_salt: int = 42) -> None:
+        rng = random.Random(noise_salt)
         perm = list(range(256))
         rng.shuffle(perm)
         self.perm = perm + perm
@@ -186,20 +186,20 @@ def _inside(c: int, r: int, cols: int, rows: int) -> bool:
     return 0 <= c < cols and 0 <= r < rows
 
 
-def build_natural_play_field(cols: int, rows: int, seed: int = 2026) -> Dict[str, Any]:
+def build_natural_play_field(cols: int, rows: int, noise_salt: int = 2026) -> Dict[str, Any]:
     """
     Resolution-independent natural field generator for Stone Age wilderness.
     - 5 Discrete Elevation Tiers (0..4) with 2.5D crag cliff drops and natural walkable ramps.
     - 5 Ground Material Horizons: Scree Talus, Forest Humus, Steppe Meadow, Riparian Mud, River Sand.
     - S-Curve Meandering River with Stepping Stone Ford and Asymmetrical Point Bar Sandbanks.
-    - 100% Pure Nature — Zero human camp, town, or farming artifacts.
+    - 100% Pure Nature — Zero human structures or artificial elements.
     """
     cols = max(16, int(cols))
     rows = max(16, int(rows))
-    elev_n = GradientNoise2D(seed)
-    moist_n = GradientNoise2D(seed + 1337)
-    temp_n = GradientNoise2D(seed + 7919)
-    ridge_n = GradientNoise2D(seed + 97)
+    elev_n = GradientNoise2D(noise_salt)
+    moist_n = GradientNoise2D(noise_salt + 1337)
+    temp_n = GradientNoise2D(noise_salt + 7919)
+    ridge_n = GradientNoise2D(noise_salt + 97)
 
     # 1. Heightmap generation via normalized sampling (u, v in 0..1)
     height = [[0.0] * cols for _ in range(rows)]
@@ -313,7 +313,7 @@ def build_natural_play_field(cols: int, rows: int, seed: int = 2026) -> Dict[str
                 water.add((c, r))
                 solid.add((c, r))
             elif dist_river <= hw + 3.2:
-                # Golden Point Bar Sandbanks along the river
+                # Amber Point Bar Sandbanks along the river
                 terrain[r][c] = "point_bar_sand"
             elif tier >= 4 or (tier == 3 and v < 0.42):
                 terrain[r][c] = "scree_talus"

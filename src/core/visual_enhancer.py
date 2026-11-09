@@ -1,8 +1,8 @@
 """
-Visual Enhancer for Green Valley Tales (GCVL).
+Visual Enhancer for Stone Age: Primeval World.
 Provides reusable, high-performance visual polish tools:
-- Pre-rendered ellipse drop shadows for all 2.5D world entities (Player, Animals, NPCs, Obstacles)
-- Cozy Wooden / Parchment UI panels (Stardew Valley & Sprout Lands aesthetic)
+- Pre-rendered ellipse drop shadows for all 2.5D natural entities (Megafauna, Obstacles)
+- Prehistoric stone & hide UI panels
 - Crisp drop-shadow pixel typography
 - Cached multi-ring radial glow halos for warm point lights
 """

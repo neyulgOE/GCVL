@@ -17,9 +17,9 @@ from src.entities.obstacles import Obstacle
 
 class FastNoise2D:
     """Self-contained 2D gradient noise generator for multi-octave terrain synthesis."""
-    def __init__(self, seed: int = 1905):
-        self.seed = seed
-        rng = random.Random(seed)
+    def __init__(self, world_key: int = 1905):
+        self.world_key = world_key
+        rng = random.Random(world_key)
         self.perm = list(range(256))
         rng.shuffle(self.perm)
         self.perm += self.perm
@@ -79,13 +79,13 @@ class NaturalWorld:
     """
     Simulates a living prehistoric wilderness without human intervention.
     """
-    def __init__(self, cols=MAP_COLS, rows=MAP_ROWS, seed=777):
+    def __init__(self, cols=MAP_COLS, rows=MAP_ROWS, world_key=777):
         self.cols = cols
         self.rows = rows
-        self.seed = seed
-        self.noise = FastNoise2D(seed)
-        self.warp_noise = FastNoise2D(seed + 101)
-        self.moisture_noise = FastNoise2D(seed + 202)
+        self.world_key = world_key
+        self.noise = FastNoise2D(world_key)
+        self.warp_noise = FastNoise2D(world_key + 101)
+        self.moisture_noise = FastNoise2D(world_key + 202)
 
         # Grids
         self.elevation = [[0.5 for _ in range(cols)] for _ in range(rows)]
@@ -256,7 +256,7 @@ class NaturalWorld:
 
     def _populate_flora_and_geology(self):
         """Places trees, shrubs, boulders, and flora in natural ecological groupings."""
-        random.seed(self.seed)
+        prng = random.Random(self.world_key)
         self.obstacles.clear()
 
         def place_cluster(obs_type, center_col, center_row, count, spread=2):
@@ -267,7 +267,7 @@ class NaturalWorld:
                     c, r = center_col + dc, center_row + dr
                     if self._can_place_obstacle(c, r):
                         candidates.append((c, r))
-            random.shuffle(candidates)
+            prng.shuffle(candidates)
             for c, r in candidates:
                 if placed >= count:
                     break
@@ -307,7 +307,7 @@ class NaturalWorld:
             (c, r) for c in range(4, self.cols - 4) for r in range(4, 22)
             if self._can_place_obstacle(c, r)
         ]
-        random.shuffle(tundra_tiles)
+        prng.shuffle(tundra_tiles)
         for _ in range(28):
             if tundra_tiles:
                 c, r = tundra_tiles.pop()
@@ -322,7 +322,7 @@ class NaturalWorld:
             (c, r) for c in range(2, 22) for r in range(20, 60)
             if self._can_place_obstacle(c, r)
         ]
-        random.shuffle(highland_tiles)
+        prng.shuffle(highland_tiles)
         for _ in range(36):
             if highland_tiles:
                 c, r = highland_tiles.pop()
@@ -341,7 +341,7 @@ class NaturalWorld:
             (c, r) for c in range(54, self.cols - 2) for r in range(20, 60)
             if self._can_place_obstacle(c, r)
         ]
-        random.shuffle(forest_tiles)
+        prng.shuffle(forest_tiles)
         for _ in range(50):
             if forest_tiles:
                 c, r = forest_tiles.pop()
@@ -368,7 +368,7 @@ class NaturalWorld:
             (c, r) for c in range(4, self.cols - 4) for r in range(62, self.rows - 2)
             if self._can_place_obstacle(c, r)
         ]
-        random.shuffle(swamp_tiles)
+        prng.shuffle(swamp_tiles)
         for _ in range(32):
             if swamp_tiles:
                 c, r = swamp_tiles.pop()

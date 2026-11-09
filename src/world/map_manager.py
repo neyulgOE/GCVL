@@ -19,9 +19,9 @@ from src.entities.obstacles import Obstacle
 class MultiOctaveNoise2D:
     """Bộ sinh nhiễu Perlin 2D đa tầng (FBM) & Domain Warping tạo địa hình tự nhiên."""
 
-    def __init__(self, seed: int = 2026) -> None:
-        self.seed = seed
-        rng = random.Random(seed)
+    def __init__(self, world_key: int = 2026) -> None:
+        self.world_key = world_key
+        rng = random.Random(world_key)
         self.perm = list(range(256))
         rng.shuffle(self.perm)
         self.perm += self.perm
@@ -74,28 +74,28 @@ class MultiOctaveNoise2D:
 
 
 class MapManager:
-    def __init__(self, seed: int = 2026):
+    def __init__(self, world_key: int = 2026):
         self.cols = MAP_COLS
         self.rows = MAP_ROWS
-        self.seed = seed
+        self.world_key = world_key
         self.current_zone = "wilderness"
 
         # Bộ sinh nhiễu địa chất, độ ẩm và thực vật
-        self.elev_noise = MultiOctaveNoise2D(seed=seed)
-        self.warp_noise = MultiOctaveNoise2D(seed=seed + 101)
-        self.moist_noise = MultiOctaveNoise2D(seed=seed + 303)
-        self.flora_noise = MultiOctaveNoise2D(seed=seed + 707)
+        self.elev_noise = MultiOctaveNoise2D(world_key=world_key)
+        self.warp_noise = MultiOctaveNoise2D(world_key=world_key + 101)
+        self.moist_noise = MultiOctaveNoise2D(world_key=world_key + 303)
+        self.flora_noise = MultiOctaveNoise2D(world_key=world_key + 707)
 
         # --- Lớp 1: Địa hình (Terrain & Topography) ---
         self.heightmap = [[0.5 for _ in range(self.cols)] for _ in range(self.rows)]
         self.slope_map = [[0.0 for _ in range(self.cols)] for _ in range(self.rows)]
         self.aspect_map = [[0.0 for _ in range(self.cols)] for _ in range(self.rows)]
         self.curvature_map = [[0.0 for _ in range(self.cols)] for _ in range(self.rows)]
-        self.farm_elevation = [[2 for _ in range(self.cols)] for _ in range(self.rows)]
-        self.farm_cliff_south = [[0 for _ in range(self.cols)] for _ in range(self.rows)]
-        self.farm_cliff_east = [[0 for _ in range(self.cols)] for _ in range(self.rows)]
-        self.farm_cliff_west = [[0 for _ in range(self.cols)] for _ in range(self.rows)]
-        self.farm_ramps = set()
+        self.elevation_tier = [[2 for _ in range(self.cols)] for _ in range(self.rows)]
+        self.cliff_south = [[0 for _ in range(self.cols)] for _ in range(self.rows)]
+        self.cliff_east = [[0 for _ in range(self.cols)] for _ in range(self.rows)]
+        self.cliff_west = [[0 for _ in range(self.cols)] for _ in range(self.rows)]
+        self.ramps = set()
 
         # --- Lớp 2: Thủy văn (Hydrology) ---
         self.flow_dir = [[(0, 0) for _ in range(self.cols)] for _ in range(self.rows)]
@@ -106,30 +106,27 @@ class MapManager:
         self.water_level_offset = 0.0 # Biến động mực nước theo lượng mưa
 
         # --- Lớp 3: Đất đai & Bề mặt (Soil & Splat Map) ---
-        self.farm_terrain = [["steppe_meadow" for _ in range(self.cols)] for _ in range(self.rows)]
+        self.terrain = [["steppe_meadow" for _ in range(self.cols)] for _ in range(self.rows)]
         self.soil_type = [["loam" for _ in range(self.cols)] for _ in range(self.rows)]
         self.soil_moisture = [[0.4 for _ in range(self.cols)] for _ in range(self.rows)]
         self.surface_wetness = [[0.0 for _ in range(self.cols)] for _ in range(self.rows)]
         self.biome_map = [["steppe_meadow" for _ in range(self.cols)] for _ in range(self.rows)]
 
         # --- Lớp 4 & 5: Thực vật đa tầng, Chướng ngại vật & Điểm mốc ---
-        self.farm_obstacles = {}
-        self.farm_water_tiles = set()
-        self.farm_solid_tiles = set()
+        self.obstacles = {}
+        self.water_tiles = set()
+        self.solid_tiles = set()
         self.natural_landmarks = []  # Hóa thạch xương khổng lồ, tảng đá rêu, ghềnh thác
-        self.npcs = {}               # Trống hoàn toàn (không có con người)
 
-        # Con trỏ tương thích ngược
-        self.terrain = self.farm_terrain
-        self.obstacles = self.farm_obstacles
-        self.crops = {}
-        self.water_tiles = self.farm_water_tiles
-        self.solid_tiles = self.farm_solid_tiles
+        self.terrain = self.terrain
+        self.obstacles = self.obstacles
+        self.water_tiles = self.water_tiles
+        self.solid_tiles = self.solid_tiles
         self.world = self
-        self.cliff_south = self.farm_cliff_south
-        self.cliff_east = self.farm_cliff_east
-        self.cliff_west = self.farm_cliff_west
-        self.elevation_tier = self.farm_elevation
+        self.cliff_south = self.cliff_south
+        self.cliff_east = self.cliff_east
+        self.cliff_west = self.cliff_west
+        self.elevation_tier = self.elevation_tier
 
         # Animation mặt nước
         self.water_anim_timer = 0.0
@@ -192,8 +189,8 @@ class MapManager:
         - Dòng sông chính + 2 suối phụ lưu chảy từ khe núi xuống hợp lưu
         - Bờ lõm dựng đứng (Cut-bank cliff) vs Bờ lồi bãi bồi cát sỏi (Point bar)
         """
-        self.farm_water_tiles.clear()
-        self.farm_solid_tiles.clear()
+        self.water_tiles.clear()
+        self.solid_tiles.clear()
         self.tributary_tiles.clear()
         self.natural_landmarks.clear()
 
@@ -274,23 +271,23 @@ class MapManager:
 
                 # Quy đổi ra 5 tầng độ cao hiển thị vách đá 2.5D
                 if z < 0.19:
-                    self.farm_elevation[r][c] = 0
+                    self.elevation_tier[r][c] = 0
                 elif z < 0.29:
-                    self.farm_elevation[r][c] = 1
+                    self.elevation_tier[r][c] = 1
                 elif z < 0.52:
-                    self.farm_elevation[r][c] = 2
+                    self.elevation_tier[r][c] = 2
                 elif z < 0.68:
-                    self.farm_elevation[r][c] = 3
+                    self.elevation_tier[r][c] = 3
                 else:
-                    self.farm_elevation[r][c] = 4
+                    self.elevation_tier[r][c] = 4
 
         # Tính mặt vách đá 2.5D (Cliff Drops)
         for r in range(self.rows):
             for c in range(self.cols):
-                cur_e = self.farm_elevation[r][c]
-                self.farm_cliff_south[r][c] = max(0, cur_e - self.farm_elevation[min(self.rows - 1, r + 1)][c]) if cur_e >= 2 else 0
-                self.farm_cliff_east[r][c] = max(0, cur_e - self.farm_elevation[r][min(self.cols - 1, c + 1)]) if cur_e >= 2 else 0
-                self.farm_cliff_west[r][c] = max(0, cur_e - self.farm_elevation[r][max(0, c - 1)]) if cur_e >= 2 else 0
+                cur_e = self.elevation_tier[r][c]
+                self.cliff_south[r][c] = max(0, cur_e - self.elevation_tier[min(self.rows - 1, r + 1)][c]) if cur_e >= 2 else 0
+                self.cliff_east[r][c] = max(0, cur_e - self.elevation_tier[r][min(self.cols - 1, c + 1)]) if cur_e >= 2 else 0
+                self.cliff_west[r][c] = max(0, cur_e - self.elevation_tier[r][max(0, c - 1)]) if cur_e >= 2 else 0
 
         # 4. Phân bổ Lớp Đất (Soil), Độ ẩm (Moisture) & Sinh cảnh (Biome Splat Map)
         for r in range(self.rows):
@@ -313,27 +310,27 @@ class MapManager:
                 if z < 0.19 or (c, r) in self.tributary_tiles:
                     # Ghềnh đá cạn tự nhiên ở vùng chuyển tiếp (r=35..37 hoặc thượng nguồn r=12..14)
                     if (35 <= r <= 37 or 12 <= r <= 13) and dist_river <= hw + 0.4:
-                        self.farm_terrain[r][c] = "bridge_ford"  # Ghềnh đá lội qua tự nhiên
+                        self.terrain[r][c] = "bridge_ford"  # Ghềnh đá lội qua tự nhiên
                         self.soil_type[r][c] = "gravel_rock"
                         self.biome_map[r][c] = "riparian_corridor"
                     else:
-                        self.farm_terrain[r][c] = "water"
+                        self.terrain[r][c] = "water"
                         self.soil_type[r][c] = "sand"
                         self.biome_map[r][c] = "river_water"
-                        self.farm_water_tiles.add((c, r))
-                        self.farm_solid_tiles.add((c, r))
+                        self.water_tiles.add((c, r))
+                        self.solid_tiles.add((c, r))
 
                 # B. Đồi đá & Vách núi dựng đứng (18% diện tích - 4 góc & sườn thung lũng như ảnh 1 & 2)
                 elif z >= 0.64 or slope >= 0.11:
-                    self.farm_terrain[r][c] = "scree_talus"
+                    self.terrain[r][c] = "scree_talus"
                     self.soil_type[r][c] = "gravel_rock"
                     self.biome_map[r][c] = "rock_cliff"
                     if z >= 0.78 or slope >= 0.18:
-                        self.farm_solid_tiles.add((c, r))  # Vách đá cao không thể leo trực diện
+                        self.solid_tiles.add((c, r))  # Vách đá cao không thể leo trực diện
 
                 # C. Đầm lầy & Vùng ngập nước góc thấp (8% diện tích - Hạ lưu phía Nam)
                 elif r >= int(self.rows * 0.76) and z <= 0.34 and moist >= 0.62:
-                    self.farm_terrain[r][c] = "riparian_mud"
+                    self.terrain[r][c] = "riparian_mud"
                     self.soil_type[r][c] = "mud_silt"
                     self.biome_map[r][c] = "wetland_marsh"
 
@@ -343,22 +340,22 @@ class MapManager:
                     signed_offset = (c + 0.5) - rc
                     is_point_bar = (signed_offset > 0 and curv > 0.05) or (signed_offset < 0 and curv < -0.05)
                     if is_point_bar or dist_river <= hw + 2.6:
-                        self.farm_terrain[r][c] = "settlement_loam"  # Tái sử dụng mã màu cát vàng ấm của bãi bồi
+                        self.terrain[r][c] = "settlement_loam"  # Tái sử dụng mã màu cát vàng ấm của bãi bồi
                         self.soil_type[r][c] = "sand"
                     else:
-                        self.farm_terrain[r][c] = "riparian_mud"
+                        self.terrain[r][c] = "riparian_mud"
                         self.soil_type[r][c] = "mud_silt"
                     self.biome_map[r][c] = "riparian_corridor"
 
                 # E. Rừng hỗn hợp đa tầng (32% diện tích - Bao quanh sườn đồi & rìa map)
                 elif moist >= 0.52 or c <= 18 or c >= self.cols - 19 or z >= 0.46:
-                    self.farm_terrain[r][c] = "forest_humus"
+                    self.terrain[r][c] = "forest_humus"
                     self.soil_type[r][c] = "humus"
                     self.biome_map[r][c] = "mixed_forest"
 
                 # F. Đồng cỏ mở trung tâm thung lũng (22% diện tích - Open Meadow)
                 else:
-                    self.farm_terrain[r][c] = "steppe_meadow"
+                    self.terrain[r][c] = "steppe_meadow"
                     self.soil_type[r][c] = "loam"
                     self.biome_map[r][c] = "open_meadow"
 
@@ -437,8 +434,8 @@ class MapManager:
         - Bãi bồi ven sông có sỏi cuội (pebble), đá tảng (boulder), gỗ lũa (log) và lau sậy (weeds).
         - Rừng có cây cổ thụ vượt tán, cây non dưới tán, bụi quả mọng, dương xỉ, nấm và cành khô.
         """
-        rng = random.Random(self.seed)
-        self.farm_obstacles.clear()
+        rng = random.Random(self.world_key)
+        self.obstacles.clear()
 
         for r in range(2, self.rows - 2):
             rc = self.get_river_center_float(r)
@@ -459,71 +456,71 @@ class MapManager:
                 # 1. SINH CẢNH ĐỒI ĐÁ & CHÂN VÁCH NÚI (Rock Cliffs & Talus Scree)
                 if biome == "rock_cliff":
                     if slope >= 0.09 and roll < 0.28:
-                        self.farm_obstacles[(c, r)] = Obstacle("boulder", c, r, health=3, max_health=3)
+                        self.obstacles[(c, r)] = Obstacle("boulder", c, r, health=3, max_health=3)
                     elif roll < 0.42:
-                        self.farm_obstacles[(c, r)] = Obstacle("rock_small", c, r, health=1)
+                        self.obstacles[(c, r)] = Obstacle("rock_small", c, r, health=1)
                     elif z >= 0.66 and roll < 0.50:
                         # Thông núi cao (Conifer) mọc bám trên vách đá (như ảnh 2 & 3)
-                        self.farm_obstacles[(c, r)] = Obstacle("tree_tundra", c, r, health=4, max_health=4)
+                        self.obstacles[(c, r)] = Obstacle("tree_tundra", c, r, health=4, max_health=4)
 
                 # 2. HÀNH LANG VEN SÔNG & BÃI BỒI CÁT SỎI (Riparian & Point Bar - như ảnh 1)
                 elif biome == "riparian_corridor":
                     # Sát mép nước: Lau sậy, cói và đá cuội lòng suối
                     if dist_river <= hw + 1.6:
                         if roll < 0.32:
-                            self.farm_obstacles[(c, r)] = Obstacle("weeds", c, r, health=1, variant=(c + r) % 2 + 1)
+                            self.obstacles[(c, r)] = Obstacle("weeds", c, r, health=1, variant=(c + r) % 2 + 1)
                         elif roll < 0.52:
-                            self.farm_obstacles[(c, r)] = Obstacle("pebble", c, r, health=1)
+                            self.obstacles[(c, r)] = Obstacle("pebble", c, r, health=1)
                     # Trên bãi bồi cát vàng: Đá tảng rải rác, sỏi cuội, gỗ lũa trôi dạt và bụi cây thấp
                     else:
                         if roll < 0.18:
-                            self.farm_obstacles[(c, r)] = Obstacle("pebble", c, r, health=1)
+                            self.obstacles[(c, r)] = Obstacle("pebble", c, r, health=1)
                         elif roll < 0.24:
-                            self.farm_obstacles[(c, r)] = Obstacle("boulder", c, r, health=3, max_health=3)
+                            self.obstacles[(c, r)] = Obstacle("boulder", c, r, health=3, max_health=3)
                         elif roll < 0.28:
-                            self.farm_obstacles[(c, r)] = Obstacle("log", c, r, health=2, max_health=2)
+                            self.obstacles[(c, r)] = Obstacle("log", c, r, health=2, max_health=2)
                         elif cluster_val > 0.58 and roll < 0.36:
-                            self.farm_obstacles[(c, r)] = Obstacle("wild_bush", c, r, health=1)
+                            self.obstacles[(c, r)] = Obstacle("wild_bush", c, r, health=1)
 
                 # 3. RỪNG HỖN HỢP ĐA TẦNG TÁN (Mixed Primeval Forest - 6 Canopy Layers)
                 elif biome == "mixed_forest":
                     # Tầng vượt tán & Tán chính (Tập trung ở lõi cụm có cluster_val > 0.52)
                     if cluster_val > 0.55 and roll < 0.38:
                         tree_type = "tree_tundra" if z > 0.54 else "tree_forest"
-                        self.farm_obstacles[(c, r)] = Obstacle(tree_type, c, r, health=4, max_health=4)
+                        self.obstacles[(c, r)] = Obstacle(tree_type, c, r, health=4, max_health=4)
                     # Tầng dưới tán & Cây bụi ở rìa cụm rừng (Ecotone)
                     elif 0.42 <= cluster_val <= 0.55 and roll < 0.26:
-                        self.farm_obstacles[(c, r)] = Obstacle("wild_bush", c, r, health=1)
+                        self.obstacles[(c, r)] = Obstacle("wild_bush", c, r, health=1)
                     # Tầng mặt đất: Cây mục đổ, gốc cây rêu, nấm ẩm và cành khô rụng
                     elif roll < 0.06:
-                        self.farm_obstacles[(c, r)] = Obstacle("log", c, r, health=2, max_health=2)
+                        self.obstacles[(c, r)] = Obstacle("log", c, r, health=2, max_health=2)
                     elif roll < 0.11 and moist > 0.58:
-                        self.farm_obstacles[(c, r)] = Obstacle("prop_mushroom", c, r, health=1)
+                        self.obstacles[(c, r)] = Obstacle("prop_mushroom", c, r, health=1)
                     elif roll < 0.16:
-                        self.farm_obstacles[(c, r)] = Obstacle("branch", c, r, health=1)
+                        self.obstacles[(c, r)] = Obstacle("branch", c, r, health=1)
                     elif roll < 0.20:
-                        self.farm_obstacles[(c, r)] = Obstacle("boulder", c, r, health=3, max_health=3)
+                        self.obstacles[(c, r)] = Obstacle("boulder", c, r, health=3, max_health=3)
 
                 # 4. ĐỒNG CỎ MỞ TRUNG TÂM (Open Steppe Meadow)
                 elif biome == "open_meadow":
                     # Giữ không gian thoáng đãng để tạo chiều sâu thị giác, chỉ điểm xuyết cụm cây tán rộng & bụi hoa quả
                     if cluster_val > 0.68 and roll < 0.14:
-                        self.farm_obstacles[(c, r)] = Obstacle("tree_steppe", c, r, health=4, max_health=4)
+                        self.obstacles[(c, r)] = Obstacle("tree_steppe", c, r, health=4, max_health=4)
                     elif cluster_val > 0.62 and roll < 0.22:
-                        self.farm_obstacles[(c, r)] = Obstacle("wild_bush", c, r, health=1)
+                        self.obstacles[(c, r)] = Obstacle("wild_bush", c, r, health=1)
                     elif roll < 0.03:
-                        self.farm_obstacles[(c, r)] = Obstacle("rock_small", c, r, health=1)
+                        self.obstacles[(c, r)] = Obstacle("rock_small", c, r, health=1)
 
                 # 5. ĐẦM LẦY HẠ LƯU (Wetland Marsh)
                 elif biome == "wetland_marsh":
                     if roll < 0.22:
-                        self.farm_obstacles[(c, r)] = Obstacle("tree_swamp", c, r, health=4, max_health=4)
+                        self.obstacles[(c, r)] = Obstacle("tree_swamp", c, r, health=4, max_health=4)
                     elif roll < 0.45:
-                        self.farm_obstacles[(c, r)] = Obstacle("weeds", c, r, health=1)
+                        self.obstacles[(c, r)] = Obstacle("weeds", c, r, health=1)
                     elif roll < 0.55:
-                        self.farm_obstacles[(c, r)] = Obstacle("clay_patch", c, r, health=1)
+                        self.obstacles[(c, r)] = Obstacle("clay_patch", c, r, health=1)
 
-        self.obstacles = self.farm_obstacles
+        self.obstacles = self.obstacles
 
     # -------------------------------------------------------------------------
     # PHẢN ỨNG MÔI TRƯỜNG ĐỘNG THEO THỜI TIẾT & MÙA (CAUSAL ENVIRONMENT UPDATE)
@@ -553,11 +550,11 @@ class MapManager:
     def _can_place_obstacle(self, col: int, row: int) -> bool:
         if not (0 <= col < self.cols and 0 <= row < self.rows):
             return False
-        if (col, row) in self.farm_water_tiles or (col, row) in self.farm_solid_tiles:
+        if (col, row) in self.water_tiles or (col, row) in self.solid_tiles:
             return False
-        if self.farm_terrain[row][col] == "bridge_ford":
+        if self.terrain[row][col] == "bridge_ford":
             return False
-        if (col, row) in self.farm_obstacles:
+        if (col, row) in self.obstacles:
             return False
         return True
 
@@ -605,7 +602,7 @@ class MapManager:
             obs.update(dt)
 
     def advance_day(self, current_season_id: str, is_raining: bool = False):
-        """Vòng đời tự nhiên qua ngày mới (không có NPC hay ruộng lúa nhân tạo)."""
+        """Vòng đời tự nhiên qua ngày mới (thế giới tự nhiên nguyên sinh)."""
         if is_raining:
             self.apply_weather_response(10.0, "rain", 1.0)
         else:
@@ -619,17 +616,15 @@ class MapManager:
 
     def to_dict(self):
         return {
-            "seed": self.seed,
-            "farm_terrain": self.farm_terrain,
-            "farm_obstacles": [obs.to_dict() for obs in self.farm_obstacles.values()],
+            "world_key": self.world_key,
+            "terrain": self.terrain,
+            "obstacles": [obs.to_dict() for obs in self.obstacles.values()],
         }
 
     def from_dict(self, data):
-        self.seed = data.get("seed", self.seed)
-        self.farm_terrain = data.get("farm_terrain", self.farm_terrain)
-        self.farm_obstacles = {}
-        for o_data in data.get("farm_obstacles", []):
+        self.world_key = data.get("world_key", self.world_key)
+        self.terrain = data.get("terrain", self.terrain)
+        self.obstacles = {}
+        for o_data in data.get("obstacles", []):
             obs = Obstacle.from_dict(o_data)
-            self.farm_obstacles[(obs.col, obs.row)] = obs
-        self.terrain = self.farm_terrain
-        self.obstacles = self.farm_obstacles
+            self.obstacles[(obs.col, obs.row)] = obs
