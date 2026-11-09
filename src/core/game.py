@@ -169,7 +169,7 @@ class Game:
         # 8. Corner Minimap
         if not self.minimap.show_full_map:
             self.minimap.draw_minimap(
-                self.screen, self.map_mgr, None,
+                self.screen, self.map_mgr, self.wildlife_mgr,
                 self.free_cam.target, self.camera, self.fog_of_war
             )
 

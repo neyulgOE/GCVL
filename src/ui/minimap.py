@@ -93,76 +93,53 @@ class MinimapSystem:
     # -------------------------------------------------------------
     # MAP SURFACE BUILDERS
     # -------------------------------------------------------------
-    def _build_farm_surface(self, map_mgr, animals_mgr, fog_of_war=None):
+    def _build_farm_surface(self, map_mgr, wildlife_mgr=None, fog_of_war=None):
         base = pygame.Surface((MAP_COLS, MAP_ROWS), pygame.SRCALPHA)
         for r in range(MAP_ROWS):
             for c in range(MAP_COLS):
-                t = map_mgr.farm_terrain[r][c]
-                if (c, r) in map_mgr.farm_water_tiles or t == "water":
+                t = map_mgr.terrain[r][c]
+                if (c, r) in map_mgr.water_tiles or t == "water":
                     col = self.COLORS["water"]
                 elif t in ["bridge_ford", "bridge_log"]:
                     col = self.COLORS["bridge"]
-                elif t in ["trail_dirt", "trail_gravel", "trail_causeway"]:
+                elif t == "scree_talus":
+                    col = self.COLORS["biome_highlands"]
+                elif t == "forest_humus":
+                    col = self.COLORS["biome_forest"]
+                elif t == "riparian_mud":
+                    col = self.COLORS["biome_swamp"]
+                elif t == "point_bar_sand":
                     col = self.COLORS["trail"]
-                elif t == "dirt_tilled":
-                    col = self.COLORS["dirt_tilled"]
-                elif t == "dirt_watered":
-                    col = self.COLORS["dirt_watered"]
+                elif t in ["biome_steppe", "steppe_meadow"]:
+                    col = self.COLORS["biome_steppe"]
                 elif t == "biome_tundra":
                     col = self.COLORS["biome_tundra"]
-                elif t == "biome_forest":
-                    col = self.COLORS["biome_forest"]
-                elif t == "biome_highlands":
-                    col = self.COLORS["biome_highlands"]
-                elif t == "biome_swamp":
-                    col = self.COLORS["biome_swamp"]
-                elif t == "biome_steppe":
-                    col = self.COLORS["biome_steppe"]
-                elif (c, r) in map_mgr.farmable_tiles:
-                    col = self.COLORS["farmable"]
                 else:
                     col = self.COLORS["grass"]
                 base.set_at((c, r), col)
 
-        # Obstacles
-        for (c, r), obs in map_mgr.farm_obstacles.items():
+        # Obstacles & Flora
+        for (c, r), obs in map_mgr.obstacles.items():
             if "tree" in obs.obs_type:
                 base.set_at((c, r), self.COLORS["tree"])
-            elif obs.obs_type == "boulder":
+            elif obs.obs_type in ["boulder", "rock_small", "copper_rock"]:
                 base.set_at((c, r), self.COLORS["boulder"])
-            elif obs.obs_type == "prop_bone":
-                base.set_at((c, r), self.COLORS["bone"])
             elif obs.obs_type == "wild_bush":
                 base.set_at((c, r), self.COLORS["berry"])
             else:
                 base.set_at((c, r), self.COLORS["obstacle"])
 
-        # Crops
-        for (c, r) in map_mgr.farm_crops:
-            base.set_at((c, r), self.COLORS["crop"])
+        # Autonomous Prehistoric Wildlife
+        if wildlife_mgr and hasattr(wildlife_mgr, "beasts"):
+            for beast in wildlife_mgr.beasts:
+                if not beast.is_dead:
+                    bc = int(beast.x // TILE_SIZE)
+                    br = int(beast.y // TILE_SIZE)
+                    if 0 <= bc < MAP_COLS and 0 <= br < MAP_ROWS:
+                        dot_col = (240, 80, 50) if beast.is_predator else (230, 200, 100)
+                        base.set_at((bc, br), dot_col)
 
-        # Ancestral Rock Shelter
-        sc, sr = map_mgr.shelter_pos
-        for dc in range(3):
-            for dr in range(3):
-                if 0 <= sc + dc < MAP_COLS and 0 <= sr + dr < MAP_ROWS:
-                    base.set_at((sc + dc, sr + dr), self.COLORS["shelter"])
-
-        # Campfire
-        base.set_at(map_mgr.campfire_pos, self.COLORS["campfire"])
-
-        # Tribal Cache & Waypoint
-        base.set_at(map_mgr.shipping_bin_pos, self.COLORS["shipping_bin"])
-        base.set_at(map_mgr.farm_waypoint, self.COLORS["waypoint"])
-
-        # Animals / Wildlife
-        for anim in getattr(animals_mgr, "animals", []):
-            ac = int(anim.x // TILE_SIZE)
-            ar = int(anim.y // TILE_SIZE)
-            if 0 <= ac < MAP_COLS and 0 <= ar < MAP_ROWS:
-                base.set_at((ac, ar), self.COLORS["animal"])
-
-        # Mask unexplored tiles with black fog of war
+        # Mask unexplored tiles if fog of war enabled
         if fog_of_war and fog_of_war.is_enabled:
             for r in range(MAP_ROWS):
                 for c in range(MAP_COLS):
@@ -170,31 +147,6 @@ class MinimapSystem:
                         base.set_at((c, r), (14, 12, 10))
 
         self._farm_surface = base
-
-    def _build_town_surface(self, map_mgr):
-        base = pygame.Surface((MAP_COLS, MAP_ROWS), pygame.SRCALPHA)
-        for r in range(MAP_ROWS):
-            for c in range(MAP_COLS):
-                t = map_mgr.town_terrain[r][c]
-                if (c, r) in map_mgr.town_water_tiles:
-                    col = self.COLORS["water"]
-                elif (c, r) in map_mgr.town_solid_tiles:
-                    col = self.COLORS["shop"]
-                elif t == "cobble":
-                    col = self.COLORS["cobble"]
-                elif t == "stone_road":
-                    col = self.COLORS["stone_road"]
-                else:
-                    col = self.COLORS["grass"]
-                base.set_at((c, r), col)
-
-        # Town Waypoint
-        base.set_at(map_mgr.town_waypoint, self.COLORS["waypoint"])
-
-        # NPCs
-        for npc in map_mgr.npcs.values():
-            base.set_at((npc.col, npc.row), self.COLORS["npc"])
-
         self._town_surface = base
 
     # -------------------------------------------------------------
@@ -203,9 +155,8 @@ class MinimapSystem:
     def draw_minimap(self, screen, map_mgr, animals_mgr, player, camera, fog_of_war=None):
         """Draw real-time corner minimap with Fog of War exploration mask."""
         self._rebuild_timer += 1
-        if self._dirty or self._farm_surface is None or self._town_surface is None or (self._rebuild_timer % 30 == 0):
+        if self._dirty or self._farm_surface is None or (self._rebuild_timer % 30 == 0):
             self._build_farm_surface(map_mgr, animals_mgr, fog_of_war)
-            self._build_town_surface(map_mgr)
             self._dirty = False
 
         surface = self._farm_surface if map_mgr.current_zone == "farm" else self._town_surface
@@ -220,7 +171,7 @@ class MinimapSystem:
         screen.blit(panel, (x - 4, y - 24))
 
         # Zone Label tag
-        zone_name = "Khai Hoang" if map_mgr.current_zone == "farm" else "Bản Doanh"
+        zone_name = "Thế Giới Tiền Sử"
         font = pygame.font.SysFont("dejavusans", 11, bold=True)
         z_lbl = font.render(zone_name, True, (255, 235, 180))
         screen.blit(z_lbl, (x, y - 20))
