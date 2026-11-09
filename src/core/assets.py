@@ -473,34 +473,51 @@ class AssetManager:
 
         # Prehistoric Forageable Flora Sprites & Trees
         flora_assets = {
-            "wild_bush": "stone_age_rts_sliced_assets_pack/stone_age_rts_asset_pack/05_forageable_flora_3stages/flora_berry_bush_stage_04.png",
-            "wild_bush_0": "stone_age_rts_sliced_assets_pack/stone_age_rts_asset_pack/05_forageable_flora_3stages/flora_berry_bush_stage_04.png",
-            "wild_bush_1": "stone_age_rts_sliced_assets_pack/stone_age_rts_asset_pack/05_forageable_flora_3stages/flora_berry_bush_stage_05.png",
-            "wild_bush_2": "stone_age_rts_sliced_assets_pack/stone_age_rts_asset_pack/05_forageable_flora_3stages/flora_berry_bush_stage_06.png",
-            "flora_berries": "stone_age_rts_sliced_assets_pack/stone_age_rts_asset_pack/05_forageable_flora_3stages/flora_berry_bush_stage_05.png",
-            "flora_grain": "stone_age_rts_sliced_assets_pack/stone_age_rts_asset_pack/05_forageable_flora_3stages/flora_grain_fiber_reed_stage_04.png",
-            "flora_grain_0": "stone_age_rts_sliced_assets_pack/stone_age_rts_asset_pack/05_forageable_flora_3stages/flora_grain_fiber_reed_stage_04.png",
-            "flora_grain_1": "stone_age_rts_sliced_assets_pack/stone_age_rts_asset_pack/05_forageable_flora_3stages/flora_grain_fiber_reed_stage_05.png",
-            "flora_mushroom": "stone_age_rts_sliced_assets_pack/stone_age_rts_asset_pack/05_forageable_flora_3stages/flora_mushroom_herb_stage_04.png",
-            "flora_mushroom_0": "stone_age_rts_sliced_assets_pack/stone_age_rts_asset_pack/05_forageable_flora_3stages/flora_mushroom_herb_stage_04.png",
-            "flora_mushroom_1": "stone_age_rts_sliced_assets_pack/stone_age_rts_asset_pack/05_forageable_flora_3stages/flora_mushroom_herb_stage_05.png",
-            "flora_tuber": "stone_age_rts_sliced_assets_pack/stone_age_rts_asset_pack/05_forageable_flora_3stages/flora_tuber_root_garlic_stage_04.png",
-            "tree_steppe": "stone_age_rts_sliced_assets_pack/stone_age_rts_asset_pack/04_prehistoric_trees_and_wood/tree_steppe_oak_pine_01.png",
-            "tree_forest": "stone_age_rts_sliced_assets_pack/stone_age_rts_asset_pack/04_prehistoric_trees_and_wood/tree_primeval_fern_cycad_01.png",
-            "tree_tundra": "stone_age_rts_sliced_assets_pack/stone_age_rts_asset_pack/04_prehistoric_trees_and_wood/tree_tundra_spruce_birch_01.png",
-            "tree_swamp": "stone_age_rts_sliced_assets_pack/stone_age_rts_asset_pack/04_prehistoric_trees_and_wood/tree_swamp_mangrove_01.png",
-            "branch_wood": "stone_age_rts_sliced_assets_pack/stone_age_rts_asset_pack/04_prehistoric_trees_and_wood/woodcut_split_timber_11.png",
-            "branch_logs": "stone_age_rts_sliced_assets_pack/stone_age_rts_asset_pack/04_prehistoric_trees_and_wood/woodcut_logs_bundle_10.png",
+            "wild_bush": "assets/stone_age/05_forageable_flora_3stages/flora_berry_bush_stage_05.png",
+            "flora_berries": "assets/stone_age/05_forageable_flora_3stages/flora_berry_bush_stage_05.png",
+            "flora_grain": "assets/stone_age/05_forageable_flora_3stages/flora_grain_fiber_reed_stage_04.png",
+            "flora_grain_0": "assets/stone_age/05_forageable_flora_3stages/flora_grain_fiber_reed_stage_04.png",
+            "flora_grain_1": "assets/stone_age/05_forageable_flora_3stages/flora_grain_fiber_reed_stage_05.png",
+            "flora_mushroom": "assets/stone_age/05_forageable_flora_3stages/flora_mushroom_herb_stage_04.png",
+            "flora_mushroom_0": "assets/stone_age/05_forageable_flora_3stages/flora_mushroom_herb_stage_04.png",
+            "flora_mushroom_1": "assets/stone_age/05_forageable_flora_3stages/flora_mushroom_herb_stage_05.png",
+            "flora_tuber": "assets/stone_age/05_forageable_flora_3stages/flora_tuber_root_garlic_stage_04.png",
+            "branch_wood": "assets/stone_age/04_prehistoric_trees_and_wood/woodcut_split_timber_11.png",
+            "branch_logs": "assets/stone_age/04_prehistoric_trees_and_wood/woodcut_logs_bundle_10.png",
         }
         for fk, fp in flora_assets.items():
             if os.path.exists(fp):
                 f_img = pygame.image.load(fp).convert_alpha()
-                if "tree" in fk:
-                    self.textures[fk] = pygame.transform.smoothscale(f_img, (112, 134))
-                elif "branch" in fk:
+                if "branch" in fk:
                     self.textures[fk] = pygame.transform.smoothscale(f_img, (48, 48))
                 else:
                     self.textures[fk] = pygame.transform.smoothscale(f_img, (56, 56))
+
+        # Multi-variant Trees across all 4 Prehistoric Biomes
+        tree_categories = {
+            "tree_steppe": ("assets/stone_age/04_prehistoric_trees_and_wood/tree_steppe_oak_pine_{:02d}.png", 10, (120, 142)),
+            "tree_forest": ("assets/stone_age/04_prehistoric_trees_and_wood/tree_primeval_fern_cycad_{:02d}.png", 10, (116, 138)),
+            "tree_tundra": ("assets/stone_age/04_prehistoric_trees_and_wood/tree_tundra_spruce_birch_{:02d}.png", 10, (110, 140)),
+            "tree_swamp": ("assets/stone_age/04_prehistoric_trees_and_wood/tree_swamp_mangrove_{:02d}.png", 2, (114, 136)),
+        }
+        for prefix, (pattern, count, sz) in tree_categories.items():
+            for i in range(1, count + 1):
+                tp = pattern.format(i)
+                if os.path.exists(tp):
+                    raw_t = pygame.image.load(tp).convert_alpha()
+                    scaled_t = pygame.transform.smoothscale(raw_t, sz)
+                    self.textures[f"{prefix}_{i - 1}"] = scaled_t
+                    if i == 1:
+                        self.textures[prefix] = scaled_t
+                        if prefix == "tree_steppe":
+                            self.textures["tree"] = scaled_t
+
+        # Berry Bush Variants (9 stages)
+        for i in range(1, 10):
+            bp = f"assets/stone_age/05_forageable_flora_3stages/flora_berry_bush_stage_{i:02d}.png"
+            if os.path.exists(bp):
+                b_raw = pygame.image.load(bp).convert_alpha()
+                self.textures[f"wild_bush_{i - 1}"] = pygame.transform.smoothscale(b_raw, (56, 56))
 
         # Soft trampled dirt decals (anchor buildings naturally into the earth)
         dirt_decal_w, dirt_decal_h = 160, 48
@@ -1778,7 +1795,6 @@ class AssetManager:
         if "woodcut_stage1_intact_oak_06" in self.textures:
             self.textures["woodcut_stage_intact"] = pygame.transform.smoothscale(self.textures["woodcut_stage1_intact_oak_06"], (120, 138))
             self.textures["tree"] = self.textures["woodcut_stage_intact"]
-            self.textures["tree_steppe"] = self.textures["woodcut_stage_intact"]
         if "woodcut_stage2_notched_oak_07" in self.textures:
             self.textures["woodcut_stage_notched"] = pygame.transform.smoothscale(self.textures["woodcut_stage2_notched_oak_07"], (120, 138))
         if "woodcut_stage3_felled_stump_08" in self.textures:

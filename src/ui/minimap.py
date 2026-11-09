@@ -57,7 +57,7 @@ class MinimapSystem:
 
     def __init__(self):
         self.show_full_map = False
-        self.viewing_zone = "farm"
+        self.viewing_zone = "macro"
         self._farm_surface = None
         self._town_surface = None
         self._dirty = True
@@ -69,8 +69,10 @@ class MinimapSystem:
         self.tab_farm_rect = pygame.Rect(0, 0, 0, 0)
         self.tab_town_rect = pygame.Rect(0, 0, 0, 0)
         self.tab_macro_rect = pygame.Rect(0, 0, 0, 0)
+        self.tab_flora_rect = pygame.Rect(0, 0, 0, 0)
         self.close_btn_rect = pygame.Rect(0, 0, 0, 0)
         self._macro_map_surface = None
+        self._flora_map_surface = None
 
     def toggle_full_map(self):
         self.show_full_map = not self.show_full_map
@@ -252,47 +254,39 @@ class MinimapSystem:
         pygame.draw.rect(screen, (120, 85, 55, int(255 * alpha)), (px, py, pw, ph), 3, border_radius=14)
 
         # Title
-        title_surf = font_large.render("BẢN ĐỒ BỘ TỘC & CỘT ĐÁ TỔ DỊCH CHUYỂN", True, (65, 42, 22))
+        title_surf = font_large.render("BẢN ĐỒ ĐẠI LỤC HOANG DÃ THỜI TIỀN SỬ (PRIMEVAL CONTINENT EXPEDITION)", True, (45, 30, 18))
         screen.blit(title_surf, (px + (pw - title_surf.get_width()) // 2, py + 12))
 
-        # Zone Tabs: [🏕️ KHAI HOANG], [🔥 BẢN DOANH], [🗺️ ĐẠI LỤC 5 BIOME], [🌿 SINH THÁI THỰC VẬT]
-        self.tab_farm_rect = pygame.Rect(px + 20, py + 48, 120, 32)
-        self.tab_town_rect = pygame.Rect(px + 148, py + 48, 125, 32)
-        self.tab_macro_rect = pygame.Rect(px + 281, py + 48, 190, 32)
-        self.tab_flora_rect = pygame.Rect(px + 479, py + 48, 215, 32)
+        # Zone Tabs: [🗺️ ĐẠI LỤC TIỀN SỬ], [🏞️ THUNG LŨNG QUAN SÁT], [🌿 SINH THÁI THẢO MỘC]
+        self.tab_macro_rect = pygame.Rect(px + 24, py + 48, 235, 32)
+        self.tab_farm_rect = pygame.Rect(px + 269, py + 48, 235, 32)
+        self.tab_flora_rect = pygame.Rect(px + 514, py + 48, 235, 32)
+        self.tab_town_rect = pygame.Rect(0, 0, 0, 0)
         self.close_btn_rect = pygame.Rect(px + pw - 38, py + 12, 26, 26)
 
-        is_view_farm = (self.viewing_zone == "farm")
-        is_view_town = (self.viewing_zone == "town")
         is_view_macro = (self.viewing_zone == "macro")
+        is_view_farm = (self.viewing_zone == "farm")
         is_view_flora = (self.viewing_zone == "flora")
 
-        # Tab 1: Farm
-        col_f = (110, 75, 45) if is_view_farm else (210, 195, 175)
-        txt_f = (255, 255, 255) if is_view_farm else (90, 65, 40)
-        pygame.draw.rect(screen, col_f, self.tab_farm_rect, border_radius=6)
-        lbl_f = font_normal.render("Khai Hoang", True, txt_f)
-        screen.blit(lbl_f, (self.tab_farm_rect.x + (self.tab_farm_rect.w - lbl_f.get_width()) // 2, self.tab_farm_rect.y + 6))
-
-        # Tab 2: Town
-        col_t = (110, 75, 45) if is_view_town else (210, 195, 175)
-        txt_t = (255, 255, 255) if is_view_town else (90, 65, 40)
-        pygame.draw.rect(screen, col_t, self.tab_town_rect, border_radius=6)
-        lbl_t = font_normal.render("Bản Doanh", True, txt_t)
-        screen.blit(lbl_t, (self.tab_town_rect.x + (self.tab_town_rect.w - lbl_t.get_width()) // 2, self.tab_town_rect.y + 6))
-
-        # Tab 3: Macro World Continent
+        # Tab 1: Macro World Continent
         col_m = (110, 75, 45) if is_view_macro else (210, 195, 175)
         txt_m = (255, 255, 255) if is_view_macro else (90, 65, 40)
         pygame.draw.rect(screen, col_m, self.tab_macro_rect, border_radius=6)
-        lbl_m = font_normal.render("🗺️ Đại Lục 5 Quần Xã", True, txt_m)
+        lbl_m = font_normal.render("🗺️ Đại Lục Tiền Sử (Atlas)", True, txt_m)
         screen.blit(lbl_m, (self.tab_macro_rect.x + (self.tab_macro_rect.w - lbl_m.get_width()) // 2, self.tab_macro_rect.y + 6))
 
-        # Tab 4: Botany & Foraging Atlas (4-Panel Ecological Map)
+        # Tab 2: Local River Valley
+        col_f = (110, 75, 45) if is_view_farm else (210, 195, 175)
+        txt_f = (255, 255, 255) if is_view_farm else (90, 65, 40)
+        pygame.draw.rect(screen, col_f, self.tab_farm_rect, border_radius=6)
+        lbl_f = font_normal.render("🏞️ Thung Lũng Quan Sát", True, txt_f)
+        screen.blit(lbl_f, (self.tab_farm_rect.x + (self.tab_farm_rect.w - lbl_f.get_width()) // 2, self.tab_farm_rect.y + 6))
+
+        # Tab 3: Botany & Foraging Atlas
         col_fl = (110, 75, 45) if is_view_flora else (210, 195, 175)
         txt_fl = (255, 255, 255) if is_view_flora else (90, 65, 40)
         pygame.draw.rect(screen, col_fl, self.tab_flora_rect, border_radius=6)
-        lbl_fl = font_normal.render("🌿 Sinh Thái Thực Vật", True, txt_fl)
+        lbl_fl = font_normal.render("🌿 Sinh Thái Thảo Mộc", True, txt_fl)
         screen.blit(lbl_fl, (self.tab_flora_rect.x + (self.tab_flora_rect.w - lbl_fl.get_width()) // 2, self.tab_flora_rect.y + 6))
 
         # Close [X]
@@ -334,24 +328,27 @@ class MinimapSystem:
                     self._macro_map_surface.fill((80, 110, 70))
 
             screen.blit(self._macro_map_surface, (map_x, map_y))
-            pygame.draw.rect(screen, (100, 75, 50), (map_x - 1, map_y - 1, map_w + 2, map_h + 2), 2)
+            pygame.draw.rect(screen, (80, 60, 40), (map_x - 1, map_y - 1, map_w + 2, map_h + 2), 2)
 
-            # Draw Interactive Biome Badges on the Continent
-            biome_badges = [
-                ("❄️ Lãnh Nguyên Băng Giá (Voi Ma Mút)", map_x + 360, map_y + 45, (60, 130, 200)),
-                ("⛰️ Hẻm Núi Cự Thạch (Đá Lửa & Hổ)", map_x + 95, map_y + 175, (175, 95, 45)),
-                ("🏕️ Thung Lũng Cội Nguồn (Bản Doanh)", map_x + 370, map_y + 185, (125, 65, 30)),
-                ("🌴 Rừng Rậm & Đầm Lầy Sâu", map_x + 580, map_y + 160, (40, 115, 60)),
-                ("🌊 Châu Thổ Duyên Hải & Sông", map_x + 420, map_y + 315, (45, 105, 155)),
-            ]
-            for b_name, bx, by, b_col in biome_badges:
-                b_surf = font_small.render(b_name, True, (255, 255, 255))
-                b_bg = pygame.Surface((b_surf.get_width() + 12, 20), pygame.SRCALPHA)
-                pygame.draw.rect(b_bg, (*b_col, 220), (0, 0, b_surf.get_width() + 12, 20), border_radius=5)
-                screen.blit(b_bg, (bx, by))
-                screen.blit(b_surf, (bx + 6, by + 2))
-                # Pin dot
-                pygame.draw.circle(screen, (255, 240, 80), (bx - 4, by + 10), 4)
+            # Draw Spectator Camera Observation Point on Central Valley
+            pulse = 0.5 + 0.5 * math.sin(pygame.time.get_ticks() / 160.0)
+            spec_x = map_x + int(0.56 * map_w)
+            spec_y = map_y + int(0.52 * map_h)
+
+            glow_r = int(10 + pulse * 5)
+            glow_surf = pygame.Surface((glow_r * 2 + 4, glow_r * 2 + 4), pygame.SRCALPHA)
+            pygame.draw.circle(glow_surf, (255, 215, 60, 80), (glow_r + 2, glow_r + 2), glow_r)
+            screen.blit(glow_surf, (spec_x - glow_r - 2, spec_y - glow_r - 2))
+
+            pygame.draw.circle(screen, (255, 230, 80), (spec_x, spec_y), 6)
+            pygame.draw.circle(screen, (255, 255, 255), (spec_x, spec_y), 6, 2)
+
+            spec_lbl = font_small.render("👁️ Vị Trí Quan Sát (Thung Lũng Sông)", True, (255, 255, 255))
+            spec_tag = pygame.Surface((spec_lbl.get_width() + 10, 18), pygame.SRCALPHA)
+            pygame.draw.rect(spec_tag, (24, 32, 45, 220), (0, 0, spec_tag.get_width(), 18), border_radius=4)
+            pygame.draw.rect(spec_tag, (255, 215, 60, 200), (0, 0, spec_tag.get_width(), 18), 1, border_radius=4)
+            screen.blit(spec_tag, (spec_x - spec_tag.get_width() // 2, spec_y - 24))
+            screen.blit(spec_lbl, (spec_x - spec_lbl.get_width() // 2, spec_y - 23))
 
         else:
             active_surf = self._farm_surface if is_view_farm else self._town_surface
@@ -402,31 +399,18 @@ class MinimapSystem:
             screen.blit(wp_tag, (int(map_x + wpx) - wp_tag.get_width() // 2, int(map_y + wpy) + 10))
             screen.blit(wp_lbl, (int(map_x + wpx) - wp_lbl.get_width() // 2, int(map_y + wpy) + 11))
 
-        # Bottom Bar: Fast Travel Teleport Button
-        self.btn_teleport_rect = pygame.Rect(px + (pw - 340) // 2, py + ph - 70, 340, 42)
+        # Bottom Bar: Biome Legend & Spectator Guidance
+        legend_rect = pygame.Rect(px + 24, py + ph - 62, pw - 48, 36)
+        pygame.draw.rect(screen, (32, 24, 18), legend_rect, border_radius=8)
+        pygame.draw.rect(screen, (90, 70, 50), legend_rect, 1, border_radius=8)
 
-        can_teleport = (self.viewing_zone != map_mgr.current_zone)
-        if can_teleport:
-            btn_col = (145, 75, 35)
-            bdr_col = (105, 45, 20)
-            dest_str = "BẢN DOANH" if self.viewing_zone == "town" else "KHAI HOANG"
-            txt_tele = f">> DỊCH CHUYỂN ĐẾN {dest_str}"
-            lbl_c = (255, 255, 255)
-        else:
-            btn_col = (195, 185, 175)
-            bdr_col = (145, 135, 125)
-            txt_tele = "(Đang ở khu vực này - Chọn tab kia để Teleport)"
-            lbl_c = (90, 80, 70)
-
-        pygame.draw.rect(screen, btn_col, self.btn_teleport_rect, border_radius=8)
-        pygame.draw.rect(screen, bdr_col, self.btn_teleport_rect, 2, border_radius=8)
-        btn_lbl = font_normal.render(txt_tele, True, lbl_c)
-        screen.blit(btn_lbl, (self.btn_teleport_rect.x + (self.btn_teleport_rect.w - btn_lbl.get_width()) // 2,
-                              self.btn_teleport_rect.y + 11))
+        legend_text = "❄️ Núi Tuyết (Bắc)  |  🏜️ Sa Mạc Đất Đỏ (Tây-Nam)  |  🌲 Rừng Nguyên Sinh (Trung Tâm)  |  🍂 Cao Nguyên Thu (Đông-Bắc)"
+        leg_surf = font_small.render(legend_text, True, (240, 230, 210))
+        screen.blit(leg_surf, (legend_rect.x + (legend_rect.w - leg_surf.get_width()) // 2, legend_rect.y + 10))
 
         # Bottom tip
         tip_surf = font_small.render("[M] hoặc [ESC] để đóng bản đồ", True, (130, 100, 70))
-        screen.blit(tip_surf, (px + pw - tip_surf.get_width() - 24, py + ph - 26))
+        screen.blit(tip_surf, (px + pw - tip_surf.get_width() - 24, py + ph - 22))
 
     # -------------------------------------------------------------
     # EVENT HANDLING
@@ -434,8 +418,6 @@ class MinimapSystem:
     def handle_mouse_down(self, pos, button, map_mgr):
         """
         Handles mouse clicks on Full Map:
-        Returns:
-            "TELEPORT_FARM", "TELEPORT_TOWN", or None
         """
         if not self.show_full_map or self._modal_alpha < 0.8:
             return None
@@ -448,31 +430,19 @@ class MinimapSystem:
             self.show_full_map = False
             return None
 
-        # Tab Farm
+        # Tab Macro Continent
+        if hasattr(self, "tab_macro_rect") and self.tab_macro_rect.collidepoint(pos):
+            self.viewing_zone = "macro"
+            return None
+
+        # Tab Local Valley
         if self.tab_farm_rect.collidepoint(pos):
             self.viewing_zone = "farm"
-            return None
-
-        # Tab Town
-        if self.tab_town_rect.collidepoint(pos):
-            self.viewing_zone = "town"
-            return None
-
-        # Tab Macro Continent
-        if self.tab_macro_rect.collidepoint(pos):
-            self.viewing_zone = "macro"
             return None
 
         # Tab Flora Ecology Atlas
         if hasattr(self, "tab_flora_rect") and self.tab_flora_rect.collidepoint(pos):
             self.viewing_zone = "flora"
             return None
-
-        # Teleport Button
-        if self.btn_teleport_rect.collidepoint(pos):
-            if self.viewing_zone != map_mgr.current_zone:
-                target_zone = self.viewing_zone
-                self.show_full_map = False
-                return f"TELEPORT_{target_zone.upper()}"
 
         return None

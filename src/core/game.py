@@ -18,6 +18,7 @@ from src.core.free_camera import FreeCamera
 from src.world.time_system import TimeSystem
 from src.world.weather_system import WeatherSystem
 from src.world.map_manager import MapManager, ZONE_FARM
+from src.world.natural_terrain_renderer import NaturalTerrainRenderer
 from src.world.particle_system import ParticleSystem
 from src.world.wildlife_manager import WildlifeManager
 from src.world.fog_of_war import FogOfWar
@@ -43,10 +44,11 @@ class Game:
         self.time_sys = TimeSystem()
         self.weather_sys = WeatherSystem()
         self.map_mgr = MapManager()
+        self.terrain_renderer = NaturalTerrainRenderer(self.assets)
         self.particle_sys = ParticleSystem()
 
         # Wildlife & Ecosystem
-        self.wildlife_mgr = WildlifeManager()
+        self.wildlife_mgr = WildlifeManager(self.map_mgr)
         self.fog_of_war = FogOfWar()
         # In nature observation mode, entire continent is revealed
         self.fog_of_war.is_enabled = False
@@ -125,6 +127,9 @@ class Game:
         # Dynamic Weather & Climate
         self.weather_sys.update(dt)
 
+        # Apply natural weather response to terrain (soil moistening / drying, river swelling)
+        self.map_mgr.apply_weather_response(dt, self.weather_sys.weather)
+
         # Ambient particles (leaves, pollen, fireflies, snow)
         is_night = (self.time_sys.hour >= 19 or self.time_sys.hour < 5)
         self.particle_sys.update_ambient(dt, self.time_sys.season_id, self.weather_sys.weather, is_night)
@@ -141,8 +146,18 @@ class Game:
     def render(self):
         self.screen.fill((18, 14, 22))
 
-        # 1. Natural Terrain & River Course
-        self._render_terrain()
+        # 1. Natural Terrain, River Course & Prehistoric Landmarks
+        self.terrain_renderer.render(self.screen, self.camera, self.map_mgr.world, self.game_time)
+
+        # 1.5. Prehistoric animal tracks on mud & sand
+        for tr in getattr(self.wildlife_mgr, "animal_tracks", []):
+            sx, sy = self.camera.world_to_screen((tr["x"], tr["y"]))
+            if -10 <= sx <= SCREEN_WIDTH + 10 and -10 <= sy <= SCREEN_HEIGHT + 10:
+                alpha = int(120 * (tr["life"] / tr["max_life"]))
+                tr_surf = pygame.Surface((10, 8), pygame.SRCALPHA)
+                pygame.draw.ellipse(tr_surf, (55, 42, 30, alpha), (0, 0, 4, 6))
+                pygame.draw.ellipse(tr_surf, (55, 42, 30, alpha), (5, 2, 4, 6))
+                self.screen.blit(tr_surf, (sx - 5, sy - 4))
 
         # 2. Y-Sorted World Entities (Flora, Boulders, Wildlife)
         self._render_ysorted_entities()
@@ -227,207 +242,6 @@ class Game:
         self.screen.blit(w_surf, (bx + pad, by + 26))
         self.screen.blit(coord_surf, (bx + pad, by + 46))
 
-    def _render_terrain(self):
-        """Renders 5 soil horizons, terraced rock cliffs, and organic meandering river."""
-        ts = TILE_SIZE
-        start_col = max(0, int(self.camera.offset_x // ts))
-        end_col = min(self.map_mgr.cols, int((self.camera.offset_x + SCREEN_WIDTH) // ts) + 2)
-        start_row = max(0, int(self.camera.offset_y // ts))
-        end_row = min(self.map_mgr.rows, int((self.camera.offset_y + SCREEN_HEIGHT) // ts) + 2)
-
-        # 1. Base Ground Horizons
-        for r in range(start_row, end_row):
-            for c in range(start_col, end_col):
-                screen_pos = self.camera.apply_pos((c * ts, r * ts))
-                h = (r * 31 + c * 17) % 4
-                t_type = self.map_mgr.terrain[r][c]
-
-                if t_type == "scree_talus":
-                    base_tex = self.assets.textures.get("scree_talus") or self.assets.textures.get("biome_highlands")
-                elif t_type == "forest_humus":
-                    base_tex = self.assets.textures.get("forest_humus") or self.assets.textures.get("biome_forest")
-                elif t_type == "riparian_mud":
-                    base_tex = self.assets.textures.get("riparian_mud") or self.assets.textures.get("biome_swamp")
-                elif t_type in ("point_bar_sand", "water", "bridge_ford", "bridge_log"):
-                    base_tex = self.assets.textures.get("point_bar_sand") or self.assets.textures.get("pebble_shore")
-                else:
-                    base_tex = (self.assets.textures.get(f"biome_steppe_{h}") or
-                                self.assets.textures.get("steppe_meadow") or
-                                self.assets.textures.get("biome_steppe"))
-
-                if base_tex:
-                    self.screen.blit(base_tex, screen_pos)
-
-        # 2. 2.5D Terraced Cliff Facings & Shading
-        cliff_s = self.assets.textures.get("cliff_face_south")
-        cliff_tall = self.assets.textures.get("cliff_face_south_tall")
-        cliff_e = self.assets.textures.get("cliff_edge_east")
-        cliff_w = self.assets.textures.get("cliff_edge_west")
-
-        c_start_row = max(0, start_row - 1)
-        c_end_row = min(self.map_mgr.rows, end_row + 1)
-        for r in range(c_start_row, c_end_row):
-            for c in range(start_col, end_col):
-                if cliff_e and self.map_mgr.farm_cliff_east[r][c] > 0:
-                    e_sx = c * ts + ts - 16 - self.camera.offset_x
-                    e_sy = r * ts - self.camera.offset_y
-                    self.screen.blit(cliff_e, (e_sx, e_sy))
-
-                if cliff_w and self.map_mgr.farm_cliff_west[r][c] > 0:
-                    w_sx = c * ts - self.camera.offset_x
-                    w_sy = r * ts - self.camera.offset_y
-                    self.screen.blit(cliff_w, (w_sx, w_sy))
-
-                s_drop = self.map_mgr.farm_cliff_south[r][c]
-                if s_drop > 0:
-                    cw_x = c * ts - self.camera.offset_x
-                    cw_y = (r + 1) * ts - 6 - self.camera.offset_y
-                    v_idx = (c * 7 + r * 13) % 4
-                    if s_drop >= 2:
-                        c_tex = self.assets.textures.get(f"cliff_face_south_tall_{v_idx}") or cliff_tall
-                    else:
-                        c_tex = self.assets.textures.get(f"cliff_face_south_{v_idx}") or cliff_s
-                    if c_tex:
-                        self.screen.blit(c_tex, (cw_x, cw_y))
-
-        # 3. Smooth Continuous Organic River Course, Riparian Pebble Shoreline & Wave VFX
-        pts_l = []
-        pts_r = []
-        pts_sh_l = []
-        pts_sh_r = []
-        pts_beach_outer_l = []
-        pts_beach_outer_r = []
-        pts_beach_fade_l = []
-        pts_beach_fade_r = []
-        foam_l = []
-        foam_r = []
-
-        gt = getattr(self, "game_time", 0.0)
-        view_top = -16
-        view_bottom = SCREEN_HEIGHT + 16
-        sample_step = 8
-
-        for sy in range(view_top, view_bottom + sample_step, sample_step):
-            wy = self.camera.offset_y + sy
-            row_f = wy / float(ts)
-            rc = self.map_mgr.get_river_center_float(row_f) * ts + 32.0
-            hw = self.map_mgr.get_river_half_width_float(row_f) * ts
-            s_xl = rc - hw - self.camera.offset_x
-            s_xr = rc + hw - self.camera.offset_x
-
-            pts_l.append((s_xl, sy))
-            pts_r.append((s_xr, sy))
-            pts_sh_l.append((s_xl + 26.0, sy))
-            pts_sh_r.append((s_xr - 26.0, sy))
-
-            # Riparian Pebble Shoreline & Point Bar Geomorphology
-            point_bar_deposit = 58.0 * math.exp(-((row_f - 39.0) ** 2) / 64.0)
-            bw_l = 36.0 + 8.0 * math.sin(row_f * 0.75 + 1.2) + point_bar_deposit
-            cutbank_pinch = 14.0 * math.exp(-((row_f - 39.0) ** 2) / 64.0)
-            bw_r = max(18.0, 34.0 + 8.0 * math.cos(row_f * 0.65) - cutbank_pinch)
-            pts_beach_outer_l.append((s_xl - bw_l, sy))
-            pts_beach_outer_r.append((s_xr + bw_r, sy))
-            pts_beach_fade_l.append((s_xl - bw_l - 18.0, sy))
-            pts_beach_fade_r.append((s_xr + bw_r + 14.0, sy))
-
-            # Harmonic lapping wave foam
-            f_xl = s_xl + 3.8 * math.sin(2.4 * gt + sy * 0.05)
-            f_xr = s_xr - 3.8 * math.sin(2.4 * gt + sy * 0.05 + 1.2)
-            foam_l.append((f_xl, sy))
-            foam_r.append((f_xr, sy))
-
-        min_xl = min(p[0] for p in pts_beach_fade_l)
-        max_xr = max(p[0] for p in pts_beach_fade_r)
-        if min_xl < SCREEN_WIDTH + 80 and max_xr > -80:
-            river_surf = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-
-            # Shoreline feathering
-            poly_fade_l = pts_beach_fade_l + list(reversed(pts_beach_outer_l))
-            pygame.draw.polygon(river_surf, (198, 185, 142, 110), poly_fade_l)
-
-            poly_fade_r = pts_beach_outer_r + list(reversed(pts_beach_fade_r))
-            pygame.draw.polygon(river_surf, (198, 185, 142, 110), poly_fade_r)
-
-            # Main pebble beach & point bar
-            poly_beach_l = pts_beach_outer_l + list(reversed(pts_l))
-            pygame.draw.polygon(river_surf, (216, 202, 164, 255), poly_beach_l)
-
-            poly_beach_r = pts_r + list(reversed(pts_beach_outer_r))
-            pygame.draw.polygon(river_surf, (192, 178, 140, 255), poly_beach_r)
-
-            # Scattered smooth river pebbles
-            for sy in range(view_top, view_bottom, 24):
-                wy = self.camera.offset_y + sy
-                row_f = wy / float(ts)
-                rc = self.map_mgr.get_river_center_float(row_f) * ts + 32.0
-                hw = self.map_mgr.get_river_half_width_float(row_f) * ts
-                s_xl = rc - hw - self.camera.offset_x
-                s_xr = rc + hw - self.camera.offset_x
-                point_bar_deposit = 58.0 * math.exp(-((row_f - 39.0) ** 2) / 64.0)
-                bw_l = 36.0 + 8.0 * math.sin(row_f * 0.75 + 1.2) + point_bar_deposit
-                bw_r = max(18.0, 34.0 + 8.0 * math.cos(row_f * 0.65))
-
-                plx = int(s_xl - bw_l * 0.55 + 5.0 * math.sin(wy * 0.13))
-                pygame.draw.circle(river_surf, (145, 130, 95, 190), (plx, sy), 3)
-                pygame.draw.circle(river_surf, (215, 200, 160, 210), (plx + 1, sy - 1), 1)
-
-                prx = int(s_xr + bw_r * 0.55 + 5.0 * math.cos(wy * 0.15))
-                pygame.draw.circle(river_surf, (145, 130, 95, 190), (prx, sy), 3)
-                pygame.draw.circle(river_surf, (215, 200, 160, 210), (prx + 1, sy - 1), 1)
-
-            # Deep River Channel
-            poly_deep = pts_l + list(reversed(pts_r))
-            pygame.draw.polygon(river_surf, (37, 104, 143, 245), poly_deep)
-
-            # Shallow Shoreline Bands
-            poly_sh_l = pts_l + list(reversed(pts_sh_l))
-            pygame.draw.polygon(river_surf, (72, 162, 192, 160), poly_sh_l)
-
-            poly_sh_r = pts_sh_r + list(reversed(pts_r))
-            pygame.draw.polygon(river_surf, (72, 162, 192, 160), poly_sh_r)
-
-            # Flowing Specular Caustics
-            flow_y_offset = int((gt * 38.0) % 36.0)
-            for cy in range(-36 + flow_y_offset, SCREEN_HEIGHT + 36, 36):
-                c_wy = self.camera.offset_y + cy
-                c_row_f = c_wy / float(ts)
-                c_rc = self.map_mgr.get_river_center_float(c_row_f) * ts + 32.0
-                c_hw = self.map_mgr.get_river_half_width_float(c_row_f) * ts
-                c_xl = c_rc - c_hw - self.camera.offset_x + 30.0
-                c_xr = c_rc + c_hw - self.camera.offset_x - 30.0
-                if c_xr > c_xl:
-                    c_pts = []
-                    for cx in range(int(c_xl), int(c_xr) + 8, 12):
-                        w_sine = cy + int(2.5 * math.sin(cx * 0.08 + gt * 2.0))
-                        c_pts.append((cx, w_sine))
-                    if len(c_pts) >= 2:
-                        for idx in range(len(c_pts) - 1):
-                            pygame.draw.line(river_surf, (180, 230, 248, 85), c_pts[idx], c_pts[idx + 1], 1)
-
-            # Shoreline Wave Foam
-            if len(foam_l) >= 2:
-                pygame.draw.lines(river_surf, (235, 248, 255, 215), False, foam_l, 2)
-            if len(foam_r) >= 2:
-                pygame.draw.lines(river_surf, (235, 248, 255, 215), False, foam_r, 2)
-
-            self.screen.blit(river_surf, (0, 0))
-
-        # 4. Natural River Stepping Stone Ford at r=36
-        r36_sy = int(36 * ts + 32 - self.camera.offset_y)
-        if -80 <= r36_sy <= SCREEN_HEIGHT + 80:
-            rc_36 = self.map_mgr.get_river_center_float(36.0) * ts + 32.0
-            hw_36 = self.map_mgr.get_river_half_width_float(36.0) * ts
-            num_stones = 9
-            for s_i in range(num_stones):
-                t_frac = (s_i + 0.5) / float(num_stones)
-                st_world_x = (rc_36 - hw_36 * 0.85) + t_frac * (hw_36 * 1.7)
-                st_sx = int(st_world_x - self.camera.offset_x)
-                st_sy = int(36.0 * ts + 32.0 - self.camera.offset_y + 4.0 * math.sin(s_i * 1.4))
-                st_tex = self.assets.textures.get(f"stepping_stone_{s_i % 4}")
-                if st_tex and -50 <= st_sx <= SCREEN_WIDTH + 50 and -50 <= st_sy <= SCREEN_HEIGHT + 50:
-                    sw, sh = st_tex.get_size()
-                    self.screen.blit(st_tex, (st_sx - sw // 2, st_sy - sh // 2))
-
     def _render_ysorted_entities(self):
         """
         Renders purely natural world objects with proper 2.5D depth ordering (Y-sorting).
@@ -455,7 +269,11 @@ class Game:
                 continue
 
             if obs.obs_type in ["tree", "tree_steppe", "tree_forest", "tree_tundra", "tree_swamp"]:
-                obs_tex = self.assets.textures.get(obs.obs_type) or self.assets.textures.get(f"tree_{season_id}") or self.assets.textures.get("woodcut_stage_intact")
+                v = (col * 17 + row * 31) % 10
+                obs_tex = (self.assets.textures.get(f"{obs.obs_type}_{v}") or
+                           self.assets.textures.get(obs.obs_type) or
+                           self.assets.textures.get(f"tree_{season_id}") or
+                           self.assets.textures.get("woodcut_stage_intact"))
                 draw_pos = (ox + obs.shake_offset - 24, oy - 70)
                 sort_y = oy + 54
                 shadow_center = (ox + 32, oy + 50)
