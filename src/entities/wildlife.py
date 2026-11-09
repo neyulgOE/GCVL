@@ -272,8 +272,8 @@ class PrehistoricBeast:
         self.state = "dead"
         self.target = None
 
-    def update(self, dt, villagers, player, settlement_mgr):
-        """Simulation tick for wild beast AI."""
+    def update(self, dt, beasts=None, *args, **kwargs):
+        """Simulation tick for wild beast AI in natural prehistoric ecosystem."""
         if self.is_dead:
             return
 
@@ -282,30 +282,36 @@ class PrehistoricBeast:
 
         # 1. PREDATOR STALKING & CHASE LOGIC
         if self.is_predator and self.state in ["roam", "stalk"]:
-            # Scan for nearby solitary villagers within detection radius (220 px)
             potential_prey = []
-            for v in villagers:
-                if not v.is_dead:
-                    dist = math.hypot(self.x - v.x, self.y - v.y)
-                    # Predators fear fire! Will not chase if near campfire
-                    if dist <= 240.0 and not settlement_mgr.is_near_fire(v.x, v.y):
-                        potential_prey.append((dist, v))
-
-            # Also check player Chieftain
-            p_dist = math.hypot(self.x - player.x, self.y - player.y)
-            if p_dist <= 200.0 and not settlement_mgr.is_near_fire(player.x, player.y):
-                potential_prey.append((p_dist, player))
-
+            if beasts:
+                for b in beasts:
+                    if b is not self and not b.is_dead and not b.is_predator and b.type != "mammoth":
+                        dist = math.hypot(self.x - b.x, self.y - b.y)
+                        if dist <= 240.0:
+                            potential_prey.append((dist, b))
             if potential_prey:
                 potential_prey.sort(key=lambda item: item[0])
                 self.target = potential_prey[0][1]
                 self.state = "chase"
 
-        # 2. CHASE STATE
+        # 2. HERBIVORE FLEE FROM NEARBY PREDATOR
+        if not self.is_predator and self.state == "roam" and beasts:
+            for b in beasts:
+                if b is not self and not b.is_dead and b.is_predator:
+                    p_dist = math.hypot(self.x - b.x, self.y - b.y)
+                    if p_dist <= 180.0:
+                        self.state = "flee"
+                        dx = self.x - b.x
+                        dy = self.y - b.y
+                        dist = math.hypot(dx, dy) or 1.0
+                        self.target_x = max(128.0, min(80 * 64.0 - 128.0, self.x + (dx / dist) * 280.0))
+                        self.target_y = max(128.0, min(80 * 64.0 - 128.0, self.y + (dy / dist) * 280.0))
+                        break
+
+        # 3. CHASE STATE
         if self.state == "chase" and self.target:
-            # If target dies or gets close to campfire, stop chase
             target_dead = getattr(self.target, "is_dead", False)
-            if target_dead or settlement_mgr.is_near_fire(self.target.x, self.target.y):
+            if target_dead:
                 self.target = None
                 self.state = "roam"
                 return
@@ -314,30 +320,36 @@ class PrehistoricBeast:
             dy = self.target.y - self.y
             dist = math.hypot(dx, dy)
 
-            # Move towards target
+            # Prey panics and flees
+            if hasattr(self.target, "state") and self.target.state != "flee" and not getattr(self.target, "is_predator", False):
+                self.target.state = "flee"
+                t_dx = self.target.x - self.x
+                t_dy = self.target.y - self.y
+                t_dist = math.hypot(t_dx, t_dy) or 1.0
+                self.target.target_x = max(128.0, min(80 * 64.0 - 128.0, self.target.x + (t_dx / t_dist) * 260.0))
+                self.target.target_y = max(128.0, min(80 * 64.0 - 128.0, self.target.y + (t_dy / t_dist) * 260.0))
+
             if dist > 38.0:
                 step = self.speed * 1.25 * dt
                 self.x += (dx / dist) * step
                 self.y += (dy / dist) * step
                 self.direction = "right" if dx > 0 else "left"
             else:
-                # Attack reach!
+                # Attack reach
                 if self.attack_cooldown <= 0:
                     self.attack_cooldown = 1.4
-                    # Inflict damage
                     if hasattr(self.target, "take_damage"):
-                        self.target.take_damage(self.damage, f"{self.name} tấn công")
-                    elif hasattr(self.target, "consume_stamina"):
-                        self.target.consume_stamina(self.damage)
+                        self.target.take_damage(self.damage, attacker=self)
 
-        # 3. ROAM STATE
+        # 4. ROAM STATE
         elif self.state == "roam":
             self.roam_timer -= dt
             if self.roam_timer <= 0:
                 self.roam_timer = random.uniform(3.0, 7.0)
-                # Pick new random stroll target
-                self.target_x = self.x + random.randint(-160, 160)
-                self.target_y = self.y + random.randint(-120, 120)
+                new_x = self.x + random.randint(-160, 160)
+                new_y = self.y + random.randint(-120, 120)
+                self.target_x = max(128.0, min(80 * 64.0 - 128.0, new_x))
+                self.target_y = max(128.0, min(80 * 64.0 - 128.0, new_y))
 
             dx = self.target_x - self.x
             dy = self.target_y - self.y
@@ -348,7 +360,7 @@ class PrehistoricBeast:
                 self.y += (dy / dist) * step
                 self.direction = "right" if dx > 0 else "left"
 
-        # 4. FLEE STATE
+        # 5. FLEE STATE
         elif self.state == "flee":
             dx = self.target_x - self.x
             dy = self.target_y - self.y
@@ -361,7 +373,9 @@ class PrehistoricBeast:
             else:
                 self.state = "roam"
 
-        # Update hitbox
+        # Clamp within world bounds & update hitbox
+        self.x = max(64.0, min(80 * 64.0 - 64.0, self.x))
+        self.y = max(64.0, min(80 * 64.0 - 64.0, self.y))
         bw, bh = self.cfg["size"]
         self.hitbox.center = (int(self.x), int(self.y))
 

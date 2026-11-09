@@ -54,10 +54,11 @@ class WildlifeManager:
         self.beasts.append(PrehistoricBeast("marsh_crocodilian", 46 * TILE_SIZE, 68 * TILE_SIZE))
         self.beasts.append(PrehistoricBeast("marsh_crocodilian", 52 * TILE_SIZE, 74 * TILE_SIZE))
 
-    def update(self, dt, villagers, player, settlement_mgr):
-        """Simulation tick for all beasts."""
+    def update(self, dt, *args, **kwargs):
+        """Simulation tick for all beasts in natural predator-prey ecosystem."""
+        alive_beasts = [b for b in self.beasts if not b.is_dead]
         for b in self.beasts:
-            b.update(dt, villagers, player, settlement_mgr)
+            b.update(dt, alive_beasts)
 
         # Periodic ecological respawn for hunted game
         self.respawn_timer -= dt

@@ -156,7 +156,7 @@ class MinimapSystem:
         base.set_at(map_mgr.farm_waypoint, self.COLORS["waypoint"])
 
         # Animals / Wildlife
-        for anim in animals_mgr.animals:
+        for anim in getattr(animals_mgr, "animals", []):
             ac = int(anim.x // TILE_SIZE)
             ar = int(anim.y // TILE_SIZE)
             if 0 <= ac < MAP_COLS and 0 <= ar < MAP_ROWS:
@@ -235,13 +235,14 @@ class MinimapSystem:
         pygame.draw.rect(screen, (255, 255, 255, 180),
                         (x + view_x, y + view_y, view_w, view_h), 1)
 
-        # Player dot (blinking)
-        px = player.x / WORLD_WIDTH * self.MINI_W
-        py = player.y / WORLD_HEIGHT * self.MINI_H
-        pulse = 0.5 + 0.5 * math.sin(pygame.time.get_ticks() / 200.0)
-        dot_size = int(2 + pulse * 2)
-        pygame.draw.circle(screen, (255, 60, 60), (int(x + px), int(y + py)), dot_size)
-        pygame.draw.circle(screen, (255, 255, 255), (int(x + px), int(y + py)), dot_size, 1)
+        # Viewport center or observer target dot
+        if player:
+            px = player.x / WORLD_WIDTH * self.MINI_W
+            py = player.y / WORLD_HEIGHT * self.MINI_H
+            pulse = 0.5 + 0.5 * math.sin(pygame.time.get_ticks() / 200.0)
+            dot_size = int(2 + pulse * 2)
+            pygame.draw.circle(screen, (100, 220, 255), (int(x + px), int(y + py)), dot_size)
+            pygame.draw.circle(screen, (255, 255, 255), (int(x + px), int(y + py)), dot_size, 1)
 
         # Border
         pygame.draw.rect(screen, (100, 75, 50, 200), (x - 1, y - 1, self.MINI_W + 2, self.MINI_H + 2), 2, border_radius=3)
@@ -407,8 +408,8 @@ class MinimapSystem:
             screen.blit(scaled_map, (map_x, map_y))
             pygame.draw.rect(screen, (100, 75, 50), (map_x - 1, map_y - 1, map_w + 2, map_h + 2), 2)
 
-            # Player marker (only if in the currently viewed zone)
-            if map_mgr.current_zone == self.viewing_zone:
+            # Player / Observer marker (only if in the currently viewed zone)
+            if map_mgr.current_zone == self.viewing_zone and player:
                 pl_x = player.x / WORLD_WIDTH * map_w
                 pl_y = player.y / WORLD_HEIGHT * map_h
                 pulse = 0.5 + 0.5 * math.sin(pygame.time.get_ticks() / 150.0)
