@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Stone Age: Dawn of Tribe - Khai Hoang Thời Đồ Đá.
-2D Pixel Art Prehistoric Survival & Civilization Building Game.
-Cross-platform: Linux & Windows.
+Stone Age: Primeval World - Bộ Mô Phỏng & Quan Sát Hệ Sinh Thái Tiền Sử.
+Thế giới hoang dã tự nhiên 100% (Pure Primeval Nature Simulator).
+Camera tự do (Spectator Free-Cam), địa hình phân tầng và động vật cổ đại.
 """
 
 import sys
@@ -17,9 +17,11 @@ if os.path.exists(libs_dir):
 
 from src.core.game import Game
 
+
 def main():
     game = Game()
     game.run()
+
 
 if __name__ == "__main__":
     main()

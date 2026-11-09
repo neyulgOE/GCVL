@@ -1,14 +1,13 @@
 """
-Settings and game constants for Stone Age: Dawn of Tribe.
-Kỷ Nguyên Đồ Đá: Bình Minh Bộ Lạc.
-Cross-platform 2D Pixel Art Survival & Civilization Building Game.
+Settings and game constants for Stone Age: Primeval World.
+Bộ Mô Phỏng Thế Giới Hoang Dã Tự Nhiên Thời Đồ Đá (Pure Nature Observation Simulator).
 """
 
 # Screen & Display Settings
 SCREEN_WIDTH = 1024
 SCREEN_HEIGHT = 640
 FPS = 60
-TITLE = "Stone Age: Dawn of Tribe - Khai Hoang Thời Đồ Đá"
+TITLE = "Stone Age: Primeval World - Bộ Mô Phỏng Thiên Nhiên Tiền Sử"
 
 # Tile & Map Settings
 TILE_SIZE = 64
