@@ -1,0 +1,2180 @@
+{
+  "pack_name": "Prehistoric Stone Age RTS — Complete Standardized & Sliced Sprite Pack (10 Categories)",
+  "total_sliced_sprites": 297,
+  "categories": {
+    "01_units_villagers": 40,
+    "02_megafauna_wildlife": 30,
+    "03_buildings_structures": 6,
+    "04_prehistoric_trees_and_wood": 42,
+    "05_forageable_flora_3stages": 36,
+    "06_foraging_items_and_props": 16,
+    "07_ui_hud_and_tech_icons": 15,
+    "08_fog_of_war_and_vision_fx": 31,
+    "09_trailblazing_and_waypoints": 22,
+    "10_scouts_and_mapmaking_items": 32,
+    "11_weather_groundwater_and_disasters": 17,
+    "12_seamless_64x64_terrain_tiles": 10
+  },
+  "items": [
+    {
+      "file": "unit_gatherer_builder_01.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_gatherer_builder_02.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_gatherer_builder_03.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_gatherer_builder_04.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_gatherer_builder_05.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_gatherer_builder_06.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_gatherer_builder_07.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_gatherer_builder_08.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_gatherer_builder_09.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_gatherer_builder_10.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_flint_spear_hunter_01.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_flint_spear_hunter_02.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_flint_spear_hunter_03.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_flint_spear_hunter_04.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_flint_spear_hunter_05.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_flint_spear_hunter_06.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_flint_spear_hunter_07.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_flint_spear_hunter_08.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_flint_spear_hunter_09.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_flint_spear_hunter_10.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_mammoth_bone_warrior_01.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_mammoth_bone_warrior_02.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_mammoth_bone_warrior_03.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_mammoth_bone_warrior_04.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_mammoth_bone_warrior_05.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_mammoth_bone_warrior_06.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_mammoth_bone_warrior_07.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_mammoth_bone_warrior_08.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_mammoth_bone_warrior_09.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_mammoth_bone_warrior_10.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_tribal_shaman_01.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_tribal_shaman_02.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_tribal_shaman_03.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_tribal_shaman_04.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_tribal_shaman_05.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_tribal_shaman_06.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_tribal_shaman_07.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_tribal_shaman_08.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_tribal_shaman_09.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_tribal_shaman_10.png",
+      "folder": "01_units_villagers",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "wildlife_mammoth_and_smilodon_01.png",
+      "folder": "02_megafauna_wildlife",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "wildlife_mammoth_and_smilodon_02.png",
+      "folder": "02_megafauna_wildlife",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "wildlife_mammoth_and_smilodon_03.png",
+      "folder": "02_megafauna_wildlife",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "wildlife_mammoth_and_smilodon_04.png",
+      "folder": "02_megafauna_wildlife",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "wildlife_mammoth_and_smilodon_05.png",
+      "folder": "02_megafauna_wildlife",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "wildlife_mammoth_and_smilodon_06.png",
+      "folder": "02_megafauna_wildlife",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "wildlife_steppe_bison_01.png",
+      "folder": "02_megafauna_wildlife",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "wildlife_steppe_bison_02.png",
+      "folder": "02_megafauna_wildlife",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "wildlife_steppe_bison_03.png",
+      "folder": "02_megafauna_wildlife",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "wildlife_steppe_bison_04.png",
+      "folder": "02_megafauna_wildlife",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "wildlife_steppe_bison_05.png",
+      "folder": "02_megafauna_wildlife",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "wildlife_steppe_bison_06.png",
+      "folder": "02_megafauna_wildlife",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "wildlife_cavebear_and_direwolf_01.png",
+      "folder": "02_megafauna_wildlife",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "wildlife_cavebear_and_direwolf_02.png",
+      "folder": "02_megafauna_wildlife",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "wildlife_cavebear_and_direwolf_03.png",
+      "folder": "02_megafauna_wildlife",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "wildlife_cavebear_and_direwolf_04.png",
+      "folder": "02_megafauna_wildlife",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "wildlife_cavebear_and_direwolf_05.png",
+      "folder": "02_megafauna_wildlife",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "wildlife_cavebear_and_direwolf_06.png",
+      "folder": "02_megafauna_wildlife",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "wildlife_wild_boar_01.png",
+      "folder": "02_megafauna_wildlife",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "wildlife_wild_boar_02.png",
+      "folder": "02_megafauna_wildlife",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "wildlife_wild_boar_03.png",
+      "folder": "02_megafauna_wildlife",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "wildlife_wild_boar_04.png",
+      "folder": "02_megafauna_wildlife",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "wildlife_wild_boar_05.png",
+      "folder": "02_megafauna_wildlife",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "wildlife_wild_boar_06.png",
+      "folder": "02_megafauna_wildlife",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "wildlife_crocodilian_and_fish_01.png",
+      "folder": "02_megafauna_wildlife",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "wildlife_crocodilian_and_fish_02.png",
+      "folder": "02_megafauna_wildlife",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "wildlife_crocodilian_and_fish_03.png",
+      "folder": "02_megafauna_wildlife",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "wildlife_crocodilian_and_fish_04.png",
+      "folder": "02_megafauna_wildlife",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "wildlife_crocodilian_and_fish_05.png",
+      "folder": "02_megafauna_wildlife",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "wildlife_crocodilian_and_fish_06.png",
+      "folder": "02_megafauna_wildlife",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "01_ancestral_rock_shelter.png",
+      "folder": "03_buildings_structures",
+      "canvas_size": [
+        384,
+        320
+      ]
+    },
+    {
+      "file": "02_hide_tipis_and_thatch_hut.png",
+      "folder": "03_buildings_structures",
+      "canvas_size": [
+        384,
+        320
+      ]
+    },
+    {
+      "file": "03_flintknapping_workshop.png",
+      "folder": "03_buildings_structures",
+      "canvas_size": [
+        384,
+        320
+      ]
+    },
+    {
+      "file": "04_meat_smoking_and_tanning_racks.png",
+      "folder": "03_buildings_structures",
+      "canvas_size": [
+        384,
+        320
+      ]
+    },
+    {
+      "file": "05_megalithic_totem_shrine.png",
+      "folder": "03_buildings_structures",
+      "canvas_size": [
+        384,
+        320
+      ]
+    },
+    {
+      "file": "06_palisade_gate_and_watchtower.png",
+      "folder": "03_buildings_structures",
+      "canvas_size": [
+        384,
+        320
+      ]
+    },
+    {
+      "file": "tree_primeval_fern_cycad_01.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "tree_primeval_fern_cycad_02.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "tree_primeval_fern_cycad_03.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "tree_primeval_fern_cycad_04.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "tree_primeval_fern_cycad_05.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "tree_primeval_fern_cycad_06.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "tree_primeval_fern_cycad_07.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "tree_primeval_fern_cycad_08.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "tree_primeval_fern_cycad_09.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "tree_primeval_fern_cycad_10.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "tree_steppe_oak_pine_01.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "tree_steppe_oak_pine_02.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "tree_steppe_oak_pine_03.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "tree_steppe_oak_pine_04.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "tree_steppe_oak_pine_05.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "tree_steppe_oak_pine_06.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "tree_steppe_oak_pine_07.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "tree_steppe_oak_pine_08.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "tree_steppe_oak_pine_09.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "tree_steppe_oak_pine_10.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "tree_tundra_spruce_birch_01.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "tree_tundra_spruce_birch_02.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "tree_tundra_spruce_birch_03.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "tree_tundra_spruce_birch_04.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "tree_tundra_spruce_birch_05.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "tree_tundra_spruce_birch_06.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "tree_tundra_spruce_birch_07.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "tree_tundra_spruce_birch_08.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "tree_tundra_spruce_birch_09.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "tree_tundra_spruce_birch_10.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "tree_swamp_mangrove_01.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "tree_swamp_mangrove_02.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "tree_swamp_mossy_cypress_03.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "wood_fallen_hollow_log_04.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "wood_mossy_snag_stump_05.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "woodcut_stage1_intact_oak_06.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "woodcut_stage2_notched_oak_07.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "woodcut_stage3_felled_stump_08.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "woodcut_logs_bundle_09.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "woodcut_logs_bundle_10.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "woodcut_split_timber_11.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "woodcut_hardwood_logs_12.png",
+      "folder": "04_prehistoric_trees_and_wood",
+      "canvas_size": [
+        192,
+        224
+      ]
+    },
+    {
+      "file": "flora_berry_bush_stage_01.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "flora_berry_bush_stage_02.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "flora_berry_bush_stage_03.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "flora_berry_bush_stage_04.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "flora_berry_bush_stage_05.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "flora_berry_bush_stage_06.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "flora_berry_bush_stage_07.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "flora_berry_bush_stage_08.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "flora_berry_bush_stage_09.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "flora_grain_fiber_reed_stage_01.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "flora_grain_fiber_reed_stage_02.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "flora_grain_fiber_reed_stage_03.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "flora_grain_fiber_reed_stage_04.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "flora_grain_fiber_reed_stage_05.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "flora_grain_fiber_reed_stage_06.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "flora_grain_fiber_reed_stage_07.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "flora_grain_fiber_reed_stage_08.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "flora_grain_fiber_reed_stage_09.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "flora_tuber_root_garlic_stage_01.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "flora_tuber_root_garlic_stage_02.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "flora_tuber_root_garlic_stage_03.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "flora_tuber_root_garlic_stage_04.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "flora_tuber_root_garlic_stage_05.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "flora_tuber_root_garlic_stage_06.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "flora_tuber_root_garlic_stage_07.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "flora_tuber_root_garlic_stage_08.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "flora_tuber_root_garlic_stage_09.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "flora_mushroom_herb_stage_01.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "flora_mushroom_herb_stage_02.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "flora_mushroom_herb_stage_03.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "flora_mushroom_herb_stage_04.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "flora_mushroom_herb_stage_05.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "flora_mushroom_herb_stage_06.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "flora_mushroom_herb_stage_07.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "flora_mushroom_herb_stage_08.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "flora_mushroom_herb_stage_09.png",
+      "folder": "05_forageable_flora_3stages",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "01_basket_crimson_berries.png",
+      "folder": "06_foraging_items_and_props",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "02_basket_golden_nuts.png",
+      "folder": "06_foraging_items_and_props",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "03_basket_wild_mushrooms.png",
+      "folder": "06_foraging_items_and_props",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "04_woven_reed_basket_empty.png",
+      "folder": "06_foraging_items_and_props",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "05_twisted_fiber_cordage.png",
+      "folder": "06_foraging_items_and_props",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "06_dried_thatch_reed_sheaf.png",
+      "folder": "06_foraging_items_and_props",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "07_pine_resin_stone_bowl.png",
+      "folder": "06_foraging_items_and_props",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "08_fresh_flax_plant_stems.png",
+      "folder": "06_foraging_items_and_props",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "09_starchy_wild_tubers.png",
+      "folder": "06_foraging_items_and_props",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "10_roasted_oak_acorns.png",
+      "folder": "06_foraging_items_and_props",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "11_golden_wild_honeycomb.png",
+      "folder": "06_foraging_items_and_props",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "12_einkorn_wild_wheat_bundle.png",
+      "folder": "06_foraging_items_and_props",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "13_leather_herbalist_pouch.png",
+      "folder": "06_foraging_items_and_props",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "14_healing_leaf_poultice.png",
+      "folder": "06_foraging_items_and_props",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "15_stone_mortar_and_pestle.png",
+      "folder": "06_foraging_items_and_props",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "16_dried_medicinal_herb_bundle.png",
+      "folder": "06_foraging_items_and_props",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "01_hud_stone_panel_slots.png",
+      "folder": "07_ui_hud_and_tech_icons",
+      "canvas_size": [
+        384,
+        288
+      ]
+    },
+    {
+      "file": "02_hud_stone_panel_inventory.png",
+      "folder": "07_ui_hud_and_tech_icons",
+      "canvas_size": [
+        384,
+        288
+      ]
+    },
+    {
+      "file": "03_hud_bone_amber_minimap_ring.png",
+      "folder": "07_ui_hud_and_tech_icons",
+      "canvas_size": [
+        288,
+        288
+      ]
+    },
+    {
+      "file": "04_icon_res_raw_meat.png",
+      "folder": "07_ui_hud_and_tech_icons",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "05_icon_res_crimson_berries.png",
+      "folder": "07_ui_hud_and_tech_icons",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "06_icon_res_flint_spearhead.png",
+      "folder": "07_ui_hud_and_tech_icons",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "07_icon_res_timber_logs.png",
+      "folder": "07_ui_hud_and_tech_icons",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "08_icon_res_mammoth_ivory.png",
+      "folder": "07_ui_hud_and_tech_icons",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "09_icon_res_campfire_warmth.png",
+      "folder": "07_ui_hud_and_tech_icons",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "10_tech_fire_mastery.png",
+      "folder": "07_ui_hud_and_tech_icons",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "11_tech_flintknapping.png",
+      "folder": "07_ui_hud_and_tech_icons",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "12_tech_spear_hunting.png",
+      "folder": "07_ui_hud_and_tech_icons",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "13_tech_hide_clothing.png",
+      "folder": "07_ui_hud_and_tech_icons",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "14_tech_megalithic_rituals.png",
+      "folder": "07_ui_hud_and_tech_icons",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "15_tech_mammoth_domestication.png",
+      "folder": "07_ui_hud_and_tech_icons",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "fow_tile_row1_01.png",
+      "folder": "08_fog_of_war_and_vision_fx",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "fow_tile_row1_02.png",
+      "folder": "08_fog_of_war_and_vision_fx",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "fow_tile_row1_03.png",
+      "folder": "08_fog_of_war_and_vision_fx",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "fow_tile_row1_04.png",
+      "folder": "08_fog_of_war_and_vision_fx",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "fow_tile_row1_05.png",
+      "folder": "08_fog_of_war_and_vision_fx",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "fow_tile_row2_01.png",
+      "folder": "08_fog_of_war_and_vision_fx",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "fow_tile_row2_02.png",
+      "folder": "08_fog_of_war_and_vision_fx",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "fow_tile_row2_03.png",
+      "folder": "08_fog_of_war_and_vision_fx",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "fow_tile_row2_04.png",
+      "folder": "08_fog_of_war_and_vision_fx",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "fow_tile_row2_05.png",
+      "folder": "08_fog_of_war_and_vision_fx",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "fow_tile_row3_01.png",
+      "folder": "08_fog_of_war_and_vision_fx",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "fow_tile_row3_02.png",
+      "folder": "08_fog_of_war_and_vision_fx",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "fow_tile_row3_03.png",
+      "folder": "08_fog_of_war_and_vision_fx",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "fow_tile_row3_04.png",
+      "folder": "08_fog_of_war_and_vision_fx",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "fow_tile_row3_05.png",
+      "folder": "08_fog_of_war_and_vision_fx",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "vision_cone_upper_01.png",
+      "folder": "08_fog_of_war_and_vision_fx",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "vision_cone_upper_02.png",
+      "folder": "08_fog_of_war_and_vision_fx",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "vision_cone_upper_03.png",
+      "folder": "08_fog_of_war_and_vision_fx",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "vision_cone_upper_04.png",
+      "folder": "08_fog_of_war_and_vision_fx",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "vision_cone_lower_01.png",
+      "folder": "08_fog_of_war_and_vision_fx",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "vision_cone_lower_02.png",
+      "folder": "08_fog_of_war_and_vision_fx",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "vision_cone_lower_03.png",
+      "folder": "08_fog_of_war_and_vision_fx",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "vision_cone_lower_04.png",
+      "folder": "08_fog_of_war_and_vision_fx",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "blind_ping_sound_and_tracks_01.png",
+      "folder": "08_fog_of_war_and_vision_fx",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "blind_ping_sound_and_tracks_02.png",
+      "folder": "08_fog_of_war_and_vision_fx",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "blind_ping_sound_and_tracks_03.png",
+      "folder": "08_fog_of_war_and_vision_fx",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "blind_ping_sound_and_tracks_04.png",
+      "folder": "08_fog_of_war_and_vision_fx",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "blind_ping_wave_and_runes_01.png",
+      "folder": "08_fog_of_war_and_vision_fx",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "blind_ping_wave_and_runes_02.png",
+      "folder": "08_fog_of_war_and_vision_fx",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "blind_ping_wave_and_runes_03.png",
+      "folder": "08_fog_of_war_and_vision_fx",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "blind_ping_wave_and_runes_04.png",
+      "folder": "08_fog_of_war_and_vision_fx",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "trail_tile_evolution_01.png",
+      "folder": "09_trailblazing_and_waypoints",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "trail_tile_evolution_02.png",
+      "folder": "09_trailblazing_and_waypoints",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "trail_tile_evolution_03.png",
+      "folder": "09_trailblazing_and_waypoints",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "trail_tile_evolution_04.png",
+      "folder": "09_trailblazing_and_waypoints",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "trail_tile_evolution_05.png",
+      "folder": "09_trailblazing_and_waypoints",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "river_crossing_bridge_01.png",
+      "folder": "09_trailblazing_and_waypoints",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "river_crossing_bridge_02.png",
+      "folder": "09_trailblazing_and_waypoints",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "river_crossing_bridge_03.png",
+      "folder": "09_trailblazing_and_waypoints",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "river_crossing_bridge_04.png",
+      "folder": "09_trailblazing_and_waypoints",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "river_crossing_bridge_05.png",
+      "folder": "09_trailblazing_and_waypoints",
+      "canvas_size": [
+        224,
+        192
+      ]
+    },
+    {
+      "file": "waypoint_marker_01.png",
+      "folder": "09_trailblazing_and_waypoints",
+      "canvas_size": [
+        160,
+        192
+      ]
+    },
+    {
+      "file": "waypoint_marker_02.png",
+      "folder": "09_trailblazing_and_waypoints",
+      "canvas_size": [
+        160,
+        192
+      ]
+    },
+    {
+      "file": "waypoint_marker_03.png",
+      "folder": "09_trailblazing_and_waypoints",
+      "canvas_size": [
+        160,
+        192
+      ]
+    },
+    {
+      "file": "waypoint_marker_04.png",
+      "folder": "09_trailblazing_and_waypoints",
+      "canvas_size": [
+        160,
+        192
+      ]
+    },
+    {
+      "file": "waypoint_marker_05.png",
+      "folder": "09_trailblazing_and_waypoints",
+      "canvas_size": [
+        160,
+        192
+      ]
+    },
+    {
+      "file": "waypoint_marker_06.png",
+      "folder": "09_trailblazing_and_waypoints",
+      "canvas_size": [
+        160,
+        192
+      ]
+    },
+    {
+      "file": "waypoint_marker_07.png",
+      "folder": "09_trailblazing_and_waypoints",
+      "canvas_size": [
+        160,
+        192
+      ]
+    },
+    {
+      "file": "waypoint_marker_08.png",
+      "folder": "09_trailblazing_and_waypoints",
+      "canvas_size": [
+        160,
+        192
+      ]
+    },
+    {
+      "file": "waypoint_marker_09.png",
+      "folder": "09_trailblazing_and_waypoints",
+      "canvas_size": [
+        160,
+        192
+      ]
+    },
+    {
+      "file": "waypoint_marker_10.png",
+      "folder": "09_trailblazing_and_waypoints",
+      "canvas_size": [
+        160,
+        192
+      ]
+    },
+    {
+      "file": "waypoint_marker_11.png",
+      "folder": "09_trailblazing_and_waypoints",
+      "canvas_size": [
+        160,
+        192
+      ]
+    },
+    {
+      "file": "waypoint_marker_12.png",
+      "folder": "09_trailblazing_and_waypoints",
+      "canvas_size": [
+        160,
+        192
+      ]
+    },
+    {
+      "file": "unit_tribal_scout_pathfinder_01.png",
+      "folder": "10_scouts_and_mapmaking_items",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_tribal_scout_pathfinder_02.png",
+      "folder": "10_scouts_and_mapmaking_items",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_tribal_scout_pathfinder_03.png",
+      "folder": "10_scouts_and_mapmaking_items",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_tribal_scout_pathfinder_04.png",
+      "folder": "10_scouts_and_mapmaking_items",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_tribal_scout_pathfinder_05.png",
+      "folder": "10_scouts_and_mapmaking_items",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_tribal_scout_pathfinder_06.png",
+      "folder": "10_scouts_and_mapmaking_items",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_tribal_scout_pathfinder_07.png",
+      "folder": "10_scouts_and_mapmaking_items",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_tribal_scout_pathfinder_08.png",
+      "folder": "10_scouts_and_mapmaking_items",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_tamed_tracker_hound_01.png",
+      "folder": "10_scouts_and_mapmaking_items",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_tamed_tracker_hound_02.png",
+      "folder": "10_scouts_and_mapmaking_items",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_tamed_tracker_hound_03.png",
+      "folder": "10_scouts_and_mapmaking_items",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_tamed_tracker_hound_04.png",
+      "folder": "10_scouts_and_mapmaking_items",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_tamed_tracker_hound_05.png",
+      "folder": "10_scouts_and_mapmaking_items",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_tamed_tracker_hound_06.png",
+      "folder": "10_scouts_and_mapmaking_items",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_tamed_tracker_hound_07.png",
+      "folder": "10_scouts_and_mapmaking_items",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_tamed_tracker_hound_08.png",
+      "folder": "10_scouts_and_mapmaking_items",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_pioneer_trailblazer_01.png",
+      "folder": "10_scouts_and_mapmaking_items",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_pioneer_trailblazer_02.png",
+      "folder": "10_scouts_and_mapmaking_items",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_pioneer_trailblazer_03.png",
+      "folder": "10_scouts_and_mapmaking_items",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_pioneer_trailblazer_04.png",
+      "folder": "10_scouts_and_mapmaking_items",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_pioneer_trailblazer_05.png",
+      "folder": "10_scouts_and_mapmaking_items",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_pioneer_trailblazer_06.png",
+      "folder": "10_scouts_and_mapmaking_items",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_pioneer_trailblazer_07.png",
+      "folder": "10_scouts_and_mapmaking_items",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "unit_pioneer_trailblazer_08.png",
+      "folder": "10_scouts_and_mapmaking_items",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "item_cartography_mapmaking_01.png",
+      "folder": "10_scouts_and_mapmaking_items",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "item_cartography_mapmaking_02.png",
+      "folder": "10_scouts_and_mapmaking_items",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "item_cartography_mapmaking_03.png",
+      "folder": "10_scouts_and_mapmaking_items",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "item_cartography_mapmaking_04.png",
+      "folder": "10_scouts_and_mapmaking_items",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "item_cartography_mapmaking_05.png",
+      "folder": "10_scouts_and_mapmaking_items",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "item_cartography_mapmaking_06.png",
+      "folder": "10_scouts_and_mapmaking_items",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "item_cartography_mapmaking_07.png",
+      "folder": "10_scouts_and_mapmaking_items",
+      "canvas_size": [
+        160,
+        160
+      ]
+    },
+    {
+      "file": "item_cartography_mapmaking_08.png",
+      "folder": "10_scouts_and_mapmaking_items",
+      "canvas_size": [
+        160,
+        160
+      ]
+    }
+  ]
+}
