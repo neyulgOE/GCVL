@@ -1,13 +1,14 @@
 """
-Time and Calendar System for Green Valley Tales.
-Handles 24-hour day/night cycle, 28-day seasons (Spring, Summer, Fall, Winter),
-year tracking, and overnight transitions.
+Time and Calendar System for Stone Age: Primeval World.
+Handles continuous 24-hour day/night cycle, 28-day prehistoric seasons
+(Spring, Summer, Fall, Winter), year progression, and celestial time.
+(Pure Natural World Simulation — continuous flow, no pass-out).
 """
 
 from src.settings import (
-    SEASONS, DAYS_PER_SEASON, GAME_START_HOUR, GAME_END_HOUR, 
-    GAME_PASS_OUT_HOUR, REAL_SECONDS_PER_GAME_10_MINUTES
+    SEASONS, DAYS_PER_SEASON, GAME_START_HOUR, REAL_SECONDS_PER_GAME_10_MINUTES
 )
+
 
 class TimeSystem:
     def __init__(self):
@@ -16,10 +17,9 @@ class TimeSystem:
         self.day = 1
         self.hour = GAME_START_HOUR
         self.minute = 0
-        
+
         self.accumulated_time = 0.0
         self.is_paused = False
-        self.day_ended = False
 
     @property
     def season_info(self):
@@ -47,7 +47,7 @@ class TimeSystem:
         return f"Năm {self.year} - {self.season_name} - Ngày {self.day}"
 
     def update(self, dt):
-        """Advance time based on delta time."""
+        """Continuously advance time based on delta time."""
         if self.is_paused:
             return None
 
@@ -58,24 +58,14 @@ class TimeSystem:
             if self.minute >= 60:
                 self.minute = 0
                 self.hour += 1
-                if self.hour == 24:
-                    # Midnight
-                    pass
-                elif self.hour > 24:
-                    self.hour = 1  # 1 AM
-
-            # Check if player passes out at 2:00 AM
-            if self.hour == GAME_PASS_OUT_HOUR and self.minute == 0:
-                return "PASS_OUT"
+                if self.hour >= 24:
+                    self.hour = 0
+                    self.advance_day()
 
         return None
 
-    def sleep_and_advance_day(self):
-        """Called when player sleeps in bed or passes out."""
-        self.hour = GAME_START_HOUR
-        self.minute = 0
-        self.accumulated_time = 0.0
-        
+    def advance_day(self):
+        """Advances to the next calendar day and transitions seasons seamlessly."""
         self.day += 1
         if self.day > DAYS_PER_SEASON:
             self.day = 1
