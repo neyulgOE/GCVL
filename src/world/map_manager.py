@@ -13,7 +13,10 @@ Mô hình hóa 7 lớp dữ liệu tự nhiên có quan hệ nhân quả:
 import pygame
 import random
 import math
-from src.settings import TILE_SIZE, MAP_COLS, MAP_ROWS, WORLD_WIDTH, WORLD_HEIGHT
+from src.settings import (
+    TILE_SIZE, MAP_COLS, MAP_ROWS, WORLD_WIDTH, WORLD_HEIGHT,
+    HEIGHT_SCREEN_SCALE, MAX_TERRAIN_STEP, MAX_TERRAIN_SLOPE,
+)
 from src.entities.obstacles import Obstacle
 
 class MultiOctaveNoise2D:
@@ -182,6 +185,75 @@ class MapManager:
         c_next = self.get_river_center_float(r0 + 1.5)
         return (c_next - 2.0 * c_curr + c_prev)
 
+    # -------------------------------------------------------------------------
+    # 2.5D SURFACE QUERIES & TRAVERSAL
+    # -------------------------------------------------------------------------
+    def get_height_at_tile(self, col: int, row: int) -> float:
+        """Return normalized terrain height for a clamped tile coordinate."""
+        col = max(0, min(self.cols - 1, int(col)))
+        row = max(0, min(self.rows - 1, int(row)))
+        return float(self.heightmap[row][col])
+
+    def get_height_at_world(self, x: float, y: float) -> float:
+        """Sample a smooth normalized height at world pixel coordinates."""
+        # Runtime entities use tile origins (col * TILE_SIZE, row * TILE_SIZE)
+        # as their ground anchors, so sample in that same coordinate space.
+        gx = max(0.0, min(self.cols - 1.0, x / float(TILE_SIZE)))
+        gy = max(0.0, min(self.rows - 1.0, y / float(TILE_SIZE)))
+        c0, r0 = int(gx), int(gy)
+        c1, r1 = min(self.cols - 1, c0 + 1), min(self.rows - 1, r0 + 1)
+        tx, ty = gx - c0, gy - r0
+        h00 = self.heightmap[r0][c0]
+        h10 = self.heightmap[r0][c1]
+        h01 = self.heightmap[r1][c0]
+        h11 = self.heightmap[r1][c1]
+        return float(
+            h00 * (1.0 - tx) * (1.0 - ty)
+            + h10 * tx * (1.0 - ty)
+            + h01 * (1.0 - tx) * ty
+            + h11 * tx * ty
+        )
+
+    def get_height_screen_offset(self, height: float) -> float:
+        """Convert normalized height to pixels around the nominal 0.5 plane."""
+        return (float(height) - 0.5) * HEIGHT_SCREEN_SCALE
+
+    def get_height_screen_offset_at_tile(self, col: int, row: int) -> float:
+        return self.get_height_screen_offset(self.get_height_at_tile(col, row))
+
+    def get_slope_at_world(self, x: float, y: float) -> float:
+        col = max(0, min(self.cols - 1, int(x // TILE_SIZE)))
+        row = max(0, min(self.rows - 1, int(y // TILE_SIZE)))
+        return float(self.slope_map[row][col])
+
+    def _world_tile(self, x: float, y: float):
+        return int(x // TILE_SIZE), int(y // TILE_SIZE)
+
+    def can_step(self, from_x: float, from_y: float, to_x: float, to_y: float) -> bool:
+        """Check whether an entity can move between two surface positions."""
+        tc, tr = self._world_tile(to_x, to_y)
+        if not (0 <= tc < self.cols and 0 <= tr < self.rows):
+            return False
+        if (tc, tr) in self.water_tiles or (tc, tr) in self.solid_tiles:
+            return False
+        if self.terrain[tr][tc] in ("water", "bridge_ford"):
+            return False
+
+        fc, fr = self._world_tile(from_x, from_y)
+        if not (0 <= fc < self.cols and 0 <= fr < self.rows):
+            return False
+
+        height_delta = abs(self.get_height_at_tile(tc, tr) - self.get_height_at_tile(fc, fr))
+        if height_delta > MAX_TERRAIN_STEP and (tc, tr) not in self.ramps:
+            return False
+        if self.slope_map[tr][tc] > MAX_TERRAIN_SLOPE and (tc, tr) not in self.ramps:
+            return False
+
+        obstacle = self.obstacles.get((tc, tr))
+        if obstacle is not None and not obstacle.is_ground_pickup:
+            return False
+        return True
+
     def _generate_natural_valley(self):
         """
         Khởi tạo cấu trúc không gian Thung lũng Phân tầng (Layered Valley Topology):
@@ -191,6 +263,7 @@ class MapManager:
         """
         self.water_tiles.clear()
         self.solid_tiles.clear()
+        self.ramps.clear()
         self.tributary_tiles.clear()
         self.natural_landmarks.clear()
 
@@ -288,6 +361,24 @@ class MapManager:
                 self.cliff_south[r][c] = max(0, cur_e - self.elevation_tier[min(self.rows - 1, r + 1)][c]) if cur_e >= 2 else 0
                 self.cliff_east[r][c] = max(0, cur_e - self.elevation_tier[r][min(self.cols - 1, c + 1)]) if cur_e >= 2 else 0
                 self.cliff_west[r][c] = max(0, cur_e - self.elevation_tier[r][max(0, c - 1)]) if cur_e >= 2 else 0
+
+        # Mark shallow one-tier transitions as traversable ramps. Deep water and
+        # high cliff cells are excluded; the gameplay layer can now distinguish
+        # a climbable slope from a decorative cliff face.
+        for r in range(self.rows):
+            for c in range(self.cols):
+                if self.heightmap[r][c] < 0.19:
+                    continue
+                current_tier = self.elevation_tier[r][c]
+                for dc, dr in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    nc, nr = c + dc, r + dr
+                    if not (0 <= nc < self.cols and 0 <= nr < self.rows):
+                        continue
+                    neighbor_tier = self.elevation_tier[nr][nc]
+                    height_delta = abs(self.heightmap[r][c] - self.heightmap[nr][nc])
+                    if current_tier != neighbor_tier and height_delta <= 0.20:
+                        self.ramps.add((c, r))
+                        self.ramps.add((nc, nr))
 
         # 4. Phân bổ Lớp Đất (Soil), Độ ẩm (Moisture) & Sinh cảnh (Biome Splat Map)
         for r in range(self.rows):

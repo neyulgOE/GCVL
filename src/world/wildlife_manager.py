@@ -28,23 +28,23 @@ class WildlifeManager:
 
         # 1. Động vật ăn cỏ cỡ lớn: Đàn Bò rừng (Ancient Bison) ở Đồng cỏ trung tâm (Open Meadow)
         for bx, by in [(26, 34), (29, 36), (31, 33), (28, 39)]:
-            self.beasts.append(PrehistoricBeast("ancient_bison", bx * ts, by * ts))
+            self.beasts.append(PrehistoricBeast("ancient_bison", bx * ts, by * ts, self.map_mgr))
 
         # 2. Đàn Hươu/Nai sừng lớn (Giant Deer) ở rìa Rừng hỗn hợp & Bãi cỏ ven suối
         for dx, dy in [(52, 28), (55, 31), (50, 35), (22, 48), (25, 50)]:
-            self.beasts.append(PrehistoricBeast("giant_deer", dx * ts, dy * ts))
+            self.beasts.append(PrehistoricBeast("giant_deer", dx * ts, dy * ts, self.map_mgr))
 
         # 3. Động vật ăn tạp: Lợn rừng (Wild Boar) kiếm củ/quả rụng dưới tán rừng & bờ bùn
         for wx, wy in [(42, 44), (45, 46), (34, 24), (36, 26)]:
-            self.beasts.append(PrehistoricBeast("wild_boar", wx * ts, wy * ts))
+            self.beasts.append(PrehistoricBeast("wild_boar", wx * ts, wy * ts, self.map_mgr))
 
         # 4. Gấu núi đá (Cave Bear) ở vùng Đồi đá Tây-Bắc & Thượng nguồn suối (bắt cá/ăn quả)
         for cx, cy in [(14, 18), (64, 20)]:
-            self.beasts.append(PrehistoricBeast("cave_bear", cx * ts, cy * ts))
+            self.beasts.append(PrehistoricBeast("cave_bear", cx * ts, cy * ts, self.map_mgr))
 
         # 5. Động vật ăn thịt: Đàn Sói (Dire Wolf) tuần tra sườn đồi và rìa rừng
         for vx, vy in [(18, 28), (20, 30), (60, 42), (62, 45)]:
-            self.beasts.append(PrehistoricBeast("dire_wolf", vx * ts, vy * ts))
+            self.beasts.append(PrehistoricBeast("dire_wolf", vx * ts, vy * ts, self.map_mgr))
 
     def update(self, dt: float, villagers=None, player=None, settlement_mgr=None):
         """
@@ -64,7 +64,7 @@ class WildlifeManager:
                 if 0 <= col < MAP_COLS and 0 <= row < MAP_ROWS:
                     if self.map_mgr.soil_type[row][col] in ("mud_silt", "sand"):
                         self.animal_tracks.append({
-                            "x": b.x, "y": b.y, "life": 45.0, "max_life": 45.0
+                            "x": b.x, "y": b.y, "z": b.z, "life": 45.0, "max_life": 45.0
                         })
 
         # Làm mờ dần dấu chân trên bùn theo thời gian
@@ -83,7 +83,7 @@ class WildlifeManager:
                 spawn_type = random.choice(["ancient_bison", "giant_deer", "wild_boar"])
                 sx = random.randint(20, MAP_COLS - 20) * TILE_SIZE
                 sy = random.randint(20, MAP_ROWS - 20) * TILE_SIZE
-                self.beasts.append(PrehistoricBeast(spawn_type, sx, sy))
+                self.beasts.append(PrehistoricBeast(spawn_type, sx, sy, self.map_mgr))
 
     def _update_ecological_ai(self, beast, dt: float, all_beasts: list):
         """
@@ -124,7 +124,8 @@ class WildlifeManager:
     def draw(self, surface, camera, fonts, fog_of_war=None):
         """Vẽ dấu chân động vật trên bãi bồi/bùn và vẽ các cá thể thú theo chiều sâu Y."""
         for tr in self.animal_tracks:
-            sx, sy = camera.world_to_screen((tr["x"], tr["y"]))
+            z_offset = self.map_mgr.get_height_screen_offset(tr.get("z", 0.5)) if self.map_mgr else 0.0
+            sx, sy = camera.world_to_screen((tr["x"], tr["y"]), z_offset)
             if 0 <= sx <= surface.get_width() and 0 <= sy <= surface.get_height():
                 alpha = int(110 * (tr["life"] / tr["max_life"]))
                 tr_surf = pygame.Surface((10, 8), pygame.SRCALPHA)

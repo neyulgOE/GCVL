@@ -16,6 +16,12 @@ MAP_ROWS = 80
 WORLD_WIDTH = MAP_COLS * TILE_SIZE  # 5120 px
 WORLD_HEIGHT = MAP_ROWS * TILE_SIZE  # 5120 px
 
+# 2.5D terrain presentation and traversal limits.
+# Map heights remain normalized to 0..1; this controls their screen-space lift.
+HEIGHT_SCREEN_SCALE = 96.0
+MAX_TERRAIN_STEP = 0.115
+MAX_TERRAIN_SLOPE = 0.20
+
 # Player Settings
 # Spectator Camera Speed
 SPECTATOR_SPEED = 360.0

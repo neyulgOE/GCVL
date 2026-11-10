@@ -151,7 +151,8 @@ class Game:
 
         # 1.5. Prehistoric animal tracks on mud & sand
         for tr in getattr(self.wildlife_mgr, "animal_tracks", []):
-            sx, sy = self.camera.world_to_screen((tr["x"], tr["y"]))
+            z_offset = self.map_mgr.get_height_screen_offset(tr.get("z", 0.5))
+            sx, sy = self.camera.world_to_screen((tr["x"], tr["y"]), z_offset)
             if -10 <= sx <= SCREEN_WIDTH + 10 and -10 <= sy <= SCREEN_HEIGHT + 10:
                 alpha = int(120 * (tr["life"] / tr["max_life"]))
                 tr_surf = pygame.Surface((10, 8), pygame.SRCALPHA)
@@ -261,6 +262,7 @@ class Game:
             jy = getattr(obs, "jitter_y", 0)
             ox = col * ts + jx
             oy = row * ts + jy
+            z_offset = self.map_mgr.get_height_screen_offset_at_tile(col, row)
             var = getattr(obs, "variant", 0)
 
             # Viewport Frustum Culling
@@ -328,13 +330,13 @@ class Game:
                 shadow_size = (32, 12)
 
             if obs_tex:
-                def make_draw_obs(tex, pos, s_center, s_size):
+                def make_draw_obs(tex, pos, s_center, s_size, height_offset):
                     def _draw():
-                        s_pos = self.camera.apply_pos(s_center)
+                        s_pos = self.camera.apply_pos(s_center, height_offset)
                         VisualEnhancer.draw_drop_shadow(self.screen, s_pos, s_size[0], s_size[1])
-                        self.screen.blit(tex, self.camera.apply_pos(pos))
+                        self.screen.blit(tex, self.camera.apply_pos(pos, height_offset))
                     return _draw
-                draw_queue.append((sort_y, make_draw_obs(obs_tex, draw_pos, shadow_center, shadow_size)))
+                draw_queue.append((sort_y, make_draw_obs(obs_tex, draw_pos, shadow_center, shadow_size, z_offset)))
 
         # 2. Autonomous Prehistoric Wildlife
         for beast in self.wildlife_mgr.beasts:
@@ -348,7 +350,8 @@ class Game:
                 def _draw():
                     b.draw(self.screen, self.camera, self.assets.fonts)
                 return _draw
-            draw_queue.append((beast.y + 12, make_draw_beast(beast)))
+            beast_z_offset = self.map_mgr.get_height_screen_offset(beast.z)
+            draw_queue.append((beast.y + 12 - beast_z_offset, make_draw_beast(beast)))
 
         # Sort all items by sort_y (lower Y first -> proper foreground over background)
         draw_queue.sort(key=lambda item: item[0])

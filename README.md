@@ -59,6 +59,8 @@ Hệ sinh thái vận hành theo cơ chế **Quan sát tự do (Spectator Free C
 | :--- | :--- |
 | **W, A, S, D** hoặc **Mũi tên** | Di chuyển góc nhìn Camera mượt mà 4 hướng |
 | **Giữ [SHIFT]** | Tăng tốc độ bay của Camera (Tốc độ cao để bao quát toàn cảnh) |
+| **Q / E** | Hạ / nâng camera trong không gian 3D |
+| **Giữ chuột phải + kéo** | Xoay góc nhìn camera 3D |
 | **Phím M** | Bật / Tắt **Bản Đồ Toàn Cảnh (Overworld Atlas)** |
 | **Click Chuột trên Bản đồ [M]** | Chuyển đổi giữa 3 lớp bản đồ: `[🗺️ Đại Lục]`, `[🏞️ Thung Lũng]`, `[🌿 Thảo Mộc]` |
 | **Phím F1** | Bật / Tắt bảng hướng dẫn phím tắt |
@@ -72,6 +74,14 @@ Hệ sinh thái vận hành theo cơ chế **Quan sát tự do (Spectator Free C
 ```bash
 # Khởi chạy trực tiếp trình mô phỏng
 python3 main.py
+```
+
+Runtime mặc định sử dụng renderer OpenGL 3D với terrain mesh, perspective camera,
+depth buffer và mặt đứng địa hình. Renderer Pygame 2D cũ vẫn có thể chạy để đối
+chiếu bằng:
+
+```bash
+GCVL_RENDERER=2d python3 main.py
 ```
 
 ### 2. Kiểm thử Tự động (Headless Smoke Test Gate)

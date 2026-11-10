@@ -77,10 +77,10 @@ class Camera:
         return r.move(-int(self.offset_x + self.shake_x), 
                       -int(self.offset_y + self.shake_y))
 
-    def apply_pos(self, pos):
-        """Convert world coordinates to screen coordinates."""
+    def apply_pos(self, pos, z=0.0):
+        """Convert world coordinates plus a screen-space height offset."""
         return (int(pos[0] - self.offset_x - self.shake_x), 
-                int(pos[1] - self.offset_y - self.shake_y))
+                int(pos[1] - self.offset_y - self.shake_y - z))
 
     world_to_screen = apply_pos
 

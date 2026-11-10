@@ -58,20 +58,21 @@ class NaturalTerrainRenderer:
         c_end_row = min(world.rows, end_row + 1)
         for r in range(c_start_row, c_end_row):
             for c in range(start_col, end_col):
+                z_offset = world.get_height_screen_offset_at_tile(c, r)
                 if cliff_e and world.cliff_east[r][c] > 0:
                     e_sx = c * ts + ts - 16 - camera.offset_x
-                    e_sy = r * ts - camera.offset_y
+                    e_sy = r * ts - camera.offset_y - z_offset
                     screen.blit(cliff_e, (e_sx, e_sy))
 
                 if cliff_w and world.cliff_west[r][c] > 0:
                     w_sx = c * ts - camera.offset_x
-                    w_sy = r * ts - camera.offset_y
+                    w_sy = r * ts - camera.offset_y - z_offset
                     screen.blit(cliff_w, (w_sx, w_sy))
 
                 s_drop = world.cliff_south[r][c]
                 if s_drop > 0:
                     cw_x = c * ts - camera.offset_x
-                    cw_y = (r + 1) * ts - 6 - camera.offset_y
+                    cw_y = (r + 1) * ts - 6 - camera.offset_y - z_offset
                     v_idx = (c * 7 + r * 13) % 4
                     if s_drop >= 2:
                         c_tex = self.assets.textures.get(f"cliff_face_south_tall_{v_idx}") or cliff_tall

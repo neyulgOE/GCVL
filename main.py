@@ -14,7 +14,10 @@ libs_dir = os.path.join(root_dir, "libs")
 if os.path.exists(libs_dir):
     sys.path.insert(0, libs_dir)
 
-from src.core.game import Game
+if os.environ.get("GCVL_RENDERER", "3d").lower() == "2d":
+    from src.core.game import Game
+else:
+    from src.core.game_3d import Game3D as Game
 
 
 def main():

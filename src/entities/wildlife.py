@@ -117,13 +117,15 @@ BEAST_CONFIGS = {
 }
 
 class PrehistoricBeast:
-    def __init__(self, beast_type, x, y):
+    def __init__(self, beast_type, x, y, map_mgr=None):
         self.type = beast_type
         self.cfg = BEAST_CONFIGS.get(beast_type, BEAST_CONFIGS["ancient_bison"])
         self.name = self.cfg["name"]
+        self.map_mgr = map_mgr
 
         self.x = float(x)
         self.y = float(y)
+        self.z = float(map_mgr.get_height_at_world(x, y)) if map_mgr else 0.5
         self.max_hp = self.cfg["max_hp"]
         self.hp = self.max_hp
         self.speed = self.cfg["speed"]
@@ -148,6 +150,38 @@ class PrehistoricBeast:
         self.hitbox = pygame.Rect(int(self.x - bw // 2), int(self.y - bh // 2), bw, bh)
 
         self._sprite = self._get_tactical_sprite(self.type)
+
+    def _try_move_toward(self, target_x, target_y, distance, map_mgr=None):
+        """Move over the sampled surface, rejecting water, cliffs and steep steps."""
+        map_mgr = map_mgr or self.map_mgr
+        if distance <= 0.0:
+            return True
+
+        dx = target_x - self.x
+        dy = target_y - self.y
+        length = math.hypot(dx, dy)
+        if length <= 0.001:
+            return True
+
+        segments = max(1, int(math.ceil(distance / (TILE_SIZE * 0.35))))
+        step_distance = distance / segments
+        for _ in range(segments):
+            ratio = min(1.0, step_distance / max(0.001, length))
+            next_x = self.x + dx * ratio
+            next_y = self.y + dy * ratio
+            if map_mgr and not map_mgr.can_step(self.x, self.y, next_x, next_y):
+                return False
+            self.x = next_x
+            self.y = next_y
+            dx = target_x - self.x
+            dy = target_y - self.y
+            length = math.hypot(dx, dy)
+            if length <= 0.001:
+                break
+
+        if map_mgr:
+            self.z = map_mgr.get_height_at_world(self.x, self.y)
+        return True
 
     def _get_current_sprite(self):
         """Returns dynamic state-based authentic Stone Age megafauna sprite."""
@@ -331,8 +365,9 @@ class PrehistoricBeast:
 
             if dist > 38.0:
                 step = self.speed * 1.25 * dt
-                self.x += (dx / dist) * step
-                self.y += (dy / dist) * step
+                if not self._try_move_toward(self.target.x, self.target.y, step):
+                    self.target = None
+                    self.state = "roam"
                 self.direction = "right" if dx > 0 else "left"
             else:
                 # Attack reach
@@ -356,8 +391,9 @@ class PrehistoricBeast:
             dist = math.hypot(dx, dy)
             if dist > 10.0:
                 step = self.speed * dt
-                self.x += (dx / dist) * step
-                self.y += (dy / dist) * step
+                if not self._try_move_toward(self.target_x, self.target_y, step):
+                    self.target_x = self.x
+                    self.target_y = self.y
                 self.direction = "right" if dx > 0 else "left"
 
         # 5. FLEE STATE
@@ -367,8 +403,8 @@ class PrehistoricBeast:
             dist = math.hypot(dx, dy)
             if dist > 15.0:
                 step = self.speed * 1.35 * dt
-                self.x += (dx / dist) * step
-                self.y += (dy / dist) * step
+                if not self._try_move_toward(self.target_x, self.target_y, step):
+                    self.state = "roam"
                 self.direction = "right" if dx > 0 else "left"
             else:
                 self.state = "roam"
@@ -376,6 +412,8 @@ class PrehistoricBeast:
         # Clamp within world bounds & update hitbox
         self.x = max(64.0, min(80 * 64.0 - 64.0, self.x))
         self.y = max(64.0, min(80 * 64.0 - 64.0, self.y))
+        if self.map_mgr:
+            self.z = self.map_mgr.get_height_at_world(self.x, self.y)
         bw, bh = self.cfg["size"]
         self.hitbox.center = (int(self.x), int(self.y))
 
@@ -389,7 +427,8 @@ class PrehistoricBeast:
 
     def draw(self, surface, camera, fonts):
         """Renders authentic prehistoric beast silhouette, tusks, spots, horns."""
-        screen_pos = camera.world_to_screen((self.x, self.y))
+        z_offset = self.map_mgr.get_height_screen_offset(self.z) if self.map_mgr else 0.0
+        screen_pos = camera.world_to_screen((self.x, self.y), z_offset)
         sx, sy = screen_pos
 
         bw, bh = self.cfg["size"]
