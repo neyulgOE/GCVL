@@ -1,0 +1,50 @@
+{
+  "world": "Thế Giới Đa Lục Địa",
+  "continents": [
+    {
+      "id": "arctica",
+      "name": "Lục Địa Băng Bắc (Arctica)",
+      "biome": "alpine_glacial",
+      "center_uv": [
+        0.25,
+        0.25
+      ]
+    },
+    {
+      "id": "orientis",
+      "name": "Lục Địa Đông Sơn (Orientis)",
+      "biome": "mountain_lakes",
+      "center_uv": [
+        0.75,
+        0.25
+      ]
+    },
+    {
+      "id": "gondwana",
+      "name": "Lục Địa Hoang Mạc (Gondwana)",
+      "biome": "desert_badlands",
+      "center_uv": [
+        0.25,
+        0.75
+      ]
+    },
+    {
+      "id": "verdantia",
+      "name": "Lục Địa Rừng Thiêng (Verdantia)",
+      "biome": "primeval_jungle",
+      "center_uv": [
+        0.75,
+        0.75
+      ]
+    },
+    {
+      "id": "central_ocean",
+      "name": "Biển Trung Tâm & Quần Đảo San Hô",
+      "biome": "coral_atolls",
+      "center_uv": [
+        0.5,
+        0.5
+      ]
+    }
+  ]
+}

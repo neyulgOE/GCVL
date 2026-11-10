@@ -54,7 +54,7 @@ def smoothstep(edge0: float, edge1: float, x: np.ndarray) -> np.ndarray:
     return t * t * (3.0 - 2.0 * t)
 
 
-def generate_palworld_overworld(
+def generate_legacy_palworld_overworld(
     width: int = 1024,
     height: int = 1024,
     seed: int = 2026,
@@ -518,6 +518,22 @@ def generate_palworld_overworld(
     img.save(output_path, "PNG")
     print(f"Successfully generated Palworld Masterpiece Map at: {output_path} ({W}x{H})")
     return img
+
+
+def generate_palworld_overworld(
+    width: int = 1024,
+    height: int = 1024,
+    seed: int = 2026,
+    output_path: str = "assets/sprites/world_overview_macro.png",
+) -> Image.Image:
+    """Entry point backed by the multi-continent world generator."""
+    try:
+        from tools.build_multi_continent_world import generate_multi_continent_overworld
+    except ModuleNotFoundError:  # Running this file directly from tools/.
+        from build_multi_continent_world import generate_multi_continent_overworld
+
+    out_png = generate_multi_continent_overworld(out_path=output_path, size_px=max(width, height))
+    return Image.open(out_png)
 
 
 if __name__ == "__main__":

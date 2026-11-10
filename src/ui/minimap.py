@@ -144,45 +144,49 @@ class MinimapSystem:
             self._dirty = False
 
         surface = self._valley_surface
-
+        mini_size = 144
         x = self.MINI_MARGIN
-        y = SCREEN_HEIGHT - self.MINI_H - self.MINI_MARGIN - 60
+        y = SCREEN_HEIGHT - mini_size - self.MINI_MARGIN - 50
 
-        scaled = pygame.transform.scale(surface, (self.MINI_W, self.MINI_H))
+        scaled = pygame.transform.scale(surface, (mini_size, mini_size))
 
-        panel = pygame.Surface((self.MINI_W + 8, self.MINI_H + 28), pygame.SRCALPHA)
-        pygame.draw.rect(panel, (20, 16, 12, 195), (0, 0, self.MINI_W + 8, self.MINI_H + 28), border_radius=6)
-        screen.blit(panel, (x - 4, y - 24))
+        # Circular mask to match the amber bone ring
+        circle_surf = pygame.Surface((mini_size, mini_size), pygame.SRCALPHA)
+        pygame.draw.circle(circle_surf, (255, 255, 255, 255), (mini_size // 2, mini_size // 2), mini_size // 2 - 2)
+        circle_surf.blit(scaled, (0, 0), special_flags=pygame.BLEND_RGBA_MIN)
+
+        # Background disc
+        pygame.draw.circle(screen, (16, 22, 28, 220), (x + mini_size // 2, y + mini_size // 2), mini_size // 2 + 3)
+        screen.blit(circle_surf, (x, y))
 
         # Region Label tag
         region_name = "Thế Giới Tiền Sử"
         font = pygame.font.SysFont("dejavusans", 11, bold=True)
         z_lbl = font.render(region_name, True, (255, 235, 180))
-        screen.blit(z_lbl, (x, y - 20))
+        tag_bg = pygame.Surface((z_lbl.get_width() + 12, 18), pygame.SRCALPHA)
+        pygame.draw.rect(tag_bg, (18, 24, 32, 210), (0, 0, tag_bg.get_width(), 18), border_radius=4)
+        pygame.draw.rect(tag_bg, (160, 130, 80, 180), (0, 0, tag_bg.get_width(), 18), 1, border_radius=4)
+        screen.blit(tag_bg, (x + (mini_size - tag_bg.get_width()) // 2, y - 24))
+        screen.blit(z_lbl, (x + (mini_size - z_lbl.get_width()) // 2, y - 23))
 
-        screen.blit(scaled, (x, y))
-
-        # Viewport rectangle
-        view_x = camera.offset_x / WORLD_WIDTH * self.MINI_W
-        view_y = camera.offset_y / WORLD_HEIGHT * self.MINI_H
-        view_w = SCREEN_WIDTH / WORLD_WIDTH * self.MINI_W
-        view_h = SCREEN_HEIGHT / WORLD_HEIGHT * self.MINI_H
-        pygame.draw.rect(screen, (255, 255, 255, 180),
+        # Viewport indicator
+        view_x = camera.offset_x / WORLD_WIDTH * mini_size
+        view_y = camera.offset_y / WORLD_HEIGHT * mini_size
+        view_w = max(6, SCREEN_WIDTH / WORLD_WIDTH * mini_size)
+        view_h = max(6, SCREEN_HEIGHT / WORLD_HEIGHT * mini_size)
+        pygame.draw.rect(screen, (255, 255, 255, 200),
                         (x + view_x, y + view_y, view_w, view_h), 1)
 
         # Observer spectator dot
         if spectator_pos:
-            px = spectator_pos.x / WORLD_WIDTH * self.MINI_W
-            py = spectator_pos.y / WORLD_HEIGHT * self.MINI_H
+            px_dot = spectator_pos.x / WORLD_WIDTH * mini_size
+            py_dot = spectator_pos.y / WORLD_HEIGHT * mini_size
             pulse = 0.5 + 0.5 * math.sin(pygame.time.get_ticks() / 200.0)
-            dot_size = int(2 + pulse * 2)
-            pygame.draw.circle(screen, (100, 220, 255), (int(x + px), int(y + py)), dot_size)
-            pygame.draw.circle(screen, (255, 255, 255), (int(x + px), int(y + py)), dot_size, 1)
+            dot_size = int(3 + pulse * 2)
+            pygame.draw.circle(screen, (100, 220, 255), (int(x + px_dot), int(y + py_dot)), dot_size)
+            pygame.draw.circle(screen, (255, 255, 255), (int(x + px_dot), int(y + py_dot)), dot_size, 1)
 
-        # Border
-        pygame.draw.rect(screen, (100, 75, 50, 200), (x - 1, y - 1, self.MINI_W + 2, self.MINI_H + 2), 2, border_radius=3)
-
-        # Prehistoric Frame
+        # Prehistoric Amber Bone Ring Frame
         if self._bone_frame is None:
             import os
             for bf_path in [
@@ -192,11 +196,11 @@ class MinimapSystem:
             ]:
                 if os.path.exists(bf_path):
                     raw_bf = pygame.image.load(bf_path).convert_alpha()
-                    self._bone_frame = pygame.transform.smoothscale(raw_bf, (self.MINI_W + 36, self.MINI_H + 36))
+                    self._bone_frame = pygame.transform.smoothscale(raw_bf, (mini_size + 24, mini_size + 24))
                     break
 
         if self._bone_frame:
-            screen.blit(self._bone_frame, (x - 18, y - 18))
+            screen.blit(self._bone_frame, (x - 12, y - 12))
 
     # -------------------------------------------------------------
     # FULL-SCREEN MAP
@@ -275,10 +279,18 @@ class MinimapSystem:
         screen.blit(x_lbl, (self.close_btn_rect.x + 8, self.close_btn_rect.y + 4))
 
         # Map display area
-        map_w = 756
-        map_h = 360
-        map_x = px + (pw - map_w) // 2
-        map_y = py + 88
+        if is_view_macro:
+            # Keep 1:1 true square aspect ratio for the continent map
+            map_size = 440
+            map_w = map_size
+            map_h = map_size
+            map_x = px + 24
+            map_y = py + 92
+        else:
+            map_w = 756
+            map_h = 360
+            map_x = px + (pw - map_w) // 2
+            map_y = py + 88
 
         if is_view_flora:
             # Render Prehistoric Flora & Foraging Atlas
@@ -296,7 +308,7 @@ class MinimapSystem:
             pygame.draw.rect(screen, (100, 75, 50), (map_x - 1, map_y - 1, map_w + 2, map_h + 2), 2)
 
         elif is_view_macro:
-            # Render Prehistoric Overworld Macro Map
+            # Render Prehistoric Overworld Macro Map in crisp 1:1 square
             if self._macro_map_surface is None:
                 import os
                 macro_path = "assets/sprites/world_overview_macro.png"
@@ -308,22 +320,81 @@ class MinimapSystem:
                     self._macro_map_surface.fill((80, 110, 70))
 
             screen.blit(self._macro_map_surface, (map_x, map_y))
-            pygame.draw.rect(screen, (80, 60, 40), (map_x - 1, map_y - 1, map_w + 2, map_h + 2), 2)
+            pygame.draw.rect(screen, (70, 52, 34), (map_x - 2, map_y - 2, map_w + 4, map_h + 4), 2)
 
-            # Draw Spectator Camera Observation Point on Central Valley
+            # Side Info Panel: Continental Expedition Field Log
+            info_x = map_x + map_w + 16
+            info_w = pw - map_w - 56
+            info_h = map_h
+
+            info_bg = pygame.Surface((info_w, info_h), pygame.SRCALPHA)
+            pygame.draw.rect(info_bg, (18, 28, 42, 235), (0, 0, info_w, info_h), border_radius=8)
+            pygame.draw.rect(info_bg, (195, 175, 130, 180), (0, 0, info_w, info_h), 2, border_radius=8)
+            screen.blit(info_bg, (info_x, info_y := map_y))
+
+            # Header
+            t_title = font_normal.render("ĐẠI LỤC NGUYÊN SINH", True, (245, 230, 175))
+            screen.blit(t_title, (info_x + 14, info_y + 12))
+            t_sub = font_small.render("Thế Giới Tự Nhiên Tiền Sử Hoàn Chỉnh", True, (160, 215, 240))
+            screen.blit(t_sub, (info_x + 14, info_y + 32))
+            pygame.draw.line(screen, (140, 125, 95), (info_x + 14, info_y + 50), (info_x + info_w - 14, info_y + 50), 1)
+
+            # Camera World Coordinates
+            if spectator_pos:
+                cam_x_tile = int(spectator_pos.x // TILE_SIZE)
+                cam_y_tile = int(spectator_pos.y // TILE_SIZE)
+                cam_txt = f"Vị trí quan sát: Ô [{cam_x_tile}, {cam_y_tile}]"
+            else:
+                cam_txt = "Vị trí quan sát: [Thung Lũng Trung Tâm]"
+            t_cam = font_small.render(cam_txt, True, (230, 240, 245))
+            screen.blit(t_cam, (info_x + 14, info_y + 58))
+
+            # Territory List
+            t_ter_title = font_small.render("CÁC VÙNG SINH THÁI ĐẠI LỤC:", True, (255, 215, 100))
+            screen.blit(t_ter_title, (info_x + 14, info_y + 82))
+
+            biomes_desc = [
+                ("❄️ Dãy Băng Sơn (Ma Mút)", "Đỉnh tuyết vĩnh cửu & hồ băng"),
+                ("🌲 Rừng Nhiệt Đới Nguyên Sinh", "Tán rừng rậm rạp & hổ răng kiếm"),
+                ("🦌 Thung Lũng Hươu Khổng Lồ", "Lưu vực sông ngòi & bãi bồi"),
+                ("🏜️ Hoang Mạc Cát Đỏ", "Cồn cát vàng & đàn Bison cổ đại"),
+                ("🌾 Cao Nguyên Hoàng Thổ", "Rừng lá vàng & vách đá dốc"),
+                ("🐊 Châu Thổ Đầm Lầy", "Cửa sông phù sa & thủy quái cổ"),
+                ("🏝️ Đảo Tiền Tiêu Đông Nam", "Khu bảo tồn động vật hoang dã"),
+            ]
+
+            for idx, (b_name, b_sub) in enumerate(biomes_desc):
+                by = info_y + 104 + idx * 42
+                t_bname = font_small.render(b_name, True, (240, 245, 250))
+                t_bsub = font_small.render(f"  • {b_sub}", True, (175, 195, 205))
+                screen.blit(t_bname, (info_x + 14, by))
+                screen.blit(t_bsub, (info_x + 14, by + 16))
+
+            # Footer tip
+            t_tip = font_small.render("[WASD] Bay quan sát | [M] Đóng Atlas", True, (200, 220, 200))
+            screen.blit(t_tip, (info_x + 14, info_y + info_h - 26))
+
+            # Dynamic Spectator Position Pin on Macro Map
+            if spectator_pos:
+                spec_norm_x = max(0.0, min(1.0, spectator_pos.x / max(1.0, float(WORLD_WIDTH))))
+                spec_norm_y = max(0.0, min(1.0, spectator_pos.y / max(1.0, float(WORLD_HEIGHT))))
+            else:
+                spec_norm_x = 0.52
+                spec_norm_y = 0.44
+
+            spec_x = map_x + int(spec_norm_x * map_w)
+            spec_y = map_y + int(spec_norm_y * map_h)
+
             pulse = 0.5 + 0.5 * math.sin(pygame.time.get_ticks() / 160.0)
-            spec_x = map_x + int(0.56 * map_w)
-            spec_y = map_y + int(0.52 * map_h)
-
             glow_r = int(10 + pulse * 5)
             glow_surf = pygame.Surface((glow_r * 2 + 4, glow_r * 2 + 4), pygame.SRCALPHA)
-            pygame.draw.circle(glow_surf, (255, 215, 60, 80), (glow_r + 2, glow_r + 2), glow_r)
+            pygame.draw.circle(glow_surf, (255, 215, 60, 90), (glow_r + 2, glow_r + 2), glow_r)
             screen.blit(glow_surf, (spec_x - glow_r - 2, spec_y - glow_r - 2))
 
             pygame.draw.circle(screen, (255, 230, 80), (spec_x, spec_y), 6)
             pygame.draw.circle(screen, (255, 255, 255), (spec_x, spec_y), 6, 2)
 
-            spec_lbl = font_small.render("👁️ Vị Trí Quan Sát (Thung Lũng Sông)", True, (255, 255, 255))
+            spec_lbl = font_small.render("👁️ Bạn đang ở đây", True, (255, 255, 255))
             spec_tag = pygame.Surface((spec_lbl.get_width() + 10, 18), pygame.SRCALPHA)
             pygame.draw.rect(spec_tag, (24, 32, 45, 220), (0, 0, spec_tag.get_width(), 18), border_radius=4)
             pygame.draw.rect(spec_tag, (255, 215, 60, 200), (0, 0, spec_tag.get_width(), 18), 1, border_radius=4)
