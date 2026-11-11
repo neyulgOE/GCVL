@@ -26,10 +26,36 @@
   "sea_level": 0.35,
   "climate_baseline": "cool_late_paleolithic_relative_temperature",
   "vegetation_layers": [
+    "emergent",
     "canopy",
+    "understory",
     "shrub",
-    "ground"
+    "herb_ground",
+    "litter_soil"
   ],
+  "flora_instance_count": 1695,
+  "flora_instances_file": "primeval_world_flora.json",
+  "flora_layer_legend": {
+    "1": "emergent",
+    "2": "canopy",
+    "3": "understory",
+    "4": "shrub",
+    "5": "herb_ground",
+    "6": "litter_soil"
+  },
+  "flora_kind_legend": {
+    "1": "tree_tundra",
+    "2": "tree_steppe",
+    "3": "tree_forest",
+    "4": "tree_swamp",
+    "5": "berry_bush",
+    "6": "reed",
+    "7": "mushroom",
+    "8": "tuber",
+    "9": "branch",
+    "10": "soil_litter",
+    "11": "copper_ore"
+  },
   "biome_legend": {
     "0": "deep_ocean",
     "1": "coastal_reef_halo",

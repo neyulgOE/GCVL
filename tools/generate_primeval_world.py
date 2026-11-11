@@ -23,7 +23,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.world.canonical_ecology import build_ecology_maps
+from src.world.canonical_ecology import (
+    FLORA_KIND_LEGEND,
+    VEGETATION_LAYER_LEGEND,
+    build_ecology_maps,
+    flora_instances_to_arrays,
+    spawn_vegetation_instances,
+)
 
 
 CANONICAL_IMG_PATH = PROJECT_ROOT / "assets" / "sprites" / "primeval_reach_canonical_atlas.png"
@@ -31,6 +37,7 @@ CANONICAL_GRID_SIZE = (400, 218)  # Giữ tỉ lệ vùng bản đồ gốc ~982
 LEGACY_GRID_SIZE = (200, 200)
 WORLD_DATA_PATH = PROJECT_ROOT / "debug_outputs" / "primeval_world_data.npz"
 WORLD_MANIFEST_PATH = PROJECT_ROOT / "debug_outputs" / "primeval_world_manifest.json"
+WORLD_FLORA_PATH = PROJECT_ROOT / "debug_outputs" / "primeval_world_flora.json"
 
 
 def load_canonical_atlas():
@@ -206,6 +213,30 @@ def export_all():
         data["river_grid"],
         data["land_grid"],
     )
+    flora_instances = spawn_vegetation_instances(
+        data["biome_grid"],
+        data["land_grid"],
+        ecology,
+        data["river_grid"],
+        seed=2026,
+        stride=4,
+        max_instances=2400,
+    )
+    flora_arrays = flora_instances_to_arrays(flora_instances)
+    with open(WORLD_FLORA_PATH, "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "world_data": WORLD_DATA_PATH.name,
+                "instance_count": len(flora_instances),
+                "layers": VEGETATION_LAYER_LEGEND,
+                "kinds": FLORA_KIND_LEGEND,
+                "flora_instances": flora_instances,
+            },
+            f,
+            ensure_ascii=False,
+            indent=2,
+        )
+    print(f"[GCVL] Đã lưu hệ sinh thái 6 tầng tại: {WORLD_FLORA_PATH}")
 
     # 4a. Ảnh kiểm định các lớp sinh thái, dùng để tuning mà không đụng silhouette.
     vegetation_path = debug_dir / "primeval_world_vegetation_density.png"
@@ -231,6 +262,7 @@ def export_all():
         shrub_cover=ecology["shrub_cover"].astype(np.float32),
         ground_cover=ecology["ground_cover"].astype(np.float32),
         vegetation_density=ecology["vegetation_density"].astype(np.float32),
+        **flora_arrays,
     )
     manifest = {
         "world_name": "Primeval Reach - Canonical Multi-Continent Archipelago",
@@ -242,7 +274,13 @@ def export_all():
         "elevation_range": [0.0, 1.30],
         "sea_level": 0.35,
         "climate_baseline": "cool_late_paleolithic_relative_temperature",
-        "vegetation_layers": ["canopy", "shrub", "ground"],
+        "vegetation_layers": [
+            "emergent", "canopy", "understory", "shrub", "herb_ground", "litter_soil"
+        ],
+        "flora_instance_count": len(flora_instances),
+        "flora_instances_file": WORLD_FLORA_PATH.name,
+        "flora_layer_legend": VEGETATION_LAYER_LEGEND,
+        "flora_kind_legend": FLORA_KIND_LEGEND,
         "biome_legend": biome_legend,
         "data_file": WORLD_DATA_PATH.name,
     }

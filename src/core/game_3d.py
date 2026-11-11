@@ -34,7 +34,11 @@ from src.settings import (
 )
 from src.world.map_manager import MapManager
 from src.world.wildlife_manager import WildlifeManager
-from src.world.canonical_ecology import build_ecology_maps, spawn_vegetation_instances
+from src.world.canonical_ecology import (
+    build_ecology_maps,
+    flora_instances_from_arrays,
+    spawn_vegetation_instances,
+)
 
 
 # Bảng màu 8 Quần xã chuẩn cho mô hình 3D
@@ -194,12 +198,18 @@ class Game3D:
             self.ecology = build_ecology_maps(
                 self.elevation, self.biome_id, self.river_mask, self.land_mask
             )
-        self.vegetation_instances = spawn_vegetation_instances(
-            self.biome_id,
-            self.land_mask,
-            self.ecology,
-            self.river_mask,
-        )
+        persisted_flora_keys = ("flora_xy", "flora_layer_id", "flora_kind_id", "flora_scale")
+        if all(key in world_data.files for key in persisted_flora_keys):
+            self.vegetation_instances = flora_instances_from_arrays(world_data)
+            self.vegetation_instances_source = "WorldData canonical"
+        else:
+            self.vegetation_instances = spawn_vegetation_instances(
+                self.biome_id,
+                self.land_mask,
+                self.ecology,
+                self.river_mask,
+            )
+            self.vegetation_instances_source = "deterministic fallback"
 
         # Tính trước độ cao thực tế trong không gian 3D
         # Đất nổi (elevation >= 0.35) vươn lên từ mặt biển, biển phẳng ở y = WATER_Y
@@ -298,6 +308,8 @@ class Game3D:
             "berry_bush": ("05_forageable_flora_3stages/flora_berry_bush_stage_{:02d}.png", 9, 3.2),
             "reed": ("05_forageable_flora_3stages/flora_grain_fiber_reed_stage_{:02d}.png", 9, 3.1),
             "mushroom": ("05_forageable_flora_3stages/flora_mushroom_herb_stage_{:02d}.png", 9, 2.2),
+            "tuber": ("05_forageable_flora_3stages/flora_tuber_root_garlic_stage_{:02d}.png", 9, 1.9),
+            "branch": ("04_prehistoric_trees_and_wood/wood_fallen_hollow_log_04.png", 1, 1.5),
         }
         self.vegetation_sprites = {}
         self.vegetation_sprite_heights = {}
@@ -347,12 +359,21 @@ class Game3D:
             sprites = self.vegetation_sprites.get(kind)
             if not sprites:
                 continue
+            layer_id = int(plant.get("layer_id", 3))
 
             wx, wz = col * s, row * s
             wy = float(self.world_heights[row, col])
             dx, dy, dz = wx - cx, wy - cy, wz - cz
             depth = dx * forward[0] + dy * forward[1] + dz * forward[2]
             if depth <= 2.0 or depth > 260.0:
+                continue
+            # Six-layer LOD: distant views keep the canopy silhouette while
+            # omitting small ground/litter sprites that would be sub-pixel.
+            if depth > 175.0 and layer_id >= 5:
+                continue
+            if depth > 220.0 and layer_id >= 4:
+                continue
+            if depth > 245.0 and layer_id >= 3:
                 continue
 
             screen_u = dx * right[0] + dy * right[1] + dz * right[2]
@@ -368,10 +389,14 @@ class Game3D:
                 continue
 
             variant = (col * 17 + row * 31) % len(sprites)
-            cache_key = (kind, variant, pixel_h)
+            rotation = float(plant.get("rotation_deg", 0.0))
+            rotation_bucket = int(round(rotation / 6.0) * 6) if layer_id >= 4 and depth < 160.0 else 0
+            cache_key = (kind, variant, pixel_h, rotation_bucket)
             scaled = self._vegetation_scale_cache.get(cache_key)
             if scaled is None:
                 source = sprites[variant]
+                if rotation_bucket:
+                    source = pygame.transform.rotate(source, rotation_bucket)
                 pixel_w = max(3, int(source.get_width() * pixel_h / max(1, source.get_height())))
                 scaled = pygame.transform.smoothscale(source, (pixel_w, pixel_h))
                 self._vegetation_scale_cache[cache_key] = scaled
