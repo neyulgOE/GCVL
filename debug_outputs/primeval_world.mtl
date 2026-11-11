@@ -1,0 +1,66 @@
+# Materials for Primeval Reach World
+
+newmtl mtl_Deep_Ocean
+Kd 0.0431 0.1725 0.2980
+Ka 0.0173 0.0690 0.1192
+Ks 0.1000 0.1000 0.1000
+Ns 10.0
+d 1.0
+illum 2
+
+newmtl mtl_Coastal_Reef_Halo
+Kd 0.1098 0.7137 0.7686
+Ka 0.0439 0.2855 0.3075
+Ks 0.1000 0.1000 0.1000
+Ns 10.0
+d 1.0
+illum 2
+
+newmtl mtl_River_and_Lake_System
+Kd 0.1647 0.4627 0.6196
+Ka 0.0659 0.1851 0.2478
+Ks 0.1000 0.1000 0.1000
+Ns 10.0
+d 1.0
+illum 2
+
+newmtl mtl_Primeval_Forest_Valley
+Kd 0.1647 0.3686 0.1804
+Ka 0.0659 0.1475 0.0722
+Ks 0.1000 0.1000 0.1000
+Ns 10.0
+d 1.0
+illum 2
+
+newmtl mtl_Autumn_Steppes_Plateau
+Kd 0.8000 0.5255 0.1882
+Ka 0.3200 0.2102 0.0753
+Ks 0.1000 0.1000 0.1000
+Ns 10.0
+d 1.0
+illum 2
+
+newmtl mtl_Terracotta_Basin_and_Dunes
+Kd 0.8314 0.4471 0.2667
+Ka 0.3325 0.1788 0.1067
+Ks 0.1000 0.1000 0.1000
+Ns 10.0
+d 1.0
+illum 2
+
+newmtl mtl_Glacial_Alpine_Massif
+Kd 0.9412 0.9608 0.9804
+Ka 0.3765 0.3843 0.3922
+Ks 0.1000 0.1000 0.1000
+Ns 10.0
+d 1.0
+illum 2
+
+newmtl mtl_Sanctuary_Archipelago
+Kd 0.1333 0.4000 0.2118
+Ka 0.0533 0.1600 0.0847
+Ks 0.1000 0.1000 0.1000
+Ns 10.0
+d 1.0
+illum 2
+

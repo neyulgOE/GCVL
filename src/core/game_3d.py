@@ -1,643 +1,716 @@
-"""OpenGL 3D runtime for Stone Age: Primeval World.
+"""
+Bộ Điều Phối & Kết Xuất Phối Cảnh 3D (3D Perspective Spectator Engine)
+cho Thế Giới Hoang Dã Tiền Sử Primeval Reach (GCVL).
 
-This renderer deliberately keeps the existing procedural world and wildlife
-simulation, but replaces the flat Pygame presentation with a perspective
-camera, a heightmap terrain mesh, depth buffering and real 3D cliff faces.
+- Hoàn toàn độc lập, sử dụng Pygame (tích hợp sẵn trong libs/) và NumPy.
+- Tải bản đồ thế giới đa lục địa chuẩn Single Source of Truth từ stone_age_world_200x200.json.
+- Chiếu phối cảnh 3D thời gian thực (Perspective Camera, Depth Sorting, Lambertian Hillshading).
+- Tích hợp động vật cổ đại (Voi ma mút, Bò rừng, Hổ răng kiếm, Gấu hang, Hươu khổng lồ) di chuyển trên bề mặt 3D.
+- Hỗ trợ đầy đủ chế độ đồ họa cửa sổ và chế độ kiểm thử tự động không đầu (Headless mode).
 """
 
-import math
 import os
+import sys
+import math
+import json
+import time
+import random
 from pathlib import Path
+import numpy as np
 
-import pyglet
+# Đảm bảo đường dẫn thư viện
+root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if root_dir not in sys.path:
+    sys.path.insert(0, root_dir)
+libs_dir = os.path.join(root_dir, "libs")
+if os.path.exists(libs_dir) and libs_dir not in sys.path:
+    sys.path.insert(0, libs_dir)
 
-if os.environ.get("GCVL_HEADLESS") == "1":
-    pyglet.options["headless"] = True
+import pygame
 
-from pyglet import gl
-from pyglet.gl import glu
-from pyglet.window import key, mouse
-
-from src.settings import MAP_COLS, MAP_ROWS, TILE_SIZE, SCREEN_WIDTH, SCREEN_HEIGHT
+from src.settings import (
+    SCREEN_WIDTH, SCREEN_HEIGHT, TITLE, FPS, TILE_SIZE,
+    MAP_COLS, MAP_ROWS,
+)
 from src.world.map_manager import MapManager
 from src.world.wildlife_manager import WildlifeManager
 
 
+# Bảng màu 8 Quần xã chuẩn cho mô hình 3D
+BIOME_COLORS = {
+    0: (11, 44, 76),       # 0: Deep Ocean
+    1: (28, 182, 196),     # 1: Coastal Reef Halo
+    2: (42, 118, 158),     # 2: Meandering River & Lake
+    3: (42, 94, 46),       # 3: Primeval Forest Valley
+    4: (204, 134, 48),     # 4: Autumn Steppes Plateau
+    5: (212, 114, 68),     # 5: Terracotta Dunes & Crater
+    6: (240, 245, 250),    # 6: Glacial Alpine Massif
+    7: (34, 102, 54),      # 7: Sanctuary Archipelago
+}
+
+BIOME_NAMES = {
+    0: "Đại dương sâu (Deep Ocean)",
+    1: "Vành đai san hô ngọc lam (Coastal Reef Halo)",
+    2: "Sông uốn khúc & Hồ nội địa (River & Lake)",
+    3: "Thung lũng rừng nguyên sinh (Primeval Forest)",
+    4: "Cao nguyên thảo nguyên mùa thu (Autumn Steppes)",
+    5: "Hoang mạc cát đỏ đồi đá (Terracotta Dunes)",
+    6: "Dãy núi tuyết băng giá (Glacial Alpine)",
+    7: "Quần đảo bảo tồn (Sanctuary Isle)",
+}
+
+BEAST_COLORS = {
+    "mammoth": (85, 60, 42),
+    "ancient_bison": (115, 68, 32),
+    "sabertooth": (205, 145, 52),
+    "dire_wolf": (92, 96, 102),
+    "giant_deer": (148, 96, 56),
+    "cave_bear": (76, 48, 30),
+    "wild_boar": (102, 72, 50),
+}
+
+
 class Game3D:
-    """Perspective 3D spectator view over the procedural prehistoric world."""
+    """Bộ mô phỏng thế giới tiền sử với máy ảnh phối cảnh 3D tự do."""
 
-    TILE_WORLD_SIZE = 2.0
-    # The source heightmap is normalized; this scale keeps the valley readable
-    # as terrain instead of turning every tier transition into a canyon.
-    HEIGHT_WORLD_SCALE = 6.0
-    WATER_LEVEL = 0.95
-    GROUND_TEXTURE_SIZE = 2048
+    # Tỷ lệ thế giới 3D
+    TILE_SIZE_3D = 3.5
+    HEIGHT_SCALE_3D = 22.0
+    WATER_Y = 0.05 * HEIGHT_SCALE_3D
 
-    TERRAIN_COLORS = {
-        "steppe_meadow": (0.30, 0.52, 0.20),
-        "forest_humus": (0.12, 0.30, 0.13),
-        "riparian_mud": (0.34, 0.29, 0.19),
-        "point_bar_sand": (0.67, 0.56, 0.34),
-        "settlement_loam": (0.70, 0.58, 0.34),
-        "scree_talus": (0.38, 0.38, 0.34),
-        "water": (0.07, 0.27, 0.42),
-        "bridge_ford": (0.40, 0.40, 0.34),
-    }
-
-    BEAST_COLORS = {
-        "mammoth": (0.30, 0.20, 0.12),
-        "ancient_bison": (0.36, 0.18, 0.08),
-        "sabertooth": (0.68, 0.42, 0.12),
-        "dire_wolf": (0.30, 0.32, 0.34),
-        "giant_deer": (0.52, 0.32, 0.16),
-        "cave_bear": (0.28, 0.16, 0.09),
-        "wild_boar": (0.38, 0.24, 0.16),
+    # Các điểm mốc nhảy nhanh (Quick camera presets)
+    CAMERA_PRESETS = {
+        pygame.K_1: {
+            "name": "1. Lục địa Băng giá Tây-Bắc (Glacial Alpine Massif)",
+            "pos": (62.0, 36.0, 88.0),
+            "yaw": 0.0,
+            "pitch": -0.32,
+        },
+        pygame.K_2: {
+            "name": "2. Hoang mạc Cát đỏ Tây-Nam (Terracotta Basin)",
+            "pos": (50.0, 32.0, 175.0),
+            "yaw": 0.0,
+            "pitch": -0.35,
+        },
+        pygame.K_3: {
+            "name": "3. Cao nguyên Thảo nguyên Mùa thu Đông-Bắc (Autumn Steppes)",
+            "pos": (140.0, 38.0, 85.0),
+            "yaw": 0.0,
+            "pitch": -0.36,
+        },
+        pygame.K_4: {
+            "name": "4. Đại Châu thổ & Rừng nguyên sinh Đông-Nam (Southern Delta)",
+            "pos": (120.0, 34.0, 185.0),
+            "yaw": 0.0,
+            "pitch": -0.32,
+        },
     }
 
     def __init__(self, width=SCREEN_WIDTH, height=SCREEN_HEIGHT, headless=False):
-        if headless:
-            pyglet.options["headless"] = True
-
         self.width = width
         self.height = height
-        config = gl.Config(double_buffer=True, depth_size=24)
-        self.window = pyglet.window.Window(
-            width=width,
-            height=height,
-            caption="Stone Age: Primeval World - 3D",
-            resizable=True,
-            visible=not headless,
-            config=config,
-        )
+        self.headless = headless or (os.environ.get("GCVL_HEADLESS") == "1") or (os.environ.get("SDL_VIDEODRIVER") == "dummy")
 
+        if self.headless:
+            os.environ["SDL_VIDEODRIVER"] = "dummy"
+            os.environ["SDL_AUDIODRIVER"] = "dummy"
+
+        pygame.init()
+        pygame.display.set_caption(f"{TITLE} - Phối Cảnh 3D Đa Lục Địa")
+
+        if self.headless:
+            self.screen = pygame.display.set_mode((width, height))
+        else:
+            try:
+                self.screen = pygame.display.set_mode((width, height), pygame.DOUBLEBUF)
+            except Exception:
+                self.screen = pygame.display.set_mode((width, height))
+
+        self.clock = pygame.time.Clock()
+        self.running = True
+        self.game_time = 0.0
+
+        # Khởi tạo phông chữ
+        pygame.font.init()
+        font_name = pygame.font.match_font("dejavusans", "arial")
+        self.font = pygame.font.Font(font_name, 14)
+        self.font_bold = pygame.font.Font(font_name, 16)
+        self.font_small = pygame.font.Font(font_name, 12)
+
+        # 1. Tải bản đồ thế giới 200x200 chuẩn
+        self._load_world_grid()
+
+        # 2. Quản lý động vật hoang dã
         self.map_mgr = MapManager()
         self.wildlife_mgr = WildlifeManager(self.map_mgr)
-        self.render_heights = self._build_render_heightmap()
-        self.keys = key.KeyStateHandler()
-        self.window.push_handlers(self.keys)
-        self.game_time = 0.0
-        self.fps_label = pyglet.text.Label(
-            "",
-            x=14,
-            y=height - 26,
-            color=(235, 242, 226, 255),
-            font_size=12,
-            bold=True,
-        )
-        self.help_label = pyglet.text.Label(
-            "WASD di chuyển | Q/E lên xuống | Chuột phải + kéo xoay | ESC thoát",
-            x=14,
-            y=12,
-            color=(220, 230, 210, 230),
-            font_size=11,
-        )
+        self._spawn_world_megafauna()
 
-        self.cam_x = MAP_COLS * self.TILE_WORLD_SIZE * 0.5
-        self.cam_y = 18.0
-        self.cam_z = MAP_ROWS * self.TILE_WORLD_SIZE * 0.5 + 34.0
-        # Start looking from the south edge toward the map's north (negative Z).
-        self.yaw = math.radians(0.0)
-        self.pitch = math.radians(-28.0)
-        self.mouse_look = False
-        self.last_dt = 1.0 / 60.0
+        # 3. Tải tài nguyên bản đồ mini (Minimap Texture)
+        self._load_minimap_atlas()
 
-        self.window.on_draw = self.on_draw
-        self.window.on_resize = self.on_resize
-        self.window.on_key_press = self.on_key_press
-        self.window.on_key_release = self.on_key_release
-        self.window.on_mouse_press = self.on_mouse_press
-        self.window.on_mouse_release = self.on_mouse_release
-        self.window.on_mouse_drag = self.on_mouse_drag
+        # 4. Thiết lập Camera 3D
+        # Vị trí quan sát ban đầu: Nhìn bao quát toàn bộ lục địa từ phía Nam
+        self.cam_x = 100.0 * self.TILE_SIZE_3D
+        self.cam_y = 65.0
+        self.cam_z = 240.0 * self.TILE_SIZE_3D
+        self.yaw = 0.0          # 0: nhìn về hướng Bắc (-Z)
+        self.pitch = -0.38      # Nghiêng nhìn xuống ~22 độ
+        self.fov = 56.0
+        self.speed = 45.0
 
-        pyglet.clock.schedule_interval(self.update, 1.0 / 60.0)
-        self._setup_gl()
-        self._load_assets()
+        # Trạng thái chuột & tương tác
+        self.mouse_drag = False
+        self.last_mouse_pos = (0, 0)
+        self.show_hud = True
+        self.show_minimap = True
+        self.current_preset_name = "Toàn cảnh lục địa Primeval Reach"
 
-    def _setup_gl(self):
-        gl.glEnable(gl.GL_DEPTH_TEST)
-        gl.glDepthFunc(gl.GL_LEQUAL)
-        gl.glDisable(gl.GL_CULL_FACE)
-        gl.glShadeModel(gl.GL_SMOOTH)
-        gl.glEnable(gl.GL_COLOR_MATERIAL)
-        gl.glColorMaterial(gl.GL_FRONT_AND_BACK, gl.GL_AMBIENT_AND_DIFFUSE)
-        gl.glEnable(gl.GL_LIGHTING)
-        gl.glEnable(gl.GL_LIGHT0)
-        ambient = (gl.GLfloat * 4)(0.34, 0.37, 0.32, 1.0)
-        diffuse = (gl.GLfloat * 4)(0.82, 0.78, 0.66, 1.0)
-        direction = (gl.GLfloat * 4)(-0.35, 0.85, 0.28, 0.0)
-        gl.glLightfv(gl.GL_LIGHT0, gl.GL_AMBIENT, ambient)
-        gl.glLightfv(gl.GL_LIGHT0, gl.GL_DIFFUSE, diffuse)
-        gl.glLightfv(gl.GL_LIGHT0, gl.GL_POSITION, direction)
-        gl.glTexEnvi(gl.GL_TEXTURE_ENV, gl.GL_TEXTURE_ENV_MODE, gl.GL_MODULATE)
-        gl.glClearColor(0.035, 0.055, 0.09, 1.0)
+    def _load_world_grid(self):
+        """Tải dữ liệu lưới 200x200 từ stone_age_world_200x200.json."""
+        json_path = os.path.join(root_dir, "stone_age_world_200x200.json")
+        if not os.path.exists(json_path):
+            from tools.generate_primeval_world import generate_primeval_world, export_world_json
+            export_world_json(json_path)
 
-    def _build_render_heightmap(self):
-        """Smooth only the display mesh; gameplay collision stays tile-accurate."""
-        source = [row[:] for row in self.map_mgr.heightmap]
-        for _ in range(2):
-            filtered = []
-            for row in range(self.map_mgr.rows):
-                out_row = []
-                for col in range(self.map_mgr.cols):
-                    total = 0.0
-                    weight_total = 0.0
-                    for dr in (-1, 0, 1):
-                        rr = max(0, min(self.map_mgr.rows - 1, row + dr))
-                        for dc in (-1, 0, 1):
-                            cc = max(0, min(self.map_mgr.cols - 1, col + dc))
-                            weight = 4.0 if dc == 0 and dr == 0 else (2.0 if dc == 0 or dr == 0 else 1.0)
-                            total += source[rr][cc] * weight
-                            weight_total += weight
-                    smoothed = total / weight_total
-                    out_row.append(source[row][col] * 0.30 + smoothed * 0.70)
-                filtered.append(out_row)
-            source = filtered
-        return source
+        with open(json_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
 
-    def _load_assets(self):
-        """Load the existing Stone Age PNG pack as OpenGL textures."""
-        root = Path(__file__).resolve().parents[2]
-        self.asset_root = root / "assets" / "stone_age"
-        if not self.asset_root.exists():
-            self.asset_root = root / "stone_age_rts_complete_all_in_one_bundle" / "02_SLICED_SPRITES_128_PNG"
-        self.textures = {}
+        self.grid_cols, self.grid_rows = data["grid_size"]
+        self.elevation = np.array(data["elevation"], dtype=np.float32)
+        self.biome_id = np.array(data["biome_id"], dtype=np.int32)
+        self.river_mask = np.array(data["river_mask"], dtype=np.bool_)
 
-        terrain_files = {
-            "steppe_meadow": "12_seamless_64x64_terrain_tiles/tile_01_steppe_grass.png",
-            "forest_humus": "12_seamless_64x64_terrain_tiles/tile_02_primeval_forest_floor.png",
-            "riparian_mud": "12_seamless_64x64_terrain_tiles/tile_07_ancient_swamp_mud.png",
-            "point_bar_sand": "12_seamless_64x64_terrain_tiles/tile_04_pebble_river_shore.png",
-            "settlement_loam": "12_seamless_64x64_terrain_tiles/tile_04_pebble_river_shore.png",
-            "scree_talus": "12_seamless_64x64_terrain_tiles/tile_08_megalithic_granite_rock.png",
-            "water": "12_seamless_64x64_terrain_tiles/tile_06_deep_river_water.png",
-            "bridge_ford": "12_seamless_64x64_terrain_tiles/tile_05_shallow_ford_water.png",
-        }
-        self.terrain_textures = {
-            name: self._load_texture(path) for name, path in terrain_files.items()
-        }
-        self.terrain_blend_texture = self._build_terrain_blend_texture(terrain_files)
-        self.cliff_texture = self._load_texture(
-            "12_seamless_64x64_terrain_tiles/tile_08_megalithic_granite_rock.png"
-        )
+        # Tính trước độ cao thực tế trong không gian 3D
+        # Đất nổi (elevation >= 0.35) vươn lên từ mặt biển, biển phẳng ở y = WATER_Y
+        self.world_heights = np.where(
+            self.elevation < 0.35,
+            0.03,
+            (self.elevation - 0.33) * 1.35
+        ) * self.HEIGHT_SCALE_3D
 
-        def variants(prefix, count):
-            return [
-                self._load_texture(f"04_prehistoric_trees_and_wood/{prefix}_{i:02d}.png")
-                for i in range(1, count + 1)
-            ]
+        # Tính trước bóng đổ địa hình 3D (Hillshading)
+        gy, gx = np.gradient(self.world_heights)
+        nx = -gx
+        ny = np.ones_like(gx) * self.TILE_SIZE_3D
+        nz = -gy
+        norm = np.sqrt(nx * nx + ny * ny + nz * nz) + 1e-6
+        nx /= norm
+        ny /= norm
+        nz /= norm
 
-        self.tree_textures = {
-            "tree_steppe": variants("tree_steppe_oak_pine", 10),
-            "tree_forest": variants("tree_primeval_fern_cycad", 10),
-            "tree_tundra": variants("tree_tundra_spruce_birch", 10),
-            "tree_swamp": [
-                self._load_texture("04_prehistoric_trees_and_wood/tree_swamp_mangrove_01.png"),
-                self._load_texture("04_prehistoric_trees_and_wood/tree_swamp_mangrove_02.png"),
-            ],
-        }
-        self.flora_textures = {
-            "wild_bush": [self._load_texture(f"05_forageable_flora_3stages/flora_berry_bush_stage_{i:02d}.png") for i in (3, 5, 7)],
-            "weeds": [self._load_texture(f"05_forageable_flora_3stages/flora_grain_fiber_reed_stage_{i:02d}.png") for i in (3, 5, 7)],
-            "prop_mushroom": [self._load_texture(f"05_forageable_flora_3stages/flora_mushroom_herb_stage_{i:02d}.png") for i in (3, 5, 7)],
-        }
-        self.beast_textures = {
-            "mammoth": self._load_texture("02_megafauna_wildlife/wildlife_mammoth_and_smilodon_01.png"),
-            "ancient_bison": self._load_texture("02_megafauna_wildlife/wildlife_steppe_bison_01.png"),
-            "sabertooth": self._load_texture("02_megafauna_wildlife/wildlife_mammoth_and_smilodon_06.png"),
-            "dire_wolf": self._load_texture("02_megafauna_wildlife/wildlife_cavebear_and_direwolf_04.png"),
-            "giant_deer": self._load_texture("02_megafauna_wildlife/wildlife_steppe_bison_05.png"),
-            "cave_bear": self._load_texture("02_megafauna_wildlife/wildlife_cavebear_and_direwolf_01.png"),
-            "wild_boar": self._load_texture("02_megafauna_wildlife/wildlife_wild_boar_01.png"),
-        }
+        # Hướng Mặt Trời Tây-Bắc
+        lx, ly, lz = -0.50, 0.72, -0.48
+        l_len = math.sqrt(lx * lx + ly * ly + lz * lz)
+        lx, ly, lz = lx / l_len, ly / l_len, lz / l_len
 
-    def _build_terrain_blend_texture(self, terrain_files):
-        """Bake one continuous splat texture from the existing terrain tiles."""
-        try:
-            from PIL import Image, ImageDraw, ImageFilter
-        except ImportError:
-            return None
+        dot = nx * lx + ny * ly + nz * lz
+        self.shading = 0.40 + 0.60 * np.clip(dot, 0.0, 1.0)
 
-        size = self.GROUND_TEXTURE_SIZE
-        cell_w = max(1, int(round(size / self.map_mgr.cols)))
-        cell_h = max(1, int(round(size / self.map_mgr.rows)))
-        layers = {}
-        masks = {}
-        material_order = [
-            "steppe_meadow", "forest_humus", "riparian_mud", "point_bar_sand",
-            "settlement_loam", "scree_talus", "bridge_ford",
+    def _spawn_world_megafauna(self):
+        """Phân bổ các đàn thú cổ đại trên các lục địa tương ứng với sinh cảnh."""
+        # Danh sách các bầy thú trên bản đồ thế giới 200x200
+        # (type, grid_c, grid_r)
+        spawns = [
+            # 1. Voi ma mút (Mammoths) ở Thảo nguyên mùa thu & Chân núi băng Tây-Bắc
+            ("mammoth", 52, 45), ("mammoth", 56, 48), ("mammoth", 60, 42),
+            ("mammoth", 135, 45), ("mammoth", 140, 50), ("mammoth", 145, 42),
+            # 2. Bò rừng cổ đại (Ancient Bison) ở Bình nguyên trung tâm
+            ("ancient_bison", 120, 95), ("ancient_bison", 125, 98), ("ancient_bison", 115, 105),
+            ("ancient_bison", 130, 102), ("ancient_bison", 122, 110),
+            # 3. Hươu sừng lớn (Giant Deer) ở bìa Rừng nguyên sinh
+            ("giant_deer", 108, 118), ("giant_deer", 112, 122), ("giant_deer", 105, 125),
+            ("giant_deer", 68, 62), ("giant_deer", 72, 65),
+            # 4. Hổ răng kiếm (Sabertooth) săn mồi ven sông và vũng nước
+            ("sabertooth", 128, 75), ("sabertooth", 132, 78), ("sabertooth", 85, 145),
+            # 5. Gấu hang khổng lồ (Cave Bear) ở sườn núi đá
+            ("cave_bear", 48, 38), ("cave_bear", 42, 125), ("cave_bear", 152, 60),
+            # 6. Sói tiền sử (Dire Wolf)
+            ("dire_wolf", 115, 82), ("dire_wolf", 118, 85), ("dire_wolf", 122, 80),
         ]
 
-        for terrain in material_order:
-            relative = terrain_files.get(terrain)
-            if relative is None:
-                continue
-            path = self.asset_root / relative
-            if not path.exists():
-                continue
-            tile = Image.open(path).convert("RGB").resize(
-                (cell_w, cell_h), Image.Resampling.BILINEAR
-            )
-            layer = Image.new("RGB", (size, size))
-            for row in range(self.map_mgr.rows):
-                for col in range(self.map_mgr.cols):
-                    layer.paste(tile, (col * cell_w, row * cell_h))
-            layers[terrain] = layer
+        self.world_beasts = []
+        for beast_type, gc, gr in spawns:
+            self.world_beasts.append({
+                "type": beast_type,
+                "x": gc * self.TILE_SIZE_3D,
+                "z": gr * self.TILE_SIZE_3D,
+                "vx": random.uniform(-1.2, 1.2),
+                "vz": random.uniform(-1.2, 1.2),
+                "state": "graze",
+                "timer": random.uniform(2.0, 6.0),
+                "heading": random.uniform(0, math.pi * 2),
+            })
 
-            mask = Image.new("L", (size, size), 0)
-            draw = ImageDraw.Draw(mask)
-            for row in range(self.map_mgr.rows):
-                for col in range(self.map_mgr.cols):
-                    if self.map_mgr.terrain[row][col] == terrain:
-                        x0, y0 = col * cell_w, row * cell_h
-                        draw.rectangle((x0, y0, x0 + cell_w, y0 + cell_h), fill=255)
-            masks[terrain] = mask.filter(
-                ImageFilter.GaussianBlur(radius=max(4, cell_w * 0.55))
-            )
+    def _load_minimap_atlas(self):
+        """Tải bản đồ thu nhỏ cho góc màn hình."""
+        atlas_path = os.path.join(root_dir, "debug_outputs", "primeval_world_atlas.png")
+        if not os.path.exists(atlas_path):
+            atlas_path = os.path.join(root_dir, "assets", "sprites", "world_atlas.png")
 
-        if not layers:
-            return None
-        base = layers.get("steppe_meadow") or next(iter(layers.values()))
-        for terrain in material_order:
-            if terrain != "steppe_meadow" and terrain in layers:
-                base = Image.composite(layers[terrain], base, masks[terrain])
+        self.minimap_surf = None
+        if os.path.exists(atlas_path):
+            try:
+                raw_surf = pygame.image.load(atlas_path).convert()
+                # Thu nhỏ về kích thước HUD 200 x 112
+                self.minimap_surf = pygame.transform.smoothscale(raw_surf, (200, 112))
+            except Exception:
+                self.minimap_surf = None
 
-        texture = pyglet.image.ImageData(
-            size, size, "RGB", base.tobytes(), pitch=size * 3
-        ).get_texture()
-        gl.glBindTexture(gl.GL_TEXTURE_2D, texture.id)
-        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
-        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
-        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE)
-        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE)
-        return texture
+    # --------------------------------------------------------------------------
+    # ĐIỀU KHIỂN & SỰ KIỆN (INPUT HANDLING)
+    # --------------------------------------------------------------------------
+    def handle_events(self):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.running = False
+                return
 
-    def _load_texture(self, relative_path):
-        path = self.asset_root / relative_path
-        if not path.exists():
-            return None
-        try:
-            texture = pyglet.image.load(str(path)).get_texture()
-            gl.glBindTexture(gl.GL_TEXTURE_2D, texture.id)
-            gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
-            gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
-            return texture
-        except Exception:
-            return None
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    self.running = False
+                    return
+                elif event.key == pygame.K_m:
+                    self.show_minimap = not self.show_minimap
+                elif event.key in (pygame.K_F1, pygame.K_h):
+                    self.show_hud = not self.show_hud
 
-    def on_resize(self, width, height):
-        self.width = max(1, width)
-        self.height = max(1, height)
-        gl.glViewport(0, 0, self.width, self.height)
-        self.fps_label.y = self.height - 26
-        return pyglet.event.EVENT_HANDLED
+                # Phím nhảy nhanh đến các địa danh lớn
+                elif event.key in self.CAMERA_PRESETS:
+                    preset = self.CAMERA_PRESETS[event.key]
+                    self.cam_x = preset["pos"][0] * self.TILE_SIZE_3D
+                    self.cam_y = preset["pos"][1]
+                    self.cam_z = preset["pos"][2] * self.TILE_SIZE_3D
+                    self.yaw = preset["yaw"]
+                    self.pitch = preset["pitch"]
+                    self.current_preset_name = preset["name"]
 
-    def on_key_press(self, symbol, modifiers):
-        if symbol == key.ESCAPE:
-            self.window.close()
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 3:  # Chuột phải
+                    self.mouse_drag = True
+                    self.last_mouse_pos = event.pos
 
-    def on_key_release(self, symbol, modifiers):
-        return None
+            elif event.type == pygame.MOUSEBUTTONUP:
+                if event.button == 3:
+                    self.mouse_drag = False
 
-    def on_mouse_press(self, x, y, button, modifiers):
-        if button == mouse.RIGHT:
-            self.mouse_look = True
+            elif event.type == pygame.MOUSEMOTION:
+                if self.mouse_drag:
+                    dx = event.pos[0] - self.last_mouse_pos[0]
+                    dy = event.pos[1] - self.last_mouse_pos[1]
+                    self.last_mouse_pos = event.pos
+                    self.yaw += dx * 0.005
+                    self.pitch = max(-math.radians(82), min(math.radians(20), self.pitch - dy * 0.004))
 
-    def on_mouse_release(self, x, y, button, modifiers):
-        if button == mouse.RIGHT:
-            self.mouse_look = False
+    # --------------------------------------------------------------------------
+    # CẬP NHẬT VẬT LÝ & ĐỘNG VẬT (UPDATE)
+    # --------------------------------------------------------------------------
+    def update(self, dt: float):
+        self.game_time += dt
 
-    def on_mouse_drag(self, x, y, dx, dy, buttons, modifiers):
-        if self.mouse_look or buttons & mouse.RIGHT:
-            self.yaw += dx * 0.006
-            self.pitch = max(math.radians(-80), min(math.radians(-8), self.pitch - dy * 0.004))
+        # Đọc trạng thái bàn phím để di chuyển Camera
+        keys = pygame.key.get_pressed()
+        move_speed = self.speed * dt
+        if keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]:
+            move_speed *= 2.6  # Tăng tốc bay nhanh
 
-    def _look_direction(self):
-        cp = math.cos(self.pitch)
-        return (
-            math.sin(self.yaw) * cp,
-            math.sin(self.pitch),
-            -math.cos(self.yaw) * cp,
-        )
+        # Vector hướng nhìn
+        forward_x = math.sin(self.yaw) * math.cos(self.pitch)
+        forward_y = math.sin(self.pitch)
+        forward_z = -math.cos(self.yaw) * math.cos(self.pitch)
 
-    def update(self, dt):
-        self.last_dt = min(0.05, max(0.0, dt))
-        self.game_time += self.last_dt
-        dx, _, dz = self._look_direction()
-        right_x, right_z = math.cos(self.yaw), math.sin(self.yaw)
-        speed = 18.0 * self.last_dt
-        if self.keys[key.LSHIFT] or self.keys[key.RSHIFT]:
-            speed *= 2.5
-        if self.keys[key.W]:
-            self.cam_x += dx * speed
-            self.cam_z += dz * speed
-        if self.keys[key.S]:
-            self.cam_x -= dx * speed
-            self.cam_z -= dz * speed
-        if self.keys[key.A]:
-            self.cam_x -= right_x * speed
-            self.cam_z -= right_z * speed
-        if self.keys[key.D]:
-            self.cam_x += right_x * speed
-            self.cam_z += right_z * speed
-        if self.keys[key.Q]:
-            self.cam_y += speed
-        if self.keys[key.E]:
-            self.cam_y -= speed
-        self.cam_x = max(-10.0, min(MAP_COLS * self.TILE_WORLD_SIZE + 10.0, self.cam_x))
-        self.cam_z = max(-10.0, min(MAP_ROWS * self.TILE_WORLD_SIZE + 10.0, self.cam_z))
-        self.cam_y = max(3.0, min(100.0, self.cam_y))
+        # Vector ngang (Right)
+        right_x = math.cos(self.yaw)
+        right_z = math.sin(self.yaw)
 
-        self.wildlife_mgr.update(self.last_dt, [], None, None)
+        # Di chuyển tiến/lùi (W/S)
+        if keys[pygame.K_w]:
+            self.cam_x += forward_x * move_speed
+            self.cam_y += forward_y * move_speed
+            self.cam_z += forward_z * move_speed
+        if keys[pygame.K_s]:
+            self.cam_x -= forward_x * move_speed
+            self.cam_y -= forward_y * move_speed
+            self.cam_z -= forward_z * move_speed
 
-    def _terrain_y(self, col, row):
-        col = max(0, min(self.map_mgr.cols - 1, int(col)))
-        row = max(0, min(self.map_mgr.rows - 1, int(row)))
-        return self.render_heights[row][col] * self.HEIGHT_WORLD_SCALE
+        # Di chuyển ngang (A/D)
+        if keys[pygame.K_a]:
+            self.cam_x -= right_x * move_speed
+            self.cam_z -= right_z * move_speed
+        if keys[pygame.K_d]:
+            self.cam_x += right_x * move_speed
+            self.cam_z += right_z * move_speed
 
-    def _terrain_normal(self, col, row):
-        left = self._terrain_y(col - 1, row)
-        right = self._terrain_y(col + 1, row)
-        back = self._terrain_y(col, row - 1)
-        front = self._terrain_y(col, row + 1)
-        dx = (right - left) / (2.0 * self.TILE_WORLD_SIZE)
-        dz = (front - back) / (2.0 * self.TILE_WORLD_SIZE)
-        nx, ny, nz = -dx, 1.0, -dz
-        length = math.sqrt(nx * nx + ny * ny + nz * nz) or 1.0
-        return nx / length, ny / length, nz / length
+        # Nâng hạ độ cao máy ảnh (Q/E)
+        if keys[pygame.K_q]:
+            self.cam_y += move_speed * 0.9
+        if keys[pygame.K_e]:
+            self.cam_y -= move_speed * 0.9
 
-    def _tile_color(self, terrain):
-        return self.TERRAIN_COLORS.get(terrain, (0.30, 0.40, 0.22))
+        # Xoay bằng phím mũi tên (hỗ trợ khi không dùng chuột)
+        rot_speed = 1.4 * dt
+        if keys[pygame.K_LEFT]:
+            self.yaw -= rot_speed
+        if keys[pygame.K_RIGHT]:
+            self.yaw += rot_speed
+        if keys[pygame.K_UP]:
+            self.pitch = min(math.radians(20), self.pitch + rot_speed * 0.8)
+        if keys[pygame.K_DOWN]:
+            self.pitch = max(-math.radians(82), self.pitch - rot_speed * 0.8)
 
-    @staticmethod
-    def _vertex(x, y, z):
-        gl.glVertex3f(float(x), float(y), float(z))
+        # Giới hạn độ cao máy ảnh không chìm xuống dưới mặt nước
+        world_max_x = self.grid_cols * self.TILE_SIZE_3D
+        world_max_z = self.grid_rows * self.TILE_SIZE_3D
+        self.cam_x = max(-50.0, min(world_max_x + 50.0, self.cam_x))
+        self.cam_z = max(-50.0, min(world_max_z + 50.0, self.cam_z))
+        self.cam_y = max(self.WATER_Y + 1.5, min(140.0, self.cam_y))
 
-    def _draw_terrain_mesh(self):
-        s = self.TILE_WORLD_SIZE
-        gl.glEnable(gl.GL_TEXTURE_2D)
-        texture = self.terrain_blend_texture
-        if texture:
-            gl.glBindTexture(gl.GL_TEXTURE_2D, texture.id)
-            gl.glColor3f(1.0, 1.0, 1.0)
-            gl.glBegin(gl.GL_QUADS)
-            for row in range(self.map_mgr.rows - 1):
-                for col in range(self.map_mgr.cols - 1):
-                    x0, x1 = col * s, (col + 1) * s
-                    z0, z1 = row * s, (row + 1) * s
-                    u0 = col / (self.map_mgr.cols - 1)
-                    u1 = (col + 1) / (self.map_mgr.cols - 1)
-                    v0 = row / (self.map_mgr.rows - 1)
-                    v1 = (row + 1) / (self.map_mgr.rows - 1)
-                    vertices = (
-                        (col, row, u0, v0, x0, z0),
-                        (col + 1, row, u1, v0, x1, z0),
-                        (col + 1, row + 1, u1, v1, x1, z1),
-                        (col, row + 1, u0, v1, x0, z1),
-                    )
-                    for vc, vr, u, v, x, z in vertices:
-                        gl.glNormal3f(*self._terrain_normal(vc, vr))
-                        gl.glTexCoord2f(u, v)
-                        self._vertex(x, self._terrain_y(vc, vr), z)
-            gl.glEnd()
-        else:
-            # Fallback for environments without Pillow.
-            for row in range(self.map_mgr.rows - 1):
-                for col in range(self.map_mgr.cols - 1):
-                    terrain = self.map_mgr.terrain[row][col]
-                    texture = self.terrain_textures.get(terrain)
-                    if texture:
-                        gl.glBindTexture(gl.GL_TEXTURE_2D, texture.id)
-                        gl.glColor3f(1.0, 1.0, 1.0)
-                    else:
-                        r, g, b = self._tile_color(terrain)
-                        gl.glColor3f(r, g, b)
-                    gl.glBegin(gl.GL_QUADS)
-                    x0, x1 = col * s, (col + 1) * s
-                    z0, z1 = row * s, (row + 1) * s
-                    gl.glTexCoord2f(0.0, 0.0); self._vertex(x0, self._terrain_y(col, row), z0)
-                    gl.glTexCoord2f(1.0, 0.0); self._vertex(x1, self._terrain_y(col + 1, row), z0)
-                    gl.glTexCoord2f(1.0, 1.0); self._vertex(x1, self._terrain_y(col + 1, row + 1), z1)
-                    gl.glTexCoord2f(0.0, 1.0); self._vertex(x0, self._terrain_y(col, row + 1), z1)
-                    gl.glEnd()
-        gl.glDisable(gl.GL_TEXTURE_2D)
+        # Cập nhật hành vi bầy thú hoang dã
+        self._update_wildlife(dt)
 
-    def _draw_water_surface(self):
-        texture = self.terrain_textures.get("water")
-        gl.glDisable(gl.GL_LIGHTING)
-        gl.glEnable(gl.GL_TEXTURE_2D)
-        if texture:
-            gl.glBindTexture(gl.GL_TEXTURE_2D, texture.id)
-        gl.glColor3f(1.0, 1.0, 1.0) if texture else gl.glColor3f(0.05, 0.30, 0.52)
-        gl.glBegin(gl.GL_QUADS)
-        # Build the main river from its continuous centerline instead of
-        # drawing one square quad per water tile. This removes the staircase
-        # edge while keeping the gameplay water mask unchanged.
-        for row in range(self.map_mgr.rows - 1):
-            center0 = self.map_mgr.get_river_center_float(row)
-            center1 = self.map_mgr.get_river_center_float(row + 1)
-            width0 = self.map_mgr.get_river_half_width_float(row)
-            width1 = self.map_mgr.get_river_half_width_float(row + 1)
-            y0 = self.WATER_LEVEL + math.sin(self.game_time * 1.8 + row * 0.3) * 0.025
-            y1 = self.WATER_LEVEL + math.sin(self.game_time * 1.8 + (row + 1) * 0.3) * 0.025
-            x0_left = (center0 - width0) * self.TILE_WORLD_SIZE
-            x0_right = (center0 + width0) * self.TILE_WORLD_SIZE
-            x1_left = (center1 - width1) * self.TILE_WORLD_SIZE
-            x1_right = (center1 + width1) * self.TILE_WORLD_SIZE
-            z0, z1 = row * self.TILE_WORLD_SIZE, (row + 1) * self.TILE_WORLD_SIZE
-            gl.glTexCoord2f(0.0, row / self.map_mgr.rows)
-            self._vertex(x0_left, y0, z0)
-            gl.glTexCoord2f(1.0, row / self.map_mgr.rows)
-            self._vertex(x0_right, y0, z0)
-            gl.glTexCoord2f(1.0, (row + 1) / self.map_mgr.rows)
-            self._vertex(x1_right, y1, z1)
-            gl.glTexCoord2f(0.0, (row + 1) / self.map_mgr.rows)
-            self._vertex(x1_left, y1, z1)
-        gl.glEnd()
-        gl.glDisable(gl.GL_TEXTURE_2D)
-        gl.glEnable(gl.GL_LIGHTING)
+    def _update_wildlife(self, dt: float):
+        """Cập nhật vị trí và dáng đi của động vật trên bề mặt 3D."""
+        world_max_x = (self.grid_cols - 2) * self.TILE_SIZE_3D
+        world_max_z = (self.grid_rows - 2) * self.TILE_SIZE_3D
 
-    def _draw_cliff_faces(self):
-        s = self.TILE_WORLD_SIZE
-        texture = self.cliff_texture
-        gl.glEnable(gl.GL_TEXTURE_2D)
-        if texture:
-            gl.glBindTexture(gl.GL_TEXTURE_2D, texture.id)
-        gl.glBegin(gl.GL_QUADS)
-        for row in range(self.map_mgr.rows - 1):
-            for col in range(self.map_mgr.cols - 1):
-                current = self._terrain_y(col, row)
-                if self.map_mgr.cliff_south[row][col] > 0:
-                    lower = self._terrain_y(col, row + 1)
-                    if current > lower + 0.1:
-                        gl.glColor3f(1.0, 1.0, 1.0) if texture else gl.glColor3f(0.18, 0.16, 0.14)
-                        x0, x1, z = col * s, (col + 1) * s, (row + 1) * s
-                        gl.glTexCoord2f(0.0, 0.0)
-                        self._vertex(x0, current, z)
-                        gl.glTexCoord2f(1.0, 0.0)
-                        self._vertex(x1, current, z)
-                        gl.glTexCoord2f(1.0, 1.0)
-                        self._vertex(x1, lower, z)
-                        gl.glTexCoord2f(0.0, 1.0)
-                        self._vertex(x0, lower, z)
-                if self.map_mgr.cliff_east[row][col] > 0:
-                    lower = self._terrain_y(col + 1, row)
-                    if current > lower + 0.1:
-                        gl.glColor3f(1.0, 1.0, 1.0) if texture else gl.glColor3f(0.21, 0.19, 0.16)
-                        x, z0, z1 = (col + 1) * s, row * s, (row + 1) * s
-                        gl.glTexCoord2f(0.0, 0.0)
-                        self._vertex(x, current, z0)
-                        gl.glTexCoord2f(1.0, 0.0)
-                        self._vertex(x, current, z1)
-                        gl.glTexCoord2f(1.0, 1.0)
-                        self._vertex(x, lower, z1)
-                        gl.glTexCoord2f(0.0, 1.0)
-                        self._vertex(x, lower, z0)
-        gl.glEnd()
-        gl.glDisable(gl.GL_TEXTURE_2D)
+        for b in self.world_beasts:
+            b["timer"] -= dt
+            if b["timer"] <= 0:
+                b["timer"] = random.uniform(3.0, 8.0)
+                if random.random() < 0.65:
+                    b["state"] = "wander"
+                    angle = random.uniform(0, math.pi * 2)
+                    spd = random.uniform(0.6, 1.8)
+                    b["vx"] = math.cos(angle) * spd
+                    b["vz"] = math.sin(angle) * spd
+                else:
+                    b["state"] = "graze"
+                    b["vx"] = 0.0
+                    b["vz"] = 0.0
 
-    def _draw_billboard(self, texture, x, y, z, width, height, cross=False):
-        """Draw a transparent PNG as a camera-facing 3D vegetation card."""
-        if texture is None:
-            return
-        gl.glDisable(gl.GL_LIGHTING)
-        aspect = texture.height / float(max(1, texture.width))
-        height = max(height, width * aspect)
-        angles = (self.yaw, self.yaw + math.pi * 0.5) if cross else (self.yaw,)
-        gl.glEnable(gl.GL_TEXTURE_2D)
-        gl.glEnable(gl.GL_BLEND)
-        gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
-        gl.glDepthMask(gl.GL_TRUE)
-        gl.glBindTexture(gl.GL_TEXTURE_2D, texture.id)
-        gl.glColor4f(1.0, 1.0, 1.0, 1.0)
-        for angle in angles:
-            rx, rz = math.cos(angle) * width * 0.5, math.sin(angle) * width * 0.5
-            gl.glBegin(gl.GL_QUADS)
-            gl.glTexCoord2f(0.0, 0.0)
-            self._vertex(x - rx, y, z - rz)
-            gl.glTexCoord2f(1.0, 0.0)
-            self._vertex(x + rx, y, z + rz)
-            gl.glTexCoord2f(1.0, 1.0)
-            self._vertex(x + rx, y + height, z + rz)
-            gl.glTexCoord2f(0.0, 1.0)
-            self._vertex(x - rx, y + height, z - rz)
-            gl.glEnd()
-        gl.glDisable(gl.GL_BLEND)
-        gl.glDisable(gl.GL_TEXTURE_2D)
-        gl.glEnable(gl.GL_LIGHTING)
+            if b["state"] == "wander":
+                b["x"] += b["vx"] * dt
+                b["z"] += b["vz"] * dt
+                b["x"] = max(5.0, min(world_max_x, b["x"]))
+                b["z"] = max(5.0, min(world_max_z, b["z"]))
 
-    def _draw_natural_assets(self):
-        """Place the existing tree/flora PNGs on the 3D terrain surface."""
-        for (col, row), obstacle in self.map_mgr.obstacles.items():
-            obs_type = obstacle.obs_type
-            texture = None
-            cross = False
-            width, height = 1.7, 3.0
-            if obs_type in self.tree_textures:
-                choices = [tex for tex in self.tree_textures[obs_type] if tex]
-                if choices:
-                    texture = choices[obstacle.variant % len(choices)]
-                cross = True
-                width, height = 2.7, 4.0
-            elif obs_type in self.flora_textures:
-                choices = [tex for tex in self.flora_textures[obs_type] if tex]
-                if choices:
-                    texture = choices[obstacle.variant % len(choices)]
-                width, height = 1.0, 1.1
-            if texture is None:
-                continue
-            x = (col + 0.5 + obstacle.jitter_x / TILE_SIZE) * self.TILE_WORLD_SIZE
-            z = (row + 0.5 + obstacle.jitter_y / TILE_SIZE) * self.TILE_WORLD_SIZE
-            ground = self._terrain_y(col, row)
-            self._draw_billboard(texture, x, ground, z, width, height, cross=cross)
+    def _get_terrain_height_at(self, wx: float, wz: float) -> float:
+        """Lấy độ cao bề mặt 3D tại tọa độ thế giới (wx, wz)."""
+        gc = wx / self.TILE_SIZE_3D
+        gr = wz / self.TILE_SIZE_3D
+        c0 = max(0, min(self.grid_cols - 1, int(math.floor(gc))))
+        r0 = max(0, min(self.grid_rows - 1, int(math.floor(gr))))
+        return float(self.world_heights[r0, c0])
 
-    @staticmethod
-    def _cube(cx, cy, cz, sx, sy, sz, color):
-        x0, x1 = cx - sx * 0.5, cx + sx * 0.5
-        y0, y1 = cy - sy * 0.5, cy + sy * 0.5
-        z0, z1 = cz - sz * 0.5, cz + sz * 0.5
-        faces = [
-            ((0.78, 0.78, 0.78), [(x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0)]),
-            ((1.00, 1.00, 1.00), [(x0, y0, z1), (x0, y1, z1), (x1, y1, z1), (x1, y0, z1)]),
-            ((0.90, 0.90, 0.90), [(x0, y0, z0), (x0, y0, z1), (x0, y1, z1), (x0, y1, z0)]),
-            ((0.65, 0.65, 0.65), [(x1, y0, z1), (x1, y0, z0), (x1, y1, z0), (x1, y1, z1)]),
-            ((0.72, 0.72, 0.72), [(x0, y1, z0), (x1, y1, z0), (x1, y1, z1), (x0, y1, z1)]),
-            ((0.48, 0.48, 0.48), [(x0, y0, z1), (x1, y0, z1), (x1, y0, z0), (x0, y0, z0)]),
-        ]
-        gl.glBegin(gl.GL_QUADS)
-        for shade, vertices in faces:
-            gl.glColor3f(color[0] * shade[0], color[1] * shade[1], color[2] * shade[2])
-            for vertex in vertices:
-                gl.glVertex3f(*vertex)
-        gl.glEnd()
-
-    def _draw_beast(self, beast):
-        x = beast.x / TILE_SIZE * self.TILE_WORLD_SIZE
-        z = beast.y / TILE_SIZE * self.TILE_WORLD_SIZE
-        ground = beast.z * self.HEIGHT_WORLD_SCALE
-        color = self.BEAST_COLORS.get(beast.type, (0.45, 0.30, 0.20))
-        texture = self.beast_textures.get(beast.type)
-        if texture:
-            widths = {"mammoth": 3.8, "cave_bear": 2.6, "ancient_bison": 2.7, "giant_deer": 2.3}
-            self._draw_billboard(texture, x, ground, z, widths.get(beast.type, 2.0), 2.5)
-            return
-        scale = {"mammoth": 1.45, "cave_bear": 1.10, "ancient_bison": 1.0}.get(beast.type, 0.78)
-        body_y = ground + 0.75 * scale
-        self._cube(x, body_y, z, 1.35 * scale, 0.85 * scale, 0.72 * scale, color)
-        head_x = x + (0.78 if beast.direction == "right" else -0.78) * scale
-        self._cube(head_x, ground + 1.05 * scale, z, 0.52 * scale, 0.55 * scale, 0.52 * scale, color)
-        leg_color = tuple(v * 0.62 for v in color)
-        for lx in (-0.43, 0.43):
-            for lz in (-0.22, 0.22):
-                self._cube(x + lx * scale, ground + 0.28 * scale, z + lz * scale,
-                           0.18 * scale, 0.56 * scale, 0.18 * scale, leg_color)
-
-    def _setup_camera(self):
-        gl.glMatrixMode(gl.GL_PROJECTION)
-        gl.glLoadIdentity()
-        glu.gluPerspective(62.0, self.width / float(max(1, self.height)), 0.1, 500.0)
-        gl.glMatrixMode(gl.GL_MODELVIEW)
-        gl.glLoadIdentity()
-        dx, dy, dz = self._look_direction()
-        glu.gluLookAt(
-            self.cam_x, self.cam_y, self.cam_z,
-            self.cam_x + dx, self.cam_y + dy, self.cam_z + dz,
-            0.0, 1.0, 0.0,
-        )
-
-    def _draw_overlay(self):
-        gl.glDisable(gl.GL_DEPTH_TEST)
-        gl.glMatrixMode(gl.GL_PROJECTION)
-        gl.glLoadIdentity()
-        gl.glOrtho(0, self.width, 0, self.height, -1, 1)
-        gl.glMatrixMode(gl.GL_MODELVIEW)
-        gl.glLoadIdentity()
-        self.fps_label.text = (
-            f"3D OpenGL | Camera: {self.cam_x / self.TILE_WORLD_SIZE:.1f}, "
-            f"{self.cam_z / self.TILE_WORLD_SIZE:.1f} | Thú: {len(self.wildlife_mgr.beasts)}"
-        )
-        self.fps_label.draw()
-        self.help_label.draw()
-        gl.glEnable(gl.GL_DEPTH_TEST)
-
-    def on_draw(self):
-        self.render()
-
+    # --------------------------------------------------------------------------
+    # KẾT XUẤT 3D (RENDER PIPELINE)
+    # --------------------------------------------------------------------------
     def render(self):
-        self.window.clear()
-        gl.glEnable(gl.GL_DEPTH_TEST)
-        gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
-        self._setup_camera()
-        self._draw_terrain_mesh()
-        self._draw_water_surface()
-        self._draw_natural_assets()
-        for beast in self.wildlife_mgr.beasts:
-            if not beast.is_dead:
-                self._draw_beast(beast)
-        self._draw_overlay()
+        # 1. Vẽ nền trời gradient (Sky dome)
+        self._draw_sky_gradient()
 
+        # 2. Chiếu & Vẽ địa hình 3D (Terrain Mesh Quads)
+        self._draw_3d_terrain()
+
+        # 3. Vẽ động vật cổ đại (Beast Billboards/Cubes)
+        self._draw_3d_wildlife()
+
+        # 4. Giao diện HUD & Bản đồ mini
+        if self.show_hud:
+            self._draw_hud()
+
+        if not self.headless:
+            pygame.display.flip()
+
+    def _draw_sky_gradient(self):
+        """Vẽ bầu trời tiền sử chuyển màu tự nhiên."""
+        sky_top = (16, 28, 48)
+        sky_horizon = (64, 88, 118)
+        h = self.height
+        step = 4
+        for y in range(0, h, step):
+            t = y / float(h)
+            r = int(sky_top[0] * (1.0 - t) + sky_horizon[0] * t)
+            g = int(sky_top[1] * (1.0 - t) + sky_horizon[1] * t)
+            b = int(sky_top[2] * (1.0 - t) + sky_horizon[2] * t)
+            pygame.draw.rect(self.screen, (r, g, b), (0, y, self.width, step))
+
+    def _draw_3d_terrain(self):
+        """
+        Chiếu phối cảnh và kết xuất lưới địa hình 3D.
+        Tối ưu hóa: Giới hạn tầm nhìn quanh vị trí máy ảnh (Frustum/Range culling).
+        """
+        s = self.TILE_SIZE_3D
+        cx, cy, cz = self.cam_x, self.cam_y, self.cam_z
+
+        # Tính toán Camera Basis
+        f_x = math.sin(self.yaw) * math.cos(self.pitch)
+        f_y = math.sin(self.pitch)
+        f_z = -math.cos(self.yaw) * math.cos(self.pitch)
+        forward = np.array([f_x, f_y, f_z], dtype=np.float32)
+
+        up_hint = np.array([0.0, 1.0, 0.0], dtype=np.float32)
+        right = np.cross(forward, up_hint)
+        r_norm = np.linalg.norm(right)
+        if r_norm < 1e-6:
+            right = np.array([1.0, 0.0, 0.0], dtype=np.float32)
+        else:
+            right /= r_norm
+        up = np.cross(right, forward)
+
+        # Tiêu cự Perspective
+        fov_rad = math.radians(self.fov)
+        f_scale = (self.width * 0.5) / math.tan(fov_rad * 0.5)
+        half_w = self.width * 0.5
+        half_h = self.height * 0.5
+
+        # Xác định phạm vi ô lưới hiển thị (tầm nhìn bán kính ~45 ô)
+        center_c = int(cx / s)
+        center_r = int(cz / s)
+        view_radius = 42
+
+        c_min = max(0, center_c - view_radius)
+        c_max = min(self.grid_cols - 1, center_c + view_radius)
+        r_min = max(0, center_r - view_radius)
+        r_max = min(self.grid_rows - 1, center_r + view_radius)
+
+        if c_max <= c_min or r_max <= r_min:
+            return
+
+        c_range = np.arange(c_min, c_max + 1)
+        r_range = np.arange(r_min, r_max + 1)
+        C_grid, R_grid = np.meshgrid(c_range, r_range)
+
+        # Tọa độ thế giới đỉnh
+        X_world = C_grid.astype(np.float32) * s
+        Z_world = R_grid.astype(np.float32) * s
+        Y_world = self.world_heights[r_min:r_max + 1, c_min:c_max + 1]
+
+        # Chuyển đổi sang Camera Space
+        dx = X_world - cx
+        dy = Y_world - cy
+        dz = Z_world - cz
+
+        cam_x = dx * right[0] + dy * right[1] + dz * right[2]
+        cam_y = dx * up[0] + dy * up[1] + dz * up[2]
+        cam_z = dx * forward[0] + dy * forward[1] + dz * forward[2]
+
+        # Tọa độ màn hình 2D
+        safe_z = np.where(cam_z > 1.2, cam_z, 1.2)
+        screen_x = half_w + (cam_x * f_scale / safe_z)
+        screen_y = half_h - (cam_y * f_scale / safe_z)
+
+        # Thu thập các ô quads để sắp xếp theo chiều sâu
+        sub_rows = len(r_range)
+        sub_cols = len(c_range)
+        quads = []
+
+        sub_biomes = self.biome_id[r_min:r_max, c_min:c_max]
+        sub_shading = self.shading[r_min:r_max, c_min:c_max]
+
+        # Hiệu ứng gợn sóng nước
+        wave_shimmer = math.sin(self.game_time * 2.5) * 0.05
+
+        for r in range(sub_rows - 1):
+            for c in range(sub_cols - 1):
+                z0 = cam_z[r, c]
+                z1 = cam_z[r, c + 1]
+                z2 = cam_z[r + 1, c + 1]
+                z3 = cam_z[r + 1, c]
+
+                # Bỏ qua nếu toàn bộ ô ở sau máy ảnh
+                if z0 <= 1.5 and z1 <= 1.5 and z2 <= 1.5 and z3 <= 1.5:
+                    continue
+
+                avg_depth = (z0 + z1 + z2 + z3) * 0.25
+                if avg_depth > 260.0:
+                    continue
+
+                # Tọa độ 4 đỉnh trên màn hình
+                p0 = (float(screen_x[r, c]), float(screen_y[r, c]))
+                p1 = (float(screen_x[r, c + 1]), float(screen_y[r, c + 1]))
+                p2 = (float(screen_x[r + 1, c + 1]), float(screen_y[r + 1, c + 1]))
+                p3 = (float(screen_x[r + 1, c]), float(screen_y[r + 1, c]))
+
+                # Kiểm tra thô Frustum (nằm ngoài màn hình quá xa)
+                min_px = min(p0[0], p1[0], p2[0], p3[0])
+                max_px = max(p0[0], p1[0], p2[0], p3[0])
+                min_py = min(p0[1], p1[1], p2[1], p3[1])
+                max_py = max(p0[1], p1[1], p2[1], p3[1])
+
+                if max_px < -60 or min_px > self.width + 60 or max_py < -60 or min_py > self.height + 60:
+                    continue
+
+                b_id = int(sub_biomes[r, c])
+                base_col = BIOME_COLORS.get(b_id, (50, 80, 50))
+                shade_val = float(sub_shading[r, c])
+
+                # Nếu là mặt nước, thêm hiệu ứng sóng
+                if b_id in (0, 1, 2):
+                    shade_val = np.clip(shade_val + wave_shimmer, 0.35, 1.15)
+
+                # Sương mù khí quyển xa (Distance Fog)
+                fog = np.clip((avg_depth - 40.0) / 200.0, 0.0, 0.68)
+                fog_col = (64, 88, 118)
+
+                r_col = int(np.clip(base_col[0] * shade_val * (1.0 - fog) + fog_col[0] * fog, 0, 255))
+                g_col = int(np.clip(base_col[1] * shade_val * (1.0 - fog) + fog_col[1] * fog, 0, 255))
+                b_col = int(np.clip(base_col[2] * shade_val * (1.0 - fog) + fog_col[2] * fog, 0, 255))
+
+                quads.append((avg_depth, [p0, p1, p2, p3], (r_col, g_col, b_col)))
+
+        # Sắp xếp từ xa đến gần (Painter's Algorithm)
+        quads.sort(key=lambda q: q[0], reverse=True)
+
+        for _, pts, col in quads:
+            pygame.draw.polygon(self.screen, col, pts)
+
+    def _draw_3d_wildlife(self):
+        """Vẽ các bầy thú tiền sử dưới dạng mô hình 3D thu nhỏ trên bề mặt đất."""
+        cx, cy, cz = self.cam_x, self.cam_y, self.cam_z
+        f_x = math.sin(self.yaw) * math.cos(self.pitch)
+        f_y = math.sin(self.pitch)
+        f_z = -math.cos(self.yaw) * math.cos(self.pitch)
+        forward = np.array([f_x, f_y, f_z], dtype=np.float32)
+
+        up_hint = np.array([0.0, 1.0, 0.0], dtype=np.float32)
+        right = np.cross(forward, up_hint)
+        r_norm = np.linalg.norm(right)
+        right = right / (r_norm + 1e-6)
+        up = np.cross(right, forward)
+
+        fov_rad = math.radians(self.fov)
+        f_scale = (self.width * 0.5) / math.tan(fov_rad * 0.5)
+        half_w = self.width * 0.5
+        half_h = self.height * 0.5
+
+        for beast in self.world_beasts:
+            bx, bz = beast["x"], beast["z"]
+            by = self._get_terrain_height_at(bx, bz)
+
+            # Chỉ vẽ thú khi chúng ở trên mặt đất
+            if by < self.WATER_Y - 0.2:
+                continue
+
+            dx = bx - cx
+            dy = by - cy
+            dz = bz - cz
+
+            cam_depth = dx * forward[0] + dy * forward[1] + dz * forward[2]
+            if cam_depth <= 2.0 or cam_depth > 180.0:
+                continue
+
+            cam_u = dx * right[0] + dy * right[1] + dz * right[2]
+            cam_v = dx * up[0] + dy * up[1] + dz * up[2]
+
+            sx = half_w + (cam_u * f_scale / cam_depth)
+            sy = half_h - (cam_v * f_scale / cam_depth)
+
+            if sx < -30 or sx > self.width + 30 or sy < -30 or sy > self.height + 30:
+                continue
+
+            b_type = beast["type"]
+            base_color = BEAST_COLORS.get(b_type, (90, 60, 40))
+
+            # Kích thước theo loài và khoảng cách
+            size_map = {"mammoth": 3.6, "ancient_bison": 2.4, "cave_bear": 2.2, "sabertooth": 1.9, "giant_deer": 2.1, "dire_wolf": 1.6}
+            scale = size_map.get(b_type, 1.8)
+            screen_size = max(3.0, (scale * f_scale / cam_depth))
+
+            w = screen_size
+            h = screen_size * 0.75
+            body_rect = pygame.Rect(int(sx - w * 0.5), int(sy - h), int(w), int(h))
+
+            # Vẽ bóng đổ dưới đất
+            shadow_rect = pygame.Rect(int(sx - w * 0.55), int(sy - h * 0.2), int(w * 1.1), int(h * 0.35))
+            pygame.draw.ellipse(self.screen, (10, 15, 20), shadow_rect)
+
+            # Vẽ thân thú (Thân + Đầu)
+            pygame.draw.rect(self.screen, base_color, body_rect, border_radius=2)
+            head_rect = pygame.Rect(int(sx + w * 0.15), int(sy - h * 1.15), int(w * 0.45), int(h * 0.55))
+            pygame.draw.rect(self.screen, tuple(min(255, int(c * 1.15)) for c in base_color), head_rect, border_radius=2)
+
+            # Voi ma mút: Thêm ngà cong trắng ngà đặc trưng
+            if b_type == "mammoth" and screen_size > 8.0:
+                tusk_end = (int(sx + w * 0.75), int(sy - h * 0.95))
+                pygame.draw.line(self.screen, (240, 235, 215), (int(sx + w * 0.45), int(sy - h * 0.8)), tusk_end, 2)
+
+    # --------------------------------------------------------------------------
+    # GIAO DIỆN HUD & BẢN ĐỒ THU NHỎ (OVERLAY)
+    # --------------------------------------------------------------------------
+    def _draw_hud(self):
+        """Vẽ bảng thông tin đo đạc trắc địa, tọa độ máy ảnh và bản đồ thu nhỏ."""
+        # Tọa độ lưới hiện tại dưới chân máy ảnh
+        grid_c = max(0, min(self.grid_cols - 1, int(self.cam_x / self.TILE_SIZE_3D)))
+        grid_r = max(0, min(self.grid_rows - 1, int(self.cam_z / self.TILE_SIZE_3D)))
+        current_biome_id = int(self.biome_id[grid_r, grid_c])
+        biome_name = BIOME_NAMES.get(current_biome_id, "Vùng chưa thám hiểm")
+        current_elev = float(self.world_heights[grid_r, grid_c])
+
+        # Hộp thông tin trên cùng bên trái
+        hud_bg = pygame.Surface((380, 115), pygame.SRCALPHA)
+        hud_bg.fill((12, 16, 24, 210))
+        self.screen.blit(hud_bg, (14, 14))
+        pygame.draw.rect(self.screen, (60, 95, 130), (14, 14, 380, 115), width=1)
+
+        title_surf = self.font_bold.render("STONE AGE 3D: PRIMEVAL REACH", True, (240, 215, 140))
+        self.screen.blit(title_surf, (24, 20))
+
+        fps = self.clock.get_fps()
+        telemetry = f"FPS: {fps:.0f} | Máy ảnh: X={self.cam_x/self.TILE_SIZE_3D:.1f}, Y={self.cam_y:.1f}, Z={self.cam_z/self.TILE_SIZE_3D:.1f}"
+        self.screen.blit(self.font_small.render(telemetry, True, (200, 220, 240)), (24, 44))
+
+        biome_str = f"Quần xã: {biome_name} | Cao độ: {current_elev:.1f}m"
+        self.screen.blit(self.font_small.render(biome_str, True, (160, 225, 175)), (24, 66))
+
+        preset_str = f"Địa danh: {self.current_preset_name}"
+        self.screen.blit(self.font_small.render(preset_str, True, (235, 185, 130)), (24, 88))
+
+        # Bản đồ thu nhỏ ở góc dưới bên phải
+        if self.show_minimap and self.minimap_surf:
+            mm_w, mm_h = self.minimap_surf.get_size()
+            mm_x = self.width - mm_w - 18
+            mm_y = self.height - mm_h - 42
+
+            # Khung bản đồ thu nhỏ
+            self.screen.blit(self.minimap_surf, (mm_x, mm_y))
+            pygame.draw.rect(self.screen, (180, 160, 120), (mm_x - 1, mm_y - 1, mm_w + 2, mm_h + 2), width=2)
+
+            # Chấm định vị vị trí máy ảnh và hình nón tầm nhìn
+            norm_cx = (self.cam_x / (self.grid_cols * self.TILE_SIZE_3D))
+            norm_cz = (self.cam_z / (self.grid_rows * self.TILE_SIZE_3D))
+            pin_x = int(mm_x + np.clip(norm_cx, 0.0, 1.0) * mm_w)
+            pin_y = int(mm_y + np.clip(norm_cz, 0.0, 1.0) * mm_h)
+
+            # Vẽ tia hướng nhìn
+            cone_len = 14
+            cone_lx = pin_x + int(math.sin(self.yaw - 0.35) * cone_len)
+            cone_ly = pin_y - int(math.cos(self.yaw - 0.35) * cone_len)
+            cone_rx = pin_x + int(math.sin(self.yaw + 0.35) * cone_len)
+            cone_ry = pin_y - int(math.cos(self.yaw + 0.35) * cone_len)
+            pygame.draw.line(self.screen, (255, 230, 80), (pin_x, pin_y), (cone_lx, cone_ly), 1)
+            pygame.draw.line(self.screen, (255, 230, 80), (pin_x, pin_y), (cone_rx, cone_ry), 1)
+            pygame.draw.circle(self.screen, (255, 60, 40), (pin_x, pin_y), 4)
+
+        # Thanh hướng dẫn điều khiển dưới đáy
+        bar_bg = pygame.Surface((self.width, 28), pygame.SRCALPHA)
+        bar_bg.fill((8, 12, 18, 220))
+        self.screen.blit(bar_bg, (0, self.height - 28))
+        help_text = "WASD di chuyển | Q/E lên xuống | Chuột phải/Mũi tên xoay | Shift bay nhanh | 1-4 Nhảy địa danh | M Bản đồ | ESC thoát"
+        self.screen.blit(self.font_small.render(help_text, True, (210, 225, 240)), (18, self.height - 22))
+
+    # --------------------------------------------------------------------------
+    # VÒNG LẶP CHÍNH (MAIN LOOP)
+    # --------------------------------------------------------------------------
     def run(self):
-        pyglet.app.run()
+        while self.running:
+            dt = self.clock.tick(FPS) / 1000.0
+            dt = min(0.1, dt)
+            self.handle_events()
+            self.update(dt)
+            self.render()
+        pygame.quit()
 
 
 if __name__ == "__main__":
-    Game3D().run()
+    game = Game3D()
+    game.run()

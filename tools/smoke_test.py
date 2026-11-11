@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.abspath("."))
 os.environ["SDL_VIDEODRIVER"] = "dummy"
 os.environ["SDL_AUDIODRIVER"] = "dummy"
 
-def run_smoke_test(total_frames=300):
+def run_smoke_test(total_frames=180):
     print(f"=== Starting Smoke Test Gate ({total_frames} frames headless) ===")
     start_time = time.time()
     try:
@@ -23,23 +23,32 @@ def run_smoke_test(total_frames=300):
         pygame.init()
         screen = pygame.display.set_mode((1024, 640))
 
-        from src.core.game import Game
-        print("Initializing Game instance...")
-        init_start = time.time()
-        game = Game()
-        print(f"Game initialized in {time.time() - init_start:.3f}s.")
-
-        print(f"Simulating {total_frames} frames...")
+        # 1. Kiểm thử Engine 3D Phối cảnh (Game3D)
+        print("--- [1/2] Kiểm thử 3D Perspective Spectator Engine (Game3D) ---")
+        from src.core.game_3d import Game3D
+        g3d = Game3D(headless=True)
+        print("Game3D initialized. Simulating frames...")
         dt = 1.0 / 60.0
+        for frame in range(1, total_frames + 1):
+            g3d.update(dt)
+            g3d.render()
+            if frame % 60 == 0:
+                print(f"  [3D] Frame {frame}/{total_frames} OK")
+
+        # 2. Kiểm thử Engine 2D Mô phỏng Sinh thái (Game)
+        print("--- [2/2] Kiểm thử 2D Wilderness Simulation Engine (Game) ---")
+        from src.core.game import Game
+        game = Game()
+        print("Game 2D initialized. Simulating frames...")
         for frame in range(1, total_frames + 1):
             game.update(dt)
             game.render()
             if frame % 60 == 0:
-                print(f"  Frame {frame}/{total_frames} OK")
+                print(f"  [2D] Frame {frame}/{total_frames} OK")
 
         pygame.quit()
         elapsed = time.time() - start_time
-        print(f"=== SMOKE TEST PASSED: {total_frames} frames in {elapsed:.3f}s ({total_frames/elapsed:.1f} FPS) ===")
+        print(f"=== SMOKE TEST PASSED: Cả 2 Engine 3D và 2D đều vượt qua trong {elapsed:.3f}s! ===")
         return 0
     except Exception as e:
         import traceback
