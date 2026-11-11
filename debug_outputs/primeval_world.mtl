@@ -1,4 +1,12 @@
-# Materials for Primeval Reach World
+# Materials for Primeval Reach Canonical World
+
+newmtl mtl_Primeval_World_Texture
+Kd 1.0000 1.0000 1.0000
+Ka 0.3500 0.3500 0.3500
+Ks 0.1000 0.1000 0.1000
+Ns 10.0
+d 1.0
+map_Kd primeval_world_texture.png
 
 newmtl mtl_Deep_Ocean
 Kd 0.0431 0.1725 0.2980

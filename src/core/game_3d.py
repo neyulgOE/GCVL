@@ -206,6 +206,16 @@ class Game3D:
         dot = nx * lx + ny * ly + nz * lz
         self.shading = 0.40 + 0.60 * np.clip(dot, 0.0, 1.0)
 
+        # Tải kết cấu bề mặt thực từ bản đồ chuẩn
+        tex_path = os.path.join(root_dir, "debug_outputs", "primeval_world_texture.png")
+        if os.path.exists(tex_path):
+            from PIL import Image
+            import cv2
+            tex_img = Image.open(tex_path).convert("RGB")
+            self.terrain_texture = cv2.resize(np.array(tex_img), (self.grid_cols, self.grid_rows), interpolation=cv2.INTER_AREA)
+        else:
+            self.terrain_texture = None
+
     def _spawn_world_megafauna(self):
         """Phân bổ các đàn thú cổ đại trên các lục địa tương ứng với sinh cảnh."""
         # Danh sách các bầy thú trên bản đồ thế giới 200x200
@@ -395,8 +405,11 @@ class Game3D:
 
     def _get_terrain_height_at(self, wx: float, wz: float) -> float:
         """Lấy độ cao bề mặt 3D tại tọa độ thế giới (wx, wz)."""
-        gc = wx / self.TILE_SIZE_3D
-        gr = wz / self.TILE_SIZE_3D
+        aspect_ratio = 1.83
+        s = self.TILE_SIZE_3D
+        half_w = self.grid_cols * 0.5 * s
+        gc = (wx - half_w) / (s * aspect_ratio) + self.grid_cols * 0.5
+        gr = wz / s
         c0 = max(0, min(self.grid_cols - 1, int(math.floor(gc))))
         r0 = max(0, min(self.grid_rows - 1, int(math.floor(gr))))
         return float(self.world_heights[r0, c0])
@@ -480,8 +493,10 @@ class Game3D:
         r_range = np.arange(r_min, r_max + 1)
         C_grid, R_grid = np.meshgrid(c_range, r_range)
 
-        # Tọa độ thế giới đỉnh
-        X_world = C_grid.astype(np.float32) * s
+        # Tọa độ thế giới đỉnh (co giãn theo tỷ lệ 16:9 của bản đồ thực)
+        aspect_ratio = 1.83
+        half_w = self.grid_cols * 0.5 * s
+        X_world = (C_grid.astype(np.float32) * s - half_w) * aspect_ratio + half_w
         Z_world = R_grid.astype(np.float32) * s
         Y_world = self.world_heights[r_min:r_max + 1, c_min:c_max + 1]
 
@@ -540,21 +555,20 @@ class Game3D:
                 if max_px < -60 or min_px > self.width + 60 or max_py < -60 or min_py > self.height + 60:
                     continue
 
-                b_id = int(sub_biomes[r, c])
-                base_col = BIOME_COLORS.get(b_id, (50, 80, 50))
-                shade_val = float(sub_shading[r, c])
-
-                # Nếu là mặt nước, thêm hiệu ứng sóng
-                if b_id in (0, 1, 2):
-                    shade_val = np.clip(shade_val + wave_shimmer, 0.35, 1.15)
+                if self.terrain_texture is not None:
+                    tex_c = sub_cols - 1
+                    base_col = self.terrain_texture[r_min + r, c_min + c]
+                else:
+                    b_id = int(sub_biomes[r, c])
+                    base_col = BIOME_COLORS.get(b_id, (50, 80, 50))
 
                 # Sương mù khí quyển xa (Distance Fog)
-                fog = np.clip((avg_depth - 40.0) / 200.0, 0.0, 0.68)
+                fog = np.clip((avg_depth - 45.0) / 220.0, 0.0, 0.65)
                 fog_col = (64, 88, 118)
 
-                r_col = int(np.clip(base_col[0] * shade_val * (1.0 - fog) + fog_col[0] * fog, 0, 255))
-                g_col = int(np.clip(base_col[1] * shade_val * (1.0 - fog) + fog_col[1] * fog, 0, 255))
-                b_col = int(np.clip(base_col[2] * shade_val * (1.0 - fog) + fog_col[2] * fog, 0, 255))
+                r_col = int(base_col[0] * (1.0 - fog) + fog_col[0] * fog)
+                g_col = int(base_col[1] * (1.0 - fog) + fog_col[1] * fog)
+                b_col = int(base_col[2] * (1.0 - fog) + fog_col[2] * fog)
 
                 quads.append((avg_depth, [p0, p1, p2, p3], (r_col, g_col, b_col)))
 
