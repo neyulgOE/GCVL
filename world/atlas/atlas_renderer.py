@@ -1,12 +1,18 @@
 """
 world/atlas/atlas_renderer.py
-Kết xuất Bản đồ Thế giới Vật lý Nổi khối (Physical Relief Atlas 1600x1040 px)
-với sông ngòi làm mượt Chaikin Spline khử răng cưa, bóng đổ địa chất đa hướng USGS,
-dải màu độ sâu đại dương chuẩn Cartographic và hệ thống Địa danh Typography cổ điển.
+Kết xuất Bản đồ Thế giới Vật lý Nổi khối (Physical Relief Atlas 1024x1024 px)
+chuẩn mỹ thuật đa lục địa (Multi-Continent Primeval World):
+- Nhiều lục địa tách biệt rõ rệt (Tây Bắc, Tây Nam, Trung Tâm-Đông Nam, Đông Bắc, Quần đảo)
+- Phân biệt rõ nét 11 Quần xã sinh thái (Băng tuyết, Vách núi đá, Rừng, Đồng cỏ, Sa mạc vàng, v.v.)
+- Thềm lục địa phát sáng xanh ngọc (Turquoise Reef Halo) ôm trọn mọi bờ biển
+- Khung chú giải HUD "ĐẠI LỤC NGUYÊN SINH" góc dưới bên trái
+- Lưới tọa độ chiến thuật A-L (cột) và 1-12 (hàng)
+- La bàn định hướng Bắc ("B") góc trên bên phải
 """
 
 import math
-from typing import List, Tuple
+from pathlib import Path
+from typing import List, Tuple, Dict
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
@@ -14,7 +20,6 @@ try:
     from scipy.ndimage import gaussian_filter
 except ImportError:
     def gaussian_filter(arr: np.ndarray, sigma: float = 0.85) -> np.ndarray:
-        """Pure-NumPy 1D separable Gaussian blur fallback when scipy is not available."""
         radius = int(math.ceil(2.5 * sigma))
         x = np.arange(-radius, radius + 1, dtype=np.float32)
         kernel = np.exp(-0.5 * (x / sigma) ** 2)
@@ -45,7 +50,7 @@ class PhysicalAtlasRenderer:
 
     @staticmethod
     def _chaikin_smooth_coords(coords: List[List[float]], iterations: int = 2) -> List[Tuple[float, float]]:
-        """Làm mượt gấp khúc D8 thành đường cong sông uốn khúc tự nhiên (Chaikin's Corner Cutting)."""
+        """Làm mượt gấp khúc D8 thành đường cong sông uốn khúc tự nhiên."""
         pts = [(float(p[0]), float(p[1])) for p in coords]
         if len(pts) < 3:
             return pts
@@ -69,8 +74,8 @@ class PhysicalAtlasRenderer:
         rgb[:, :, 0] = (1.0 - v) * 218.0 + v * 20.0
         rgb[:, :, 1] = (1.0 - v) * 194.0 + v * 102.0
         rgb[:, :, 2] = (1.0 - v) * 136.0 + v * 34.0
-        rgb[~landmass.landmask] = (22, 58, 92)
-        rgb[hydrology.river_mask | hydrology.lake_mask] = (44, 126, 184)
+        rgb[~landmass.landmask] = (18, 54, 88)
+        rgb[hydrology.river_mask | hydrology.lake_mask] = (44, 142, 204)
         Image.fromarray(np.clip(rgb, 0, 255).astype(np.uint8), mode="RGB").save(path, "PNG")
 
     def render_habitat_png(
@@ -83,10 +88,10 @@ class PhysicalAtlasRenderer:
         path: str,
     ) -> None:
         rgb = biome.blended_biome_rgb.astype(np.float32)
-        shade = (0.58 + 0.56 * terrain.shaded_relief)[:, :, None]
+        shade = (0.60 + 0.55 * terrain.shaded_relief)[:, :, None]
         rgb = np.where(landmass.landmask[:, :, None], rgb * shade, rgb)
-        rgb[~landmass.landmask] = (26, 70, 108)
-        rgb[hydrology.river_mask | hydrology.lake_mask] = (44, 128, 188)
+        rgb[~landmass.landmask] = (20, 58, 96)
+        rgb[hydrology.river_mask | hydrology.lake_mask] = (44, 142, 204)
 
         img = Image.fromarray(np.clip(rgb, 0, 255).astype(np.uint8), mode="RGB")
         draw = ImageDraw.Draw(img)
@@ -105,70 +110,100 @@ class PhysicalAtlasRenderer:
             draw.ellipse([cx - r_dot, cy - r_dot, cx + r_dot, cy + r_dot], fill=col, outline=(18, 18, 18))
         img.save(path, "PNG")
 
-    @staticmethod
-    def _render_atlas_typography(atlas_img: Image.Image, w: int, h: int) -> None:
-        """Kết xuất hệ thống tên địa danh, biển, đại dương, hoang mạc & la bàn phong cách Atlas cổ điển."""
-        draw = ImageDraw.Draw(atlas_img)
-        font_path = "assets/fonts/DejaVuSans-Bold.ttf"
-        font_reg = "assets/fonts/DejaVuSans.ttf"
+    def _render_hud_elements(self, img: Image.Image, w: int, h: int) -> None:
+        """Kết xuất Lưới tọa độ 12x12, La bàn Bắc 'B' và Khung chú giải 'ĐẠI LỤC NGUYÊN SINH'."""
+        draw = ImageDraw.Draw(img)
 
-        scale = w / 1600.0
-        f_ocean = ImageFont.truetype(font_path, int(26 * scale))
-        f_sea = ImageFont.truetype(font_path, int(19 * scale))
-        f_gulf = ImageFont.truetype(font_reg, int(15 * scale))
-        f_region_lg = ImageFont.truetype(font_path, int(25 * scale))
-        f_region_md = ImageFont.truetype(font_path, int(18 * scale))
-        f_region_sm = ImageFont.truetype(font_reg, int(14 * scale))
+        def _font(sz: int, bold: bool = False):
+            font_candidates = [
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                "assets/fonts/DejaVuSans-Bold.ttf" if bold else "assets/fonts/DejaVuSans.ttf",
+            ]
+            for p in font_candidates:
+                if Path(p).exists():
+                    return ImageFont.truetype(p, sz)
+            return ImageFont.load_default()
 
-        labels = [
-            # Đại dương (Oceans)
-            ("FROZEN OCEAN", 0.36, 0.08, f_ocean, (195, 210, 232), (20, 28, 42)),
-            ("GRAN OCEAN", 0.09, 0.42, f_ocean, (190, 205, 228), (20, 28, 42)),
-            ("GRAN OCEAN", 0.93, 0.20, f_ocean, (190, 205, 228), (20, 28, 42)),
-            ("SOUTHERN OCEAN", 0.46, 0.94, f_ocean, (190, 205, 228), (20, 28, 42)),
+        f_grid = _font(12)
+        f_compass = _font(15, bold=True)
+        f_legend_title = _font(13, bold=True)
+        f_legend_item = _font(10, bold=True)
+        f_cartouche = _font(11, bold=True)
 
-            # Biển & Vùng nước lớn (Seas)
-            ("NORTH SEA", 0.31, 0.27, f_sea, (175, 195, 220), (25, 35, 50)),
-            ("OLD SEA", 0.60, 0.43, f_sea, (175, 195, 220), (25, 35, 50)),
-            ("DORYAN SEA", 0.70, 0.51, f_sea, (175, 195, 220), (25, 35, 50)),
-            ("DRAGONS' SEA", 0.87, 0.49, f_sea, (175, 195, 220), (25, 35, 50)),
-            ("SKONI SEA", 0.35, 0.78, f_sea, (175, 195, 220), (25, 35, 50)),
-            ("OORSIK SEA", 0.12, 0.81, f_sea, (175, 195, 220), (25, 35, 50)),
-            ("SEA OF BAHAR", 0.36, 0.47, f_sea, (175, 195, 220), (25, 35, 50)),
+        # 1. Lưới tọa độ chiến thuật (12x12 Graticule Grid)
+        step = w / 12.0
+        grid_line_col = (180, 230, 255, 30)
+        grid_text_col = (210, 240, 255, 215)
 
-            # Vịnh hẹp (Gulfs & Bays)
-            ("BLOOD GULF", 0.13, 0.525, f_gulf, (160, 180, 205), (25, 35, 50)),
-            ("GULF OF SLAVES", 0.61, 0.60, f_gulf, (160, 180, 205), (25, 35, 50)),
-            ("CRYSTAL BAY", 0.69, 0.63, f_gulf, (160, 180, 205), (25, 35, 50)),
-            ("GULF OF SALIS", 0.87, 0.78, f_gulf, (160, 180, 205), (25, 35, 50)),
+        for k in range(1, 12):
+            pos = int(round(k * step))
+            draw.line([(pos, 0), (pos, h)], fill=grid_line_col[:3], width=1)
+            draw.line([(0, pos), (w, pos)], fill=grid_line_col[:3], width=1)
 
-            # Vùng Địa lý, Hoang mạc & Rừng rậm (Regions & Biomes)
-            ("PONTIC DESERT", 0.28, 0.60, f_region_lg, (238, 208, 126), (48, 36, 16)),
-            ("DATHIC JUNGLE", 0.50, 0.61, f_region_lg, (22, 65, 18), (185, 225, 165)),
-            ("PARNESIS DESERT", 0.42, 0.32, f_region_sm, (220, 190, 115), (48, 36, 16)),
-            ("SAMARK DESERT", 0.62, 0.74, f_region_md, (228, 198, 118), (48, 36, 16)),
-            ("DESERT OF ILTYRIA", 0.74, 0.64, f_region_sm, (220, 190, 115), (48, 36, 16)),
+        for k in range(12):
+            draw.text((int(round(k * step + step * 0.45)), 6), chr(ord("A") + k), fill=grid_text_col[:3], font=f_grid)
+            draw.text((6, int(round(k * step + step * 0.42))), str(k + 1), fill=grid_text_col[:3], font=f_grid)
+
+        # 2. La bàn hướng Bắc ("B") tại góc trên bên phải
+        cx, cy, cr = w - 58, 68, 30
+        draw.polygon([(cx, cy - cr), (cx - 7, cy), (cx, cy - 5)], fill=(245, 242, 230))
+        draw.polygon([(cx, cy - cr), (cx + 7, cy), (cx, cy - 5)], fill=(125, 130, 140))
+        draw.polygon([(cx, cy + cr * 0.7), (cx - 6, cy), (cx, cy + 4)], fill=(160, 165, 175))
+        draw.polygon([(cx, cy + cr * 0.7), (cx + 6, cy), (cx, cy + 4)], fill=(85, 90, 100))
+        draw.text((cx - 5, cy - cr - 18), "B", fill=(245, 242, 230), font=f_compass)
+
+        # 3. Khung Chú Giải HUD "ĐẠI LỤC NGUYÊN SINH" tại góc dưới bên trái
+        leg_x = 18
+        leg_y = h - 248
+        leg_w = 210
+        leg_h = 230
+
+        leg_bg = Image.new("RGBA", (leg_w, leg_h), (18, 28, 42, 238))
+        leg_draw = ImageDraw.Draw(leg_bg)
+        leg_draw.rounded_rectangle([(0, 0), (leg_w - 1, leg_h - 1)], radius=8, outline=(195, 175, 130, 220), width=2)
+        leg_draw.text((14, 12), "ĐẠI LỤC NGUYÊN SINH", fill=(245, 230, 175), font=f_legend_title)
+
+        legend_items = [
+            ("Đỉnh băng tuyết", (252, 254, 255)),
+            ("Vách núi đá", (56, 66, 80)),
+            ("Đài nguyên", (146, 158, 118)),
+            ("Rừng lá kim", (46, 88, 62)),
+            ("Rừng ôn đới", (48, 112, 42)),
+            ("Rừng nguyên sinh", (22, 82, 30)),
+            ("Đồng cỏ", (110, 182, 60)),
+            ("Thảo nguyên", (222, 152, 46)),
+            ("Hoang mạc cát", (246, 192, 88)),
+            ("Đầm lầy cửa sông", (68, 122, 96)),
+            ("Bờ cát", (246, 230, 180)),
         ]
 
-        def draw_label(text: str, nx: float, ny: float, font: ImageFont.FreeTypeFont, fill: Tuple[int, int, int], shadow: Tuple[int, int, int]) -> None:
-            bbox = font.getbbox(text)
-            tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
-            cx, cy = int(nx * w), int(ny * h)
-            x, y = cx - tw // 2, cy - th // 2
-            for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (1, 1), (-1, 1), (1, -1)]:
-                draw.text((x + dx, y + dy), text, font=font, fill=shadow)
-            draw.text((x, y), text, font=font, fill=fill)
+        item_y = 36
+        box_sz = 10
+        for name, col in legend_items:
+            leg_draw.rectangle([(14, item_y + 2), (14 + box_sz, item_y + 2 + box_sz)], fill=col, outline=(30, 30, 30))
+            leg_draw.text((32, item_y), name, fill=(235, 240, 245), font=f_legend_item)
+            item_y += 17
 
-        for text, nx, ny, font, fill, shadow in labels:
-            draw_label(text, nx, ny, font, fill, shadow)
+        img.paste(leg_bg, (leg_x, leg_y), leg_bg)
 
-        # La bàn định hướng (Compass Rose) góc trên bên phải
-        nx_c, ny_c = int(0.96 * w), int(0.08 * h)
-        draw.polygon([(nx_c, ny_c - 28), (nx_c - 7, ny_c), (nx_c, ny_c - 5)], fill=(225, 230, 240))
-        draw.polygon([(nx_c, ny_c - 28), (nx_c + 7, ny_c), (nx_c, ny_c - 5)], fill=(120, 130, 145))
-        draw.polygon([(nx_c, ny_c + 20), (nx_c - 6, ny_c), (nx_c, ny_c + 4)], fill=(155, 165, 180))
-        draw.polygon([(nx_c, ny_c + 20), (nx_c + 6, ny_c), (nx_c, ny_c + 4)], fill=(80, 90, 105))
-        draw.text((nx_c - 5, ny_c - 46), "N", font=f_sea, fill=(230, 235, 245))
+        # 4. Thẻ định danh địa lý các đại lục (Continent Cartouches)
+        cartouches = [
+            ("LỤC ĐỊA BĂNG BẮC (ARCTICA)", int(w * 0.24), int(h * 0.08), (200, 235, 255)),
+            ("LỤC ĐỊA CAO NGUYÊN (ORIENTIS)", int(w * 0.65), int(h * 0.12), (230, 245, 215)),
+            ("LỤC ĐỊA SA MẠC (GONDWANA)", int(w * 0.25), int(h * 0.55), (255, 215, 145)),
+            ("ĐẠI LỤC RỪNG THIÊNG (VERDANTIA)", int(w * 0.65), int(h * 0.44), (180, 245, 190)),
+        ]
+        for c_title, tx, ty, tcol in cartouches:
+            bbox = f_cartouche.getbbox(c_title)
+            tw = bbox[2] - bbox[0]
+            draw.rounded_rectangle(
+                [(tx - tw // 2 - 8, ty - 3), (tx + tw // 2 + 8, ty + 18)],
+                radius=4,
+                fill=(12, 22, 34, 210),
+                outline=(195, 175, 130, 180),
+                width=1,
+            )
+            draw.text((tx - tw // 2, ty), c_title, fill=tcol, font=f_cartouche)
 
     def render_world_atlas_png(
         self,
@@ -182,104 +217,88 @@ class PhysicalAtlasRenderer:
         path: str,
         upscale_factor: int = 2,
     ) -> Image.Image:
-        """
-        Kết xuất Bản đồ Vật lý Đại lục (Physical World Atlas 1600x1040 px) chuẩn thẩm mỹ ảnh demo PDF:
-        - Nền Sinh thái + Địa chất đa tầng không vết gãy.
-        - Bóng đổ 3D tương phản cao (Ambient Occlusion ở khe vực + Specular Highlight trên đỉnh núi đá/băng).
-        - Đại dương phân 6 dải độ sâu (Bathymetric Contours) và thềm lục địa sáng màu.
-        - Sông ngòi vẽ vector Chaikin Spline mượt mà ở độ phân giải cao.
-        - Hệ thống Địa danh Typography và la bàn cổ điển.
-        """
         h, w = landmass.landmask.shape
         land = landmass.landmask
         elev = terrain.final_heightmap
-        shade = terrain.shaded_relief
-        curv = terrain.curvature
         slope = terrain.slope
+        shade = terrain.shaded_relief
 
-        # 1. Nền màu Quần xã kết hợp Độ cao Địa chất
+        # 1. BẢNG MÀU QUẦN XÃ TƯƠNG PHẢN CAO (HIGH-CONTRAST PALETTE)
+        # Bắt đầu từ dải màu blend sinh thái chuẩn
         base_rgb = biome.blended_biome_rgb.astype(np.float32)
 
-        # Sắc độ ấm vàng cát cho hoang mạc Pontic & Samark
-        arid_warmth = np.clip(climate.aridity_index * 1.25, 0.0, 1.0) * land
-        warm_sand = np.array([238.0, 208.0, 126.0], dtype=np.float32)
-        base_rgb = base_rgb * (1.0 - arid_warmth[:, :, None] * 0.45) + warm_sand * (arid_warmth[:, :, None] * 0.45)
+        # A. Cồn cát vàng rực rỡ và hẻm núi đất son vùng Sa mạc Tây Nam
+        arid_mask = np.clip((climate.aridity_index - 0.28) * 2.2, 0.0, 1.0) * land
+        golden_sand = np.array([246.0, 192.0, 88.0], dtype=np.float32)
+        base_rgb = base_rgb * (1.0 - arid_mask[:, :, None] * 0.55) + golden_sand * (arid_mask[:, :, None] * 0.55)
 
-        # Vách đá xám sừng sững trên sườn dốc lớn & sống núi cao (giảm trên cồn cát hoang mạc)
-        rock_mask = np.clip((slope - 0.14) * 2.6 + np.maximum(0.0, elev - 0.62) * 2.2, 0.0, 0.92) * land
-        desert_suppression = np.clip(1.0 - (climate.aridity_index - 0.42) * 2.5, 0.08, 1.0)
-        rock_mask = rock_mask * desert_suppression
+        # Hẻm núi đỏ trên sườn dốc sa mạc
+        red_canyon = (slope > 0.26) & (climate.aridity_index > 0.38) & land
+        base_rgb[red_canyon] = np.array([194.0, 72.0, 38.0], dtype=np.float32)
 
-        rock_tone = np.where(
-            (climate.aridity_index > 0.35)[:, :, None],
-            np.array([176.0, 142.0, 108.0], dtype=np.float32),  # Đá sa thạch vàng nâu vùng khô hạn
-            np.array([134.0, 136.0, 140.0], dtype=np.float32),  # Đá granite xám lạnh vùng núi cao
-        )
-        base_rgb = base_rgb * (1.0 - rock_mask[:, :, None]) + rock_tone * rock_mask[:, :, None]
+        # B. Vách đá xám sừng sững trên sườn dốc lớn và sườn núi tuyết
+        rock_cliff = (slope > 0.28) & (elev > 0.44) & (~red_canyon) & land
+        base_rgb[rock_cliff] = np.array([56.0, 66.0, 80.0], dtype=np.float32)
 
-        # Tuyết trắng & Băng hà vĩnh cửu trên đỉnh núi Bắc Băng Dương & Continental Spine
-        snow_mask = np.clip((elev - 0.70) * 4.8 + (0.24 - climate.temperature) * 3.2 - slope * 0.35, 0.0, 1.0) * land
-        snow_tone = np.array([246.0, 250.0, 255.0], dtype=np.float32)
-        base_rgb = base_rgb * (1.0 - snow_mask[:, :, None]) + snow_tone * snow_mask[:, :, None]
+        # C. Băng tuyết trắng muốt vĩnh cửu trên các đỉnh núi cao
+        snow_cap = (elev > 0.62) & (climate.temperature < 0.32) & (~rock_cliff) & land
+        extreme_snow = (elev > 0.72) & (climate.temperature < 0.26) & land
+        base_rgb[snow_cap] = np.array([245.0, 248.0, 252.0], dtype=np.float32)
+        base_rgb[extreme_snow] = np.array([254.0, 255.0, 255.0], dtype=np.float32)
 
-        # 2. Tán rừng Nổi khối Tự nhiên (Organic Stochastic Canopy)
-        rng_tex = np.random.default_rng(self.cfg.seed + 77)
-        fine_grain = gaussian_filter(rng_tex.standard_normal((h, w)).astype(np.float32), sigma=0.85)
+        # D. Tán rừng nguyên sinh ngọc lục bảo đậm đà
         canopy = ecology.canopy_cover
-        canopy_relief = np.clip(fine_grain * canopy * 26.0, -22.0, 24.0)
+        deep_rainforest = (canopy > 0.52) & (climate.precipitation > 0.48) & land
+        base_rgb[deep_rainforest] = np.array([22.0, 82.0, 30.0], dtype=np.float32)
 
-        forest_deep_tint = np.array([28.0, 78.0, 32.0], dtype=np.float32)
-        base_rgb = base_rgb * (1.0 - canopy[:, :, None] * 0.38) + forest_deep_tint * (canopy[:, :, None] * 0.38)
-        base_rgb[:, :, 0] += canopy_relief * 0.6
-        base_rgb[:, :, 1] += canopy_relief * 1.1
-        base_rgb[:, :, 2] += canopy_relief * 0.5
+        # E. Đồng cỏ tươi sáng
+        is_meadow = (biome.primary_biome_id == 9) & land
+        base_rgb[is_meadow] = np.array([110.0, 182.0, 60.0], dtype=np.float32)
 
-        # 3. Áp dụng Bóng đổ Địa hình 3D (High-Contrast Relief Shading + Valley AO + Ridge Rimlight)
-        valley_ao = np.clip(1.0 + np.minimum(0.0, curv) * 0.38, 0.62, 1.0)
-        ridge_rim = np.maximum(0.0, curv) * 26.0 * (0.4 + 0.6 * shade)
-        illumination = (0.38 + 0.88 * (shade ** 1.08)) * valley_ao
+        # F. Bờ cát vàng óng sát mép biển
+        is_shore = land & (soil.distance_to_water <= 2.2) & (elev < 0.42)
+        base_rgb[is_shore] = np.array([246.0, 230.0, 180.0], dtype=np.float32)
 
-        # Ánh nắng ấm chan hòa trên cồn cát hoang mạc Pontic & Samark
-        desert_sun = np.clip((climate.aridity_index - 0.40) * 2.2, 0.0, 1.0)
-        illumination = np.where(
-            land,
-            illumination * (1.0 - desert_sun * 0.45) + (0.68 + 0.52 * shade) * (desert_sun * 0.45),
-            illumination,
-        )
+        # 2. BÓNG ĐỔ ĐỊA HÌNH 3D (3D RELIEF SHADING + AO + CREST RIM)
+        valley_ao = np.clip(1.0 + np.minimum(0.0, terrain.curvature) * 0.35, 0.65, 1.0)
+        crest_rim = np.maximum(0.0, terrain.curvature) * 28.0 * (0.4 + 0.6 * shade)
+        illumination = (0.50 + 0.75 * (shade ** 1.1)) * valley_ao
 
-        lit_rgb = base_rgb * illumination[:, :, None] + ridge_rim[:, :, None]
+        lit_rgb = base_rgb * illumination[:, :, None] + crest_rim[:, :, None]
 
-        # 4. Kết xuất Đại dương Phân dải Độ sâu (Deep Moody Slate-Navy & Coastal Reef Shelf)
+        # 3. THỀM LỤC ĐỊA PHÁT SÁNG XANH NGỌC & ĐẠI DƯƠNG SÂU (SIGNATURE REEF HALO)
         sea = ~land
         d = landmass.bathymetry
         shelf = landmass.coastal_shelf
 
-        # Đại dương trầm mặc thanh lịch chuẩn phong cách Atlas mẫu
-        d_stepped = 0.70 * d + 0.30 * (np.floor(d * 7.0) / 7.0)
-        ocean_r = 75.0 * (shelf ** 1.3) + 52.0 * (1.0 - d_stepped) * (1.0 - shelf) + 26.0 * d_stepped
-        ocean_g = 135.0 * (shelf ** 1.2) + 78.0 * (1.0 - d_stepped) * (1.0 - shelf) + 42.0 * d_stepped
-        ocean_b = 168.0 * (shelf ** 1.1) + 115.0 * (1.0 - d_stepped) * (1.0 - shelf) + 76.0 * d_stepped
+        # Thềm san hô xanh ngọc lam phát sáng rực rỡ ôm trọn đường bờ biển
+        reef_glow = shelf ** 1.15
+        ocean_r = 12.0 * (1.0 - reef_glow) + 48.0 * reef_glow
+        ocean_g = 36.0 * (1.0 - reef_glow) + 228.0 * reef_glow
+        ocean_b = 78.0 * (1.0 - reef_glow) + 242.0 * reef_glow
 
-        sea_relief = 0.92 + 0.16 * shade
-        lit_rgb[:, :, 0] = np.where(sea, ocean_r * sea_relief, lit_rgb[:, :, 0])
-        lit_rgb[:, :, 1] = np.where(sea, ocean_g * sea_relief, lit_rgb[:, :, 1])
-        lit_rgb[:, :, 2] = np.where(sea, ocean_b * sea_relief, lit_rgb[:, :, 2])
+        # Độ sâu đại dương chuyển tiếp mềm
+        ocean_r = ocean_r * (1.0 - d * 0.45)
+        ocean_g = ocean_g * (1.0 - d * 0.35)
+        ocean_b = ocean_b * (1.0 - d * 0.25)
 
-        # Viền bờ biển cát vàng ven bờ sắc nét
-        shoreline = land & (soil.distance_to_water <= 1.8)
-        lit_rgb[shoreline] = lit_rgb[shoreline] * 0.65 + np.array([220.0, 202.0, 150.0]) * 0.35
+        lit_rgb[:, :, 0] = np.where(sea, ocean_r, lit_rgb[:, :, 0])
+        lit_rgb[:, :, 1] = np.where(sea, ocean_g, lit_rgb[:, :, 1])
+        lit_rgb[:, :, 2] = np.where(sea, ocean_b, lit_rgb[:, :, 2])
 
-        # Vẽ Hồ Nước Ngọt Thượng Nguồn & Hồ Nội Lưu Tây Nam
-        lit_rgb[hydrology.lake_mask & (~hydrology.endorheic_lake_mask)] = (42, 118, 172)
-        lit_rgb[hydrology.endorheic_lake_mask] = (45, 125, 135)
+        # Hồ nước ngọt và hồ băng
+        lit_rgb[hydrology.lake_mask & (~hydrology.endorheic_lake_mask)] = (36, 142, 210)
+        lit_rgb[hydrology.endorheic_lake_mask] = (42, 160, 168)
 
-        # 5. Phóng lên độ phân giải chuẩn 1600x1040 px & Vẽ Mạng lưới Sông ngòi Khử răng cưa
-        atlas_img = Image.fromarray(np.clip(lit_rgb, 0, 255).astype(np.uint8), mode="RGB")
+        # 4. PHÓNG LÊN ĐỘ PHÂN GIẢI 1024x1024 PX & VẼ SÔNG NGÒI VECTOR CHAIKIN
         target_w, target_h = w * upscale_factor, h * upscale_factor
+        atlas_img = Image.fromarray(np.clip(lit_rgb, 0, 255).astype(np.uint8), mode="RGB")
         resample_filter = getattr(Image, "Resampling", Image).LANCZOS
         atlas_img = atlas_img.resize((target_w, target_h), resample=resample_filter)
 
         draw = ImageDraw.Draw(atlas_img)
+
+        # Vẽ mạng lưới sông ngòi mượt mà khử răng cưa
         for feat in hydrology.river_features:
             raw_coords = feat["geometry"]["coordinates"]
             s_order = int(feat["properties"]["stream_order"])
@@ -290,15 +309,30 @@ class PhysicalAtlasRenderer:
                 n_pts = len(scaled_pts)
                 for i in range(n_pts - 1):
                     prog = i / max(1, n_pts - 1)
-                    width_px = max(1, int(round((0.6 + 0.45 * s_order) * (0.60 + 0.55 * prog))))
+                    width_px = max(1, int(round((0.8 + 0.5 * s_order) * (0.65 + 0.50 * prog))))
+                    # Viền bóng sông
                     if s_order >= 3:
-                        draw.line([scaled_pts[i], scaled_pts[i + 1]], fill=(32, 68, 65), width=width_px + 2)
-                    river_col = (72, 156, 208) if s_order <= 2 else (42, 122, 178)
+                        draw.line([scaled_pts[i], scaled_pts[i + 1]], fill=(22, 60, 72), width=width_px + 2)
+                    river_col = (52, 175, 228) if s_order <= 2 else (36, 142, 204)
                     draw.line([scaled_pts[i], scaled_pts[i + 1]], fill=river_col, width=width_px)
 
-        # 6. Thêm Hệ thống Typography Địa danh & La bàn định hướng
-        self._render_atlas_typography(atlas_img, target_w, target_h)
+        # 5. ĐƯỜNG MÒN THỜI TIỀN SỬ (ANCIENT EXPEDITION TRAILS)
+        trail_points = [
+            [(int(target_w * 0.62), int(target_h * 0.76)), (int(target_w * 0.60), int(target_h * 0.66)), (int(target_w * 0.56), int(target_h * 0.56)), (int(target_w * 0.52), int(target_h * 0.46))],
+            [(int(target_w * 0.62), int(target_h * 0.76)), (int(target_w * 0.70), int(target_h * 0.70)), (int(target_w * 0.73), int(target_h * 0.60)), (int(target_w * 0.65), int(target_h * 0.44))],
+            [(int(target_w * 0.52), int(target_h * 0.46)), (int(target_w * 0.58), int(target_h * 0.38)), (int(target_w * 0.62), int(target_h * 0.30)), (int(target_w * 0.66), int(target_h * 0.25))],
+            [(int(target_w * 0.22), int(target_h * 0.76)), (int(target_w * 0.26), int(target_h * 0.71)), (int(target_w * 0.32), int(target_h * 0.66))],
+        ]
+        for path_pts in trail_points:
+            for i in range(len(path_pts) - 1):
+                p1, p2 = path_pts[i], path_pts[i + 1]
+                draw.line([p1, p2], fill=(138, 118, 80), width=4)
+                draw.line([p1, p2], fill=(225, 208, 168), width=2)
 
-        atlas_img = atlas_img.filter(ImageFilter.UnsharpMask(radius=1.1, percent=50, threshold=2))
+        # 6. KẾT XUẤT CÁC PHẦN TỬ HUD ATLAS
+        self._render_hud_elements(atlas_img, target_w, target_h)
+
+        atlas_img = atlas_img.filter(ImageFilter.UnsharpMask(radius=1.1, percent=45, threshold=2))
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
         atlas_img.save(path, "PNG")
         return atlas_img

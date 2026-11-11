@@ -48,6 +48,7 @@ def run_all_phases(output_dir: str = "debug_outputs/phase6_7_final") -> None:
     renderer.render_habitat_png(
         landmass, terrain, hydrology, biome, ecology, os.path.join(output_dir, "habitat.png")
     )
+    atlas_out = os.path.join(output_dir, "world_atlas.png")
     renderer.render_world_atlas_png(
         landmass,
         terrain,
@@ -56,9 +57,12 @@ def run_all_phases(output_dir: str = "debug_outputs/phase6_7_final") -> None:
         soil,
         biome,
         ecology,
-        os.path.join(output_dir, "world_atlas.png"),
+        atlas_out,
         upscale_factor=2,
     )
+    import shutil
+    shutil.copy(atlas_out, "assets/sprites/world_atlas.png")
+    shutil.copy(atlas_out, "assets/sprites/world_overview_macro.png")
 
     # 3. Kiểm thử Cầu nối Local Map Bridge (Phase 7B) tại trung tâm lưu vực sông chính
     bridge = LocalMapBridge(cfg, landmass, terrain, climate, hydrology, soil, biome, ecology)

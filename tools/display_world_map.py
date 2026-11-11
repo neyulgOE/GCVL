@@ -23,7 +23,7 @@ os.environ["SDL_AUDIODRIVER"] = "dummy"
 import pygame
 from PIL import Image
 
-from tools.build_multi_continent_world import generate_multi_continent_overworld
+from tools.run_full_primeval_reach_pipeline import run_all_phases
 from src.core.game import Game
 
 OUT_DIR = Path("/home/huyen1905/.gemini/antigravity/brain/fed854e2-3b10-4d89-9cc2-ce9ec962f36a")
@@ -31,12 +31,12 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def main():
-    print("1. Generating Grand Multi-Continent Overworld Map (1024x1024)...")
-    out_macro = ROOT / "assets" / "sprites" / "world_overview_macro.png"
-    generate_multi_continent_overworld(out_path=out_macro, size_px=1024)
+    print("1. Running 7-Phase Primeval Reach Pipeline (1024x1024 Atlas)...")
+    run_all_phases()
+    out_atlas = ROOT / "assets" / "sprites" / "world_atlas.png"
 
     # Save artifact copy
-    img = Image.open(out_macro)
+    img = Image.open(out_atlas)
     artifact_macro = OUT_DIR / "preview_complete_world_map.png"
     img.save(artifact_macro)
     print(f"Saved complete world map artifact to: {artifact_macro}")

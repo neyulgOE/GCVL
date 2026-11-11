@@ -1,11 +1,15 @@
 """
 world/generation/landmass_generator.py
-Tạo hình thế giới đa lục địa Primeval Reach dựa trên bản đồ demo chuẩn trong tài liệu PDF
-kết hợp Tectonic Skeleton và Domain Warping đa tầng, tạo ra các lục địa Tây - Đông,
-biển băng Frozen Ocean, biển nội địa Old Sea & Doryan Sea, bồn địa Pontic & Dathic.
+Tạo hình thế giới đa lục địa hoàn chỉnh (Multi-Continent Primeval Reach)
+bằng Khung xương Kiến tạo Tectonic Skeleton + Domain Warping đa tầng 100% Procedural.
+Bao gồm:
+- Lục địa Băng Bắc (Arctica) ở Tây Bắc
+- Lục địa Cao nguyên Đông Bắc (Orientis)
+- Đại lục Rừng Thiêng Trung Tâm & Đông Nam (Verdantia)
+- Lục địa Sa mạc Cát Vàng Tây Nam (Gondwana)
+- Quần đảo nhiệt đới ngoại vi và các eo biển tự nhiên
 """
 
-import os
 import random
 from dataclasses import dataclass
 import numpy as np
@@ -53,9 +57,9 @@ class FastNoise2D:
         self,
         x: np.ndarray,
         y: np.ndarray,
-        octaves: int = 6,
-        persistence: float = 0.54,
-        lacunarity: float = 2.12,
+        octaves: int = 5,
+        persistence: float = 0.52,
+        lacunarity: float = 2.05,
         base_scale: float = 3.0,
     ) -> np.ndarray:
         total = np.zeros_like(x, dtype=np.float32)
@@ -95,55 +99,90 @@ class LandmassGenerator:
             indexing="ij",
         )
 
-        template_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), "data", "demo_world_template.npz"
-        )
-        if os.path.exists(template_path):
-            tmpl = np.load(template_path)
-            raw_land = tmpl["landmask"].copy()
-            dist_sea = tmpl["dist_sea"].copy()
-            dist_inland = tmpl["dist_inland"].copy()
-        else:
-            # Thuật toán dự phòng thuần procedural
-            border_dist = np.minimum.reduce([nx / 0.05, (1.0 - nx) / 0.05, ny / 0.05, (1.0 - ny) / 0.05])
-            raw_land = border_dist > 0.45
-            dist_sea = np.where(~raw_land, 15.0, 0.0).astype(np.float32)
-            dist_inland = np.where(raw_land, 15.0, 0.0).astype(np.float32)
+        # 1. Multi-scale Domain Warping
+        wx_coarse = (self.warp1.fbm_grid(nx * 1.8, ny * 1.8, octaves=4, base_scale=2.2) - 0.5) * 0.14
+        wy_coarse = (self.warp1.fbm_grid(nx * 1.8 + 3.1, ny * 1.8 + 2.1, octaves=4, base_scale=2.2) - 0.5) * 0.14
+        wx_fine = (self.warp2.fbm_grid(nx * 4.0, ny * 4.0, octaves=3, base_scale=5.0) - 0.5) * 0.04
+        wy_fine = (self.warp2.fbm_grid(nx * 4.0 + 1.7, ny * 4.0 + 2.8, octaves=3, base_scale=5.0) - 0.5) * 0.04
 
-        # 1. Procedural Micro-variation trên đường bờ biển dựa trên Seed
-        coast_warp = (self.coast_noise.fbm_grid(nx * 3.0, ny * 2.0, octaves=4, base_scale=4.5) - 0.5) * 0.03
-        micro_coast = (self.detail_noise.fbm_grid(nx * 5.0, ny * 3.5, octaves=4, base_scale=8.0) - 0.5) * 0.025
+        nx_w = nx + wx_coarse + wx_fine
+        ny_w = ny + wy_coarse + wy_fine
 
-        # 2. Sinh Base Elevation liên tục:
-        # - Vùng biển: độ sâu tăng dần từ bờ ra đại dương thẳm [0.02 .. 0.38)
-        # - Vùng đất liền: cao độ nền tăng dần từ bờ vào sâu nội địa [0.40 .. 0.56]
-        base_elevation = np.zeros((h, w), dtype=np.float32)
-        depth_norm = np.clip(dist_sea / 36.0, 0.0, 1.0)
-        base_elevation[~raw_land] = self.cfg.sea_level - depth_norm[~raw_land] * 0.36
+        # 2. Khung xương Đa Lục Địa (Multi-Continent Tectonic Skeleton)
+        continent_lobes = [
+            # A. Lục địa Băng Bắc (NW Glacial Continent)
+            (0.24, 0.28, 0.14, 0.17, 1.08),
+            (0.15, 0.17, 0.08, 0.10, 0.98),
+            (0.29, 0.18, 0.09, 0.11, 0.96),
 
-        inland_norm = np.clip(dist_inland / 40.0, 0.0, 1.0)
-        base_elevation[raw_land] = (
-            0.40 + 0.16 * inland_norm[raw_land] + coast_warp[raw_land] + micro_coast[raw_land]
-        )
-        base_elevation = np.clip(base_elevation, 0.02, 0.60)
+            # B. Lục địa Cao nguyên Đông Bắc (NE Highland Continent)
+            (0.60, 0.24, 0.16, 0.13, 1.02),
+            (0.70, 0.22, 0.11, 0.10, 0.94),
 
-        # 3. Mặt nạ đất liền xác định bởi mực nước biển chuẩn
+            # C. Đại lục Rừng Thiêng Trung Tâm & Đông Nam (Verdant Mainland)
+            (0.62, 0.56, 0.21, 0.23, 1.10),
+            (0.50, 0.46, 0.14, 0.15, 1.04),
+            (0.72, 0.48, 0.14, 0.16, 1.02),
+            (0.66, 0.70, 0.16, 0.16, 1.02),
+            (0.76, 0.65, 0.10, 0.12, 0.95),
+
+            # D. Lục địa Sa mạc Cát Vàng Tây Nam (SW Desert Continent)
+            (0.25, 0.72, 0.17, 0.16, 1.08),
+            (0.18, 0.65, 0.11, 0.12, 0.98),
+            (0.32, 0.81, 0.12, 0.11, 0.96),
+
+            # E. Đảo Hải hành Phía Nam
+            (0.48, 0.82, 0.12, 0.09, 0.95),
+
+            # F. Quần đảo Nhiệt đới Đông Nam & Ngoại vi
+            (0.88, 0.88, 0.065, 0.075, 0.92),
+            (0.79, 0.92, 0.040, 0.045, 0.88),
+            (0.78, 0.40, 0.045, 0.055, 0.88),
+            (0.38, 0.08, 0.035, 0.040, 0.86),
+        ]
+
+        land_base = np.zeros((h, w), dtype=np.float32)
+        for cx, cy, rx, ry, w_val in continent_lobes:
+            d = np.sqrt(((nx_w - cx) / rx) ** 2 + ((ny_w - cy) / ry) ** 2)
+            v = np.maximum(0.0, 1.0 - d) * w_val
+            land_base = np.maximum(land_base, v)
+
+        # 3. Độ nhám bờ biển Fractal
+        coast_n1 = self.coast_noise.fbm_grid(nx * 2.8, ny * 2.8, octaves=5, base_scale=4.5)
+        coast_n2 = self.detail_noise.fbm_grid(nx * 5.5, ny * 5.5, octaves=4, base_scale=9.0)
+        coast_fractal = (coast_n1 - 0.5) * 0.22 + (coast_n2 - 0.5) * 0.11
+
+        # 4. Khoét eo biển trung tâm và vịnh sâu chia tách các lục địa
+        strait_cut = (np.abs(nx_w - 0.40) < 0.065) & (ny_w > 0.25) & (ny_w < 0.72)
+        bay_cut_1 = (np.hypot((nx_w - 0.54) * 1.5, ny_w - 0.64) < 0.09)
+        bay_cut_2 = (np.hypot((nx_w - 0.38) * 1.4, ny_w - 0.48) < 0.08)
+
+        land_field = land_base + coast_fractal
+        land_field[strait_cut] -= 0.26
+        land_field[bay_cut_1] -= 0.22
+        land_field[bay_cut_2] -= 0.22
+
+        # Đại dương bao bọc hoàn toàn 4 mép bản đồ
+        border_dist = np.minimum.reduce([nx / 0.04, (1.0 - nx) / 0.04, ny / 0.04, (1.0 - ny) / 0.04])
+        border_mask = np.clip(border_dist, 0.0, 1.0) ** 0.65
+        land_field *= border_mask
+
+        # Chuẩn hóa tỷ lệ đất nổi chuẩn 46%
+        target_land_ratio = 0.46
+        q_thresh = float(np.quantile(land_field, 1.0 - target_land_ratio))
+        base_elevation = np.clip(land_field - q_thresh + self.cfg.sea_level, 0.0, 1.0)
         landmask = base_elevation >= self.cfg.sea_level
 
-        # 4. Độ sâu đáy biển (Bathymetry) và Thềm lục địa (Coastal Shelf)
+        # 5. Độ sâu đáy biển (Bathymetry) & Thềm lục địa phát sáng (Coastal Shelf)
         sea_span = max(1e-5, self.cfg.sea_level)
         raw_depth = np.clip((self.cfg.sea_level - base_elevation) / sea_span, 0.0, 1.0)
-        bathymetry = np.where(landmask, 0.0, raw_depth ** 0.82).astype(np.float32)
+        bathymetry = np.where(landmask, 0.0, raw_depth ** 0.80).astype(np.float32)
 
         coastal_shelf = np.where(
-            (~landmask) & (bathymetry <= 0.32), 1.0 - (bathymetry / 0.32), 0.0
+            (~landmask) & (bathymetry <= 0.38), 1.0 - (bathymetry / 0.38), 0.0
         ).astype(np.float32)
 
-        # 5. Xác định các Biển Nội Địa (Inland Seas: Old Sea, Doryan Sea, North Sea, Dragons' Sea)
-        is_old_sea = (~landmask) & (nx > 0.52) & (nx < 0.76) & (ny > 0.36) & (ny < 0.62)
-        is_north_sea = (~landmask) & (nx > 0.22) & (nx < 0.38) & (ny > 0.20) & (ny < 0.36)
-        is_dragons_sea = (~landmask) & (nx > 0.80) & (nx < 0.95) & (ny > 0.42) & (ny < 0.58)
-        inland_bay_mask = is_old_sea | is_north_sea | is_dragons_sea
+        inland_bay_mask = (~landmask) & (bay_cut_1 | bay_cut_2 | strait_cut)
 
         return LandmassResult(
             base_elevation=base_elevation.astype(np.float32),

@@ -1,5 +1,5 @@
 {
-  "world_id": "primeval_reach_v2",
+  "world_id": "primeval_reach_v3",
   "seed": 2026,
   "center_world_coord": [
     236,
@@ -15,116 +15,95 @@
     80,
     80
   ],
-  "water_tiles_count": 1722,
-  "flora_instances_spawned": 874,
-  "fauna_herds_in_region": 5,
+  "water_tiles_count": 3099,
+  "flora_instances_spawned": 487,
+  "fauna_herds_in_region": 2,
   "sample_flora": [
     {
-      "col": 6,
+      "col": 47,
       "row": 0,
-      "species_id": "garlic",
-      "layer": "herb",
+      "species_id": "boreal_spruce_pine",
+      "layer": "canopy",
       "growth_stage": "sprout"
     },
     {
-      "col": 8,
+      "col": 49,
       "row": 0,
-      "species_id": "garlic",
-      "layer": "herb",
+      "species_id": "boreal_spruce_pine",
+      "layer": "canopy",
       "growth_stage": "prime"
     },
     {
-      "col": 15,
+      "col": 67,
       "row": 0,
-      "species_id": "garlic",
-      "layer": "herb",
-      "growth_stage": "mature"
-    },
-    {
-      "col": 20,
-      "row": 0,
-      "species_id": "garlic",
-      "layer": "herb",
-      "growth_stage": "mature"
-    },
-    {
-      "col": 21,
-      "row": 0,
-      "species_id": "garlic",
-      "layer": "herb",
-      "growth_stage": "prime"
-    },
-    {
-      "col": 24,
-      "row": 0,
-      "species_id": "mushroom",
+      "species_id": "cavefungi",
       "layer": "ground",
       "growth_stage": "sprout"
     },
     {
-      "col": 3,
-      "row": 1,
-      "species_id": "garlic",
-      "layer": "herb",
+      "col": 75,
+      "row": 0,
+      "species_id": "cavefungi",
+      "layer": "ground",
       "growth_stage": "prime"
     },
     {
-      "col": 7,
+      "col": 53,
       "row": 1,
-      "species_id": "garlic",
-      "layer": "herb",
+      "species_id": "boreal_spruce_pine",
+      "layer": "canopy",
+      "growth_stage": "mature"
+    },
+    {
+      "col": 78,
+      "row": 1,
+      "species_id": "cavefungi",
+      "layer": "ground",
+      "growth_stage": "mature"
+    },
+    {
+      "col": 41,
+      "row": 2,
+      "species_id": "tree_fern_cycad",
+      "layer": "understory",
       "growth_stage": "sprout"
     },
     {
-      "col": 9,
-      "row": 1,
-      "species_id": "garlic",
-      "layer": "herb",
+      "col": 49,
+      "row": 2,
+      "species_id": "boreal_spruce_pine",
+      "layer": "canopy",
+      "growth_stage": "prime"
+    },
+    {
+      "col": 50,
+      "row": 2,
+      "species_id": "boreal_spruce_pine",
+      "layer": "canopy",
       "growth_stage": "mature"
     },
     {
-      "col": 18,
-      "row": 1,
-      "species_id": "garlic",
-      "layer": "herb",
-      "growth_stage": "mature"
+      "col": 51,
+      "row": 2,
+      "species_id": "boreal_spruce_pine",
+      "layer": "canopy",
+      "growth_stage": "sprout"
     }
   ],
   "sample_fauna": [
     {
-      "species_id": "ancient_bison",
+      "species_id": "woolly_rhino",
       "guild": "megafauna_herbivore",
       "local_col": 75,
       "local_row": 3,
-      "count": 8
-    },
-    {
-      "species_id": "megaloceros_elk",
-      "guild": "medium_herbivore",
-      "local_col": 3,
-      "local_row": 22,
-      "count": 5
-    },
-    {
-      "species_id": "giant_ground_sloth",
-      "guild": "megafauna_herbivore",
-      "local_col": 64,
-      "local_row": 37,
       "count": 4
     },
     {
-      "species_id": "wild_boar",
-      "guild": "omnivore",
-      "local_col": 3,
-      "local_row": 32,
-      "count": 9
-    },
-    {
-      "species_id": "marsh_crocodile",
-      "guild": "aquatic_semi",
-      "local_col": 17,
-      "local_row": 7,
-      "count": 3
+      "species_id": "arctic_mountain_hare",
+      "guild": "medium_herbivore",
+      "local_col": 75,
+      "local_row": 29,
+      "count": 5
     }
   ]
 }

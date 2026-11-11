@@ -68,12 +68,11 @@ class HydrologyGenerator:
             indexing="ij",
         )
         sw_sink_score = (
-            geology.basin_field
-            * climate.rain_shadow
-            * np.exp(-(((nx - 0.28) / 0.008) ** 2 + ((ny - 0.64) / 0.008) ** 2))
+            (geology.basin_field + climate.rain_shadow * 0.5)
+            * np.exp(-(((nx - 0.25) / 0.015) ** 2 + ((ny - 0.70) / 0.015) ** 2))
             * land
         )
-        endorheic_lake = sw_sink_score > 0.35
+        endorheic_lake = sw_sink_score > 0.25
         # Hạ nhẹ đáy hồ ốc đảo Tây Nam để thu nước vùng khuất mưa
         elev = np.where(endorheic_lake, np.minimum(elev, self.cfg.sea_level + 0.035), elev)
 

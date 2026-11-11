@@ -1,11 +1,13 @@
 """
 world/generation/climate_generator.py
 Phase 3: Mô phỏng Nhiệt độ, Gió thịnh hành, Mưa địa hình (Orographic Precipitation)
-và Hiệu ứng Khuất mưa (Rain Shadow) tạo vùng bán khô hạn Pontic Desert & Samark Desert,
-vùng mưa nhiệt đới Dathic Jungle và đới lạnh Bắc Băng Dương (Frozen Ocean).
+và Hiệu ứng Khuất mưa (Rain Shadow) cho thế giới đa lục địa 100% Procedural:
+- Đới lạnh băng tuyết & mưa đón gió ở Lục địa Băng Bắc (Tây Bắc)
+- Vùng Khuất mưa bán khô hạn & hoang mạc ở Lục địa Sa mạc Tây Nam
+- Vùng rừng mưa trù phú ở Đại lục Rừng Thiêng Trung Tâm & Đông Nam
+- Vùng cao nguyên ôn đới Đông Bắc
 """
 
-import os
 from dataclasses import dataclass
 from typing import Tuple
 import numpy as np
@@ -19,9 +21,9 @@ from world.generation.terrain_generator import TerrainResult
 CLIMATE_POLAR_ALPINE = 0       # Hàn đới / Núi tuyết cao phía Bắc
 CLIMATE_BOREAL_HUMID = 1       # Cận cực ẩm (Tây Bắc & Bắc)
 CLIMATE_TEMPERATE_HUMID = 2    # Ôn đới ẩm (Đông Bắc & Trung tâm)
-CLIMATE_WARM_WET_BAY = 3       # Cận nhiệt đới ẩm quanh Dathic Jungle & Vịnh Nội Địa
+CLIMATE_WARM_WET_BAY = 3       # Cận nhiệt đới ẩm quanh Đại lục Rừng Thiêng
 CLIMATE_SEMI_ARID_STEPPE = 4   # Thảo nguyên bán khô hạn
-CLIMATE_ARID_RAIN_SHADOW = 5   # Khô hạn khuất mưa Pontic Desert & Samark Desert
+CLIMATE_ARID_RAIN_SHADOW = 5   # Khô hạn khuất mưa Sa mạc Tây Nam
 
 
 @dataclass
@@ -49,12 +51,6 @@ class ClimateGenerator:
         ny: np.ndarray,
         nx: np.ndarray,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """
-        Mô phỏng vận chuyển hơi ẩm từ đại dương vào lục địa theo 2 luồng gió chính:
-        1. Luồng Tây-Bắc -> Đông-Nam ở nửa Bắc (đón ẩm từ Gran Ocean, trút mưa lên sườn núi).
-        2. Luồng Đông -> Tây ở nửa Nam (mang ẩm từ Biển Nội Địa vào Dathic Jungle, bị chặn bởi
-           sống núi trung tâm khiến vùng Tây Nam rơi vào vùng Khuất mưa - Rain Shadow Pontic Desert).
-        """
         h, w = self.cfg.height, self.cfg.width
         elev = terrain.final_heightmap
         land = landmass.landmask
@@ -63,7 +59,7 @@ class ClimateGenerator:
         shadow_accum = np.zeros((h, w), dtype=np.float32)
         moisture_field = np.zeros((h, w), dtype=np.float32)
 
-        # --- Luồng 1: Gió Tây -> Đông (Quét từ Gran Ocean sang, mạnh ở Tây Bắc) ---
+        # 1. Luồng Gió Tây-Bắc -> Đông-Nam (đón ẩm đại dương, trút mưa lên sườn Tây Bắc)
         m_west = np.ones(h, dtype=np.float32) * 0.94
         prev_elev = elev[:, 0].copy()
         for c in range(w):
@@ -82,7 +78,7 @@ class ClimateGenerator:
             m_west = np.clip(m_west - rain_drop * 0.35 - barrier_loss, 0.08, 1.0)
             prev_elev = elev[:, c]
 
-        # --- Luồng 2: Gió Tín phong Đông -> Tây (Từ Biển Nội Địa thổi sang Tây) ---
+        # 2. Luồng Gió Đông mang ẩm từ biển Đông vào Đại lục Rừng Thiêng
         m_east = np.ones(h, dtype=np.float32) * 0.95
         shadow_tracker = np.zeros(h, dtype=np.float32)
         prev_elev = elev[:, -1].copy()
@@ -96,11 +92,10 @@ class ClimateGenerator:
             dz = np.maximum(0.0, elev[:, c] - prev_elev)
             lift = np.clip(dz * 10.0, 0.0, 0.50) * land[:, c]
 
-            # Sống núi Trung tâm (Continental Spine) chặn hơi ẩm
-            is_high_ridge = (elev[:, c] > 0.56) | (geology.tectonic_uplift[:, c] > 0.46)
+            is_high_ridge = (elev[:, c] > 0.55) | (geology.tectonic_uplift[:, c] > 0.45)
             shadow_tracker = np.where(
                 is_high_ridge & land[:, c],
-                np.minimum(1.0, shadow_tracker + 0.035),
+                np.minimum(1.0, shadow_tracker + 0.038),
                 np.maximum(0.0, shadow_tracker - 0.003),
             )
 
@@ -112,10 +107,9 @@ class ClimateGenerator:
             m_east = np.clip(m_east - lift * 0.40 - is_high_ridge * 0.024, 0.05, 1.0)
             prev_elev = elev[:, c]
 
-        # Cường điệu hóa vùng Khuất mưa Pontic Desert & Samark Desert
-        sw_focus = np.exp(-(((nx - 0.28) / 0.16) ** 2 + ((ny - 0.64) / 0.16) ** 2)) * land
-        se_focus = np.exp(-(((nx - 0.64) / 0.12) ** 2 + ((ny - 0.74) / 0.12) ** 2)) * land
-        shadow_accum = np.clip(shadow_accum * 0.55 + (sw_focus + se_focus * 0.75) * 0.65, 0.0, 1.0)
+        # Vùng khuất mưa và bồn địa khô hạn Tây Nam
+        sw_focus = np.exp(-(((nx - 0.25) / 0.16) ** 2 + ((ny - 0.72) / 0.16) ** 2)) * land
+        shadow_accum = np.clip(shadow_accum * 0.50 + sw_focus * 0.75, 0.0, 1.0)
 
         return moisture_field, np.clip(orographic_rain, 0.0, 1.0), shadow_accum
 
@@ -133,22 +127,11 @@ class ClimateGenerator:
         )
         land = landmass.landmask
 
-        template_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), "data", "demo_world_template.npz"
-        )
-        if os.path.exists(template_path):
-            tmpl = np.load(template_path)
-            is_desert = tmpl["is_desert"]
-            is_jungle = tmpl["is_jungle"]
-        else:
-            is_desert = np.zeros((h, w), dtype=bool)
-            is_jungle = np.zeros((h, w), dtype=bool)
-
-        # 1. Tính Nhiệt độ: Băng giá ở cực Bắc (ny < 0.18), ấm áp ở xích đạo/miền Nam
-        lat_temp = np.clip(0.08 + (ny ** 0.88) * 0.90, 0.0, 1.0)
+        # 1. Tính Nhiệt độ: Bắc băng hà (ny < 0.22), ấm áp ở xích đạo/miền Nam
+        lat_temp = np.clip(0.06 + (ny ** 0.85) * 0.92, 0.0, 1.0)
         elev_above_sea = np.maximum(0.0, terrain.final_heightmap - self.cfg.sea_level) / (1.0 - self.cfg.sea_level)
-        lapse_cooling = (elev_above_sea ** 1.25) * 0.68
-        temp_noise = (self.clim_noise.fbm_grid(nx, ny, octaves=3, base_scale=3.0) - 0.5) * 0.08
+        lapse_cooling = (elev_above_sea ** 1.25) * 0.70
+        temp_noise = (self.clim_noise.fbm_grid(nx, ny, octaves=3, base_scale=3.0) - 0.5) * 0.06
 
         temperature = np.clip(lat_temp - lapse_cooling + temp_noise, 0.0, 1.0).astype(np.float32)
 
@@ -162,39 +145,33 @@ class ClimateGenerator:
         )
 
         precip_noise = self.clim_noise.fbm_grid(nx + 4.1, ny + 2.3, octaves=4, base_scale=4.0)
-        nw_windward_boost = 0.38 * np.exp(-(((nx - 0.20) / 0.16) ** 2 + ((ny - 0.28) / 0.16) ** 2))
-        dathic_rain_boost = 0.42 * np.exp(-(((nx - 0.49) / 0.12) ** 2 + ((ny - 0.60) / 0.12) ** 2))
+        nw_windward_boost = 0.42 * np.exp(-(((nx - 0.24) / 0.16) ** 2 + ((ny - 0.26) / 0.16) ** 2)) * land
+        verdant_rain_boost = 0.44 * np.exp(-(((nx - 0.62) / 0.20) ** 2 + ((ny - 0.58) / 0.22) ** 2)) * land
 
         raw_precip = (
-            raw_moist * 0.40
-            + orographic_lift * 0.25
-            + precip_noise * 0.15
+            raw_moist * 0.38
+            + orographic_lift * 0.26
+            + precip_noise * 0.14
             + nw_windward_boost
-            + dathic_rain_boost
-        ) * (1.0 - rain_shadow * 0.75)
+            + verdant_rain_boost
+        ) * (1.0 - rain_shadow * 0.78)
 
         precipitation = np.clip(raw_precip, 0.03, 1.0).astype(np.float32)
-        # Bồn địa hoang mạc Pontic & Samark chịu khô hạn cực độ
-        precipitation[is_desert] = np.clip(precipitation[is_desert] * 0.32, 0.04, 0.22)
-        # Rừng nhiệt đới Dathic Jungle nhận mưa trù phú
-        precipitation[is_jungle] = np.maximum(precipitation[is_jungle], 0.72)
 
         # 4. Chỉ số Khô hạn (Aridity Index)
         aridity_index = np.clip(
-            (temperature * 0.65 + (1.0 - precipitation) * 0.75) - 0.35, 0.0, 1.0
+            (temperature * 0.65 + (1.0 - precipitation) * 0.75) - 0.32, 0.0, 1.0
         ).astype(np.float32)
-        aridity_index[is_desert] = np.maximum(aridity_index[is_desert], 0.85)
-        aridity_index[is_jungle] = np.minimum(aridity_index[is_jungle], 0.18)
 
         # 5. Phân loại Đới Khí hậu
         zones = np.full((h, w), CLIMATE_TEMPERATE_HUMID, dtype=np.uint8)
-        zones = np.where(temperature < 0.24, CLIMATE_POLAR_ALPINE, zones)
-        zones = np.where((temperature >= 0.24) & (temperature < 0.42), CLIMATE_BOREAL_HUMID, zones)
+        zones = np.where(temperature < 0.22, CLIMATE_POLAR_ALPINE, zones)
+        zones = np.where((temperature >= 0.22) & (temperature < 0.40), CLIMATE_BOREAL_HUMID, zones)
         zones = np.where(
-            (temperature >= 0.42) & (precipitation >= 0.60) & (ny > 0.45), CLIMATE_WARM_WET_BAY, zones
+            (temperature >= 0.40) & (precipitation >= 0.55) & (ny > 0.40), CLIMATE_WARM_WET_BAY, zones
         )
-        zones = np.where((temperature >= 0.38) & (precipitation < 0.36), CLIMATE_SEMI_ARID_STEPPE, zones)
-        zones = np.where((rain_shadow > 0.38) & (precipitation < 0.26), CLIMATE_ARID_RAIN_SHADOW, zones)
+        zones = np.where((temperature >= 0.38) & (precipitation < 0.34), CLIMATE_SEMI_ARID_STEPPE, zones)
+        zones = np.where((rain_shadow > 0.36) & (precipitation < 0.25), CLIMATE_ARID_RAIN_SHADOW, zones)
 
         return ClimateResult(
             temperature=temperature,

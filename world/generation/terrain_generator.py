@@ -4,7 +4,6 @@ Kết hợp Địa hình Đa tầng với Multi-Directional Hillshading (Bóng �
 giúp các dãy núi, thung lũng và cao nguyên nổi khối rõ rệt ngay cả ở kích thước thumbnail.
 """
 
-import os
 import math
 from dataclasses import dataclass
 import numpy as np
@@ -13,7 +12,6 @@ try:
     from scipy.ndimage import distance_transform_edt
 except ImportError:
     def distance_transform_edt(a: np.ndarray) -> np.ndarray:
-        """Pure-NumPy Euclidean Distance Transform fallback when scipy is not available."""
         h, w = a.shape
         inf = 1e8
         g = np.full((h, w), inf, dtype=np.float32)
@@ -59,6 +57,29 @@ class TerrainGenerator:
         self.detail_noise = FastNoise2D(seed=config.seed + 911)
         self.gully_noise = FastNoise2D(seed=config.seed + 1103)
 
+    def _compute_multidirectional_hillshade(
+        self, dz_dx: np.ndarray, dz_dy: np.ndarray, slope_rad: np.ndarray
+    ) -> np.ndarray:
+        """Chiếu sáng đa hướng 3 nguồn (USGS Multi-Directional Oblique Weighting)."""
+        aspect_rad = np.arctan2(dz_dy, -dz_dx)
+        zenith_rad = np.radians(90.0 - self.cfg.sun_altitude_deg)
+
+        lights = [
+            (np.radians(315.0), 0.55),  # Tây-Bắc (chính)
+            (np.radians(45.0), 0.25),   # Đông-Bắc (phụ)
+            (np.radians(225.0), 0.20),  # Tây-Nam (dịu)
+        ]
+
+        total_shade = np.zeros_like(dz_dx, dtype=np.float32)
+        for azimuth_rad, weight in lights:
+            sh = (
+                np.cos(zenith_rad) * np.cos(slope_rad)
+                + np.sin(zenith_rad) * np.sin(slope_rad) * np.cos(azimuth_rad - aspect_rad)
+            )
+            total_shade += np.clip(sh, 0.0, 1.0) * weight
+
+        return np.clip(total_shade, 0.0, 1.0)
+
     def generate(self, landmass: LandmassResult, geology: GeologyResult) -> TerrainResult:
         h, w = self.cfg.height, self.cfg.width
         ny, nx = np.meshgrid(
@@ -68,58 +89,46 @@ class TerrainGenerator:
         )
         land = landmass.landmask
 
-        template_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), "data", "demo_world_template.npz"
-        )
-        if os.path.exists(template_path):
-            tmpl = np.load(template_path)
-            is_snow = tmpl["is_snow"]
-        else:
-            is_snow = np.zeros((h, w), dtype=bool)
-
         # Khoảng cách từ bờ biển vào sâu trong lục địa
         dist_inland = distance_transform_edt(land).astype(np.float32)
-        coastal_taper = np.clip(dist_inland / 22.0, 0.0, 1.0) ** 0.75
+        coastal_taper = np.clip(dist_inland / 18.0, 0.0, 1.0) ** 0.70
 
         # 1. Nhiễu khe xói mòn sườn núi (Branching Gullies)
-        gully_val = 1.0 - np.abs(self.gully_noise.noise_grid(nx * 24.0, ny * 24.0))
-        erosion_gullies = -np.clip((gully_val ** 3.0) * geology.tectonic_uplift * 0.14, 0.0, 0.14)
+        gully_val = 1.0 - np.abs(self.gully_noise.noise_grid(nx * 22.0, ny * 22.0))
+        erosion_gullies = -np.clip((gully_val ** 2.8) * geology.tectonic_uplift * 0.12, 0.0, 0.12)
 
-        detail = (self.detail_noise.fbm_grid(nx * 1.5, ny, octaves=6, base_scale=10.0) - 0.5) * 2.0
+        detail = (self.detail_noise.fbm_grid(nx * 1.5, ny * 1.5, octaves=5, base_scale=9.0) - 0.5) * 2.0
 
-        # 2. Tổng hợp Cao độ theo đúng công thức kiến tạo
+        # 2. Tổng hợp Cao độ địa hình đa tầng
         continent_relief = (
-            geology.tectonic_uplift * self.cfg.weight_tectonic_uplift
-            + (geology.ridge_field ** 1.15) * self.cfg.weight_ridge_field
+            geology.tectonic_uplift * self.cfg.weight_tectonic_uplift * 1.25
+            + (geology.ridge_field ** 1.15) * self.cfg.weight_ridge_field * 1.10
             - geology.basin_field * self.cfg.weight_basin_field
-            - geology.fault_lines * 0.09
+            - geology.fault_lines * 0.08
             + erosion_gullies
             + detail * self.cfg.weight_detail_noise
         ) * coastal_taper
 
+        # Đảm bảo dải cao độ rộng: đồng bằng ven biển ~0.385, đỉnh núi cao ~0.95
         raw_height = np.where(
             land,
             np.clip(
                 self.cfg.sea_level
                 + 0.005
-                + continent_relief * 0.92
-                + (landmass.base_elevation - self.cfg.sea_level) * 0.35,
+                + continent_relief * 0.95
+                + (landmass.base_elevation - self.cfg.sea_level) * 0.38,
                 self.cfg.sea_level + 0.002,
-                1.0,
+                0.98,
             ),
             landmass.base_elevation,
         ).astype(np.float32)
 
-        # Đỉnh núi tuyết đạt độ cao cực đại tự nhiên
-        raw_height[is_snow] = np.maximum(
-            raw_height[is_snow], 0.86 + 0.11 * geology.tectonic_uplift[is_snow]
-        )
         final_heightmap = np.clip(raw_height, 0.01, 0.99)
 
         # 3. Tính đạo hàm hình học: Slope, Aspect, Curvature
-        dz_dy, dz_dx = np.gradient(final_heightmap)
+        dz_dy, dz_dx = np.gradient(final_heightmap * (self.cfg.vertical_exaggeration / 4.0))
         slope_raw = np.hypot(dz_dx, dz_dy)
-        slope = np.clip(slope_raw * 22.0, 0.0, 1.0).astype(np.float32)
+        slope = np.clip(slope_raw * 18.0, 0.0, 1.0).astype(np.float32)
         aspect = np.arctan2(dz_dy, -dz_dx).astype(np.float32)
 
         laplacian = (
@@ -129,9 +138,9 @@ class TerrainGenerator:
             + np.roll(final_heightmap, -1, axis=1)
             - 4.0 * final_heightmap
         )
-        curvature = np.clip(laplacian * 32.0, -1.0, 1.0).astype(np.float32)
+        curvature = np.clip(laplacian * 28.0, -1.0, 1.0).astype(np.float32)
 
-        # 4. Multi-Directional Hillshading (Chiếu sáng 3 góc kết hợp: Tây-Bắc chính + Bắc-Đông phụ + Tây-Nam dịu)
+        # 4. Multi-Directional Hillshading
         shaded_relief = self._compute_multidirectional_hillshade(dz_dx, dz_dy, slope_raw)
 
         return TerrainResult(
@@ -142,24 +151,3 @@ class TerrainGenerator:
             curvature=curvature,
             shaded_relief=shaded_relief,
         )
-
-    def _compute_multidirectional_hillshade(
-        self, dz_dx: np.ndarray, dz_dy: np.ndarray, slope_raw: np.ndarray
-    ) -> np.ndarray:
-        """Kỹ thuật chiếu sáng bản đồ địa chất USGS (3 nguồn sáng lệch góc) giúp sườn núi mọi hướng đều nổi khối 3D."""
-        slope_rad = np.arctan(slope_raw * self.cfg.vertical_exaggeration * 55.0)
-        aspect_rad = np.arctan2(dz_dy, -dz_dx)
-
-        lights = [
-            (315.0, 38.0, 0.62),  # Ánh sáng chính từ Tây-Bắc
-            (270.0, 42.0, 0.23),  # Ánh sáng phụ từ hướng Tây
-            (355.0, 48.0, 0.15),  # Ánh sáng ven từ hướng Bắc
-        ]
-        combined = np.zeros_like(slope_raw, dtype=np.float32)
-        for az_deg, alt_deg, weight in lights:
-            az = math.radians(az_deg)
-            zenith = math.pi / 2.0 - math.radians(alt_deg)
-            sh = np.cos(zenith) * np.cos(slope_rad) + np.sin(zenith) * np.sin(slope_rad) * np.cos(az - aspect_rad)
-            combined += np.clip(sh, 0.0, 1.0) * weight
-
-        return np.clip(combined, 0.0, 1.0).astype(np.float32)

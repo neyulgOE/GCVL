@@ -203,15 +203,18 @@ class BiomeGenerator:
             + dither * 0.4
         )
 
-        import os
-        template_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), "data", "demo_world_template.npz"
-        )
-        if os.path.exists(template_path):
-            tmpl = np.load(template_path)
-            affinities[:, :, BIOME_SEMI_ARID_DESERT] += tmpl["is_desert"] * 2.2
-            affinities[:, :, BIOME_MOIST_BAY_FOREST] += tmpl["is_jungle"] * 2.2
-            affinities[:, :, BIOME_ALPINE_ICE_SNOW] += tmpl["is_snow"] * 2.2
+        # Tự nhiên hóa phân bổ 11 quần xã trên các đại lục
+        sw_desert_zone = np.exp(-(((nx - 0.25) / 0.16) ** 2 + ((ny - 0.72) / 0.16) ** 2)) * land
+        nw_snow_zone = np.exp(-(((nx - 0.24) / 0.16) ** 2 + ((ny - 0.26) / 0.16) ** 2)) * land
+        ce_jungle_zone = np.exp(-(((nx - 0.62) / 0.20) ** 2 + ((ny - 0.58) / 0.22) ** 2)) * land
+
+        affinities[:, :, BIOME_SEMI_ARID_DESERT] += sw_desert_zone * (temp > 0.40) * 1.8
+        affinities[:, :, BIOME_MOIST_BAY_FOREST] += ce_jungle_zone * (precip > 0.45) * 1.6
+        affinities[:, :, BIOME_ALPINE_ICE_SNOW] += nw_snow_zone * (elev > 0.60) * 2.2
+        affinities[:, :, BIOME_TEMPERATE_MEADOW] += (slope < 0.22) * (elev < 0.52) * (temp >= 0.35) * (temp <= 0.68) * 1.8
+        affinities[:, :, BIOME_WETLAND_SWAMP] += (elev < self.cfg.sea_level + 0.04) * (moist > 0.50) * 1.8 + hydrology.delta_mask.astype(np.float32) * 1.5
+        affinities[:, :, BIOME_TEMPERATE_DECIDUOUS] += (temp > 0.45) * (temp < 0.72) * (precip > 0.32) * (elev > 0.42) * 1.3
+        affinities[:, :, BIOME_RIPARIAN_FOREST] += (soil.distance_to_water <= 2.2) * (temp > 0.30) * (slope < 0.25) * 1.5
 
         # Áp mặt nạ Mặt nước (Ocean / River / Lake)
         water_surface = (~land) | hydrology.river_mask | hydrology.lake_mask
