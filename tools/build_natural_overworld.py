@@ -316,13 +316,16 @@ def dist_to_polyline(
 
 
 # ---------------------------------------------------------------------------
-# Grand Continent Synthesizer (Expansive Landmass ~72% of Map)
+# Primeval Reach Synthesizer (one connected continent + small offshore islands)
 # ---------------------------------------------------------------------------
 
 def build_grand_continent_fields(seed: int = 7, grid_size: int = 512) -> Dict[str, np.ndarray]:
     """
-    Synthesize an expansive, complete prehistoric continent covering ~70-75% of the canvas.
-    Reaches coordinates B to K and rows 2 to 11 with majestic peninsulas, bays, and archipelagos.
+    Synthesize a reproducible atlas from one connected continental body.
+
+    The large shapes are explicit geological lobes and basins; noise is only
+    used to roughen the coast and add terrain detail.  This keeps the map
+    readable at thumbnail size and avoids the old four-continent layout.
     """
     H = W = grid_size
     n_warp1 = GradientNoise2D(seed + 11)
@@ -352,7 +355,7 @@ def build_grand_continent_fields(seed: int = 7, grid_size: int = 512) -> Dict[st
     wu2 = wu + w2_u
     wv2 = wv + w2_v
 
-    # 2. CONTINENTAL SKELETON (Expansive Multi-Lobe Tectonic Landmass)
+    # 2. CONTINENTAL SKELETON (single asymmetric landmass)
     def _lobe(cx: float, cy: float, rx: float, ry: float, angle_deg: float, amp: float) -> np.ndarray:
         th = math.radians(angle_deg)
         ct, st = math.cos(th), math.sin(th)
@@ -367,51 +370,52 @@ def build_grand_continent_fields(seed: int = 7, grid_size: int = 512) -> Dict[st
         m = np.maximum(a, b)
         return m + np.log(np.exp(-k * np.abs(a - b)) + 1.0) / k
 
-    # Main Central Continental Body (Expansive core)
+    # Main central body: deliberately leaves generous ocean around the atlas.
     mainland = _lobe(0.50, 0.52, 0.35, 0.36, 5.0, 0.95)
 
-    # North-Western Horn Peninsula (Extending high up to row 2 & col B like Image 1!)
+    # North-western cold peninsula and northern headwaters.
     mainland = _smax(mainland, _lobe(0.24, 0.22, 0.15, 0.17, 30.0, 0.88))
     mainland = _smax(mainland, _lobe(0.21, 0.12, 0.09, 0.13, 18.0, 0.85))
     mainland = _smax(mainland, _lobe(0.18, 0.06, 0.06, 0.09, 12.0, 0.82))
 
-    # North / North-East Glacial Massif & Amber Highlands (Reaching up to row 2.5-3)
+    # Northern glacial massif and an adjoining highland shelf.
     mainland = _smax(mainland, _lobe(0.66, 0.28, 0.22, 0.19, -15.0, 0.92))
     mainland = _smax(mainland, _lobe(0.75, 0.24, 0.14, 0.12, -22.0, 0.86))
     mainland = _smax(mainland, _lobe(0.82, 0.31, 0.12, 0.08, -10.0, 0.80))
 
-    # Eastern Promontories & Coastal Capes (Stretching towards column K)
+    # Eastern promontories and a broad coastal shelf.
     mainland = _smax(mainland, _lobe(0.78, 0.46, 0.18, 0.14, 12.0, 0.88))
     mainland = _smax(mainland, _lobe(0.86, 0.44, 0.11, 0.06, -8.0, 0.82))
     mainland = _smax(mainland, _lobe(0.84, 0.58, 0.12, 0.09, 15.0, 0.84))
     mainland = _smax(mainland, _lobe(0.80, 0.70, 0.14, 0.16, 25.0, 0.86))
 
-    # Western Headlands & Slopes (Extending towards column B)
+    # Western headlands and windward slopes.
     mainland = _smax(mainland, _lobe(0.24, 0.46, 0.18, 0.22, -10.0, 0.90))
     mainland = _smax(mainland, _lobe(0.18, 0.60, 0.12, 0.16, 15.0, 0.86))
 
-    # South-Western Desert Peninsula & Terracotta Badlands (Reaching row 10-11)
+    # South-western dry basin and southern delta plain.
     mainland = _smax(mainland, _lobe(0.32, 0.76, 0.24, 0.20, 20.0, 0.92))
     mainland = _smax(mainland, _lobe(0.24, 0.86, 0.15, 0.13, 28.0, 0.88))
     mainland = _smax(mainland, _lobe(0.44, 0.86, 0.20, 0.15, -10.0, 0.88))
 
-    # Deep Fjords, Embayments, and Coastal Inlets (Creating dramatic natural coastlines)
+    # One major east-facing gulf, plus smaller coves.  The gulf is connected
+    # to the ocean and does not cut the continent into separate islands.
     bay_north = _lobe(0.44, 0.14, 0.11, 0.09, 10.0, 0.46)     # Northern Sound (between NW horn & NE massif)
-    bay_east = _lobe(0.84, 0.51, 0.10, 0.065, 5.0, 0.48)      # Deep Eastern Bay
+    bay_east = _lobe(0.84, 0.53, 0.14, 0.105, 5.0, 0.54)     # Deep Eastern Bay
+    inland_gulf = _lobe(0.70, 0.57, 0.14, 0.14, -18.0, 0.46) # Connected inner gulf
     bay_nw = _lobe(0.14, 0.32, 0.09, 0.08, -25.0, 0.44)       # NW Fjord Bight
     bay_south = _lobe(0.62, 0.94, 0.11, 0.08, -15.0, 0.45)    # Southern Estuary Bay
     bay_sw_cove = _lobe(0.17, 0.76, 0.08, 0.07, 30.0, 0.42)   # SW Desert Cove
-    mainland = mainland - bay_north - bay_east - bay_nw - bay_south - bay_sw_cove
+    mainland = mainland - bay_north - bay_east - inland_gulf - bay_nw - bay_south - bay_sw_cove
 
-    # Offshore Archipelagos & Detached Sanctuary Islands
-    se_island = _lobe(0.88, 0.88, 0.075, 0.095, -20.0, 0.82)
-    se_spit = _lobe(0.81, 0.94, 0.060, 0.030, 8.0, 0.70)
-    nw_islet = _lobe(0.16, 0.03, 0.024, 0.032, 12.0, 0.68)
-    n_islet = _lobe(0.52, 0.04, 0.025, 0.028, -10.0, 0.65)
-    e_islet = _lobe(0.94, 0.38, 0.026, 0.032, 20.0, 0.66)
+    # A few small offshore islands; these stay secondary to the main landmass.
+    se_island = _lobe(0.88, 0.88, 0.065, 0.082, -20.0, 0.82)
+    se_spit = _lobe(0.81, 0.94, 0.048, 0.025, 8.0, 0.70)
+    n_islet = _lobe(0.52, 0.04, 0.021, 0.024, -10.0, 0.65)
+    e_islet = _lobe(0.94, 0.38, 0.022, 0.028, 20.0, 0.66)
     offshore = np.maximum(
         np.maximum(se_island, se_spit),
-        np.maximum(np.maximum(nw_islet, n_islet), e_islet)
+        np.maximum(n_islet, e_islet)
     )
 
     strait_se = _lobe(0.80, 0.83, 0.055, 0.085, 38.0, 0.46)
@@ -436,7 +440,8 @@ def build_grand_continent_fields(seed: int = 7, grid_size: int = 512) -> Dict[st
     outer_guard = smoothstep(0.003, 0.022, edge_r)
     continental = continental * (0.35 + 0.65 * outer_guard) - (1.0 - outer_guard) * 0.30
 
-    sea_level = 0.42
+    # Target roughly 30-38% exposed land at the prototype scale.
+    sea_level = 0.50
     raw_land = continental >= sea_level
 
     # Keep all real islands (>= 15 px)
@@ -463,7 +468,7 @@ def build_grand_continent_fields(seed: int = 7, grid_size: int = 512) -> Dict[st
     bx = wu2 + warp_b
     by = wv2 - warp_b * 0.8
 
-    # (A) North / North-East Alpine Glacier Massif (like Image 1 & 2!)
+    # (A) North / North-East Alpine Glacier Massif
     d_alp = np.hypot((bx - 0.67) / 0.20, (by - 0.27) / 0.16)
     w_alpine = smoothstep(1.05, 0.40, d_alp)
 
@@ -487,7 +492,13 @@ def build_grand_continent_fields(seed: int = 7, grid_size: int = 512) -> Dict[st
     # 5. HIGH-OCTAVE FRACTAL ELEVATION & TECTONIC MOUNTAIN SPINES
     hills_fbm = sample_fbm_grid(n_detail, wu, wv, octaves=6, persistence=0.54, base_scale=5.6)
 
-    # Alpine Peaks & Glacial Cirque in the Northeast Massif
+    # A directed continental divide gives the relief a geological axis;
+    # fractal noise then breaks it into believable ridges and saddles.
+    ridge_axis = 0.47 + 0.085 * np.sin((wv2 - 0.10) * math.pi * 1.35) + 0.075 * (wv2 - 0.45)
+    ridge_distance = np.abs(wu2 - ridge_axis)
+    great_divide = np.exp(-((ridge_distance / 0.060) ** 2)) * smoothstep(0.02, 0.92, 1.0 - np.abs(wv2 - 0.50))
+
+    # Alpine peaks and glacial cirque in the northern massif.
     massif_dome = np.exp(-(((wu2 - 0.67) / 0.16) ** 2 + ((wv2 - 0.27) / 0.14) ** 2))
     central_spine = np.exp(-(((wu2 - 0.48) / 0.22) ** 2 + ((wv2 - 0.42) / 0.18) ** 2))
 
@@ -499,6 +510,7 @@ def build_grand_continent_fields(seed: int = 7, grid_size: int = 512) -> Dict[st
         0.06
         + 0.18 * hills_fbm
         + 0.07 * fine_fbm
+        + 0.24 * great_divide
         + w_alpine * (0.44 * massif_dome + 0.45 * ridge_macro + 0.24 * ridge_fine)
         + central_spine * 0.16 * ridge_macro
         + w_amber * (0.32 * ridge_macro + 0.20 * ridge_fine + 0.12 * hills_fbm)
@@ -547,7 +559,7 @@ def build_grand_continent_fields(seed: int = 7, grid_size: int = 512) -> Dict[st
     # Great Inland Lakes with natural winding shores
     lakes_spec = [
         (0.64, 0.32, 0.024, 0.016, -15.0),  # Glacial Cirque Tarn (under alpine peak)
-        (0.52, 0.44, 0.030, 0.020, 18.0),   # Great Central Confluence Lake
+        (0.52, 0.44, 0.042, 0.028, 18.0),   # Great Central Confluence Lake
         (0.31, 0.77, 0.025, 0.014, -20.0),  # Desert Oasis Lake
     ]
     lake_field = np.zeros((H, W), dtype=np.float32)

@@ -1,49 +1,88 @@
 {
-  "world": "Thế Giới Đa Lục Địa",
-  "continents": [
+  "world": "Primeval Reach",
+  "generator_version": "primeval-reach-v1",
+  "seed": 314159,
+  "resolution": [
+    512,
+    512
+  ],
+  "render_size": [
+    1024,
+    1024
+  ],
+  "land_percent": 39.4,
+  "coordinate_convention": "u=x/width, v=y/height; north is v=0",
+  "regions": [
     {
-      "id": "arctica",
-      "name": "Lục Địa Băng Bắc (Arctica)",
-      "biome": "alpine_glacial",
+      "id": "glacial_massif",
+      "name": "Dãy Núi Băng Tuyết & Ma Mút",
+      "biome": "alpine_snow",
       "center_uv": [
-        0.25,
-        0.25
+        0.67,
+        0.26
       ]
     },
     {
-      "id": "orientis",
-      "name": "Lục Địa Đông Sơn (Orientis)",
-      "biome": "mountain_lakes",
+      "id": "nw_tundra_horn",
+      "name": "Bán Đảo Lãnh Nguyên Phương Bắc",
+      "biome": "tundra",
       "center_uv": [
-        0.75,
-        0.25
+        0.22,
+        0.14
       ]
     },
     {
-      "id": "gondwana",
-      "name": "Lục Địa Hoang Mạc (Gondwana)",
-      "biome": "desert_badlands",
+      "id": "amber_highlands",
+      "name": "Cao Nguyên Hoàng Thổ",
+      "biome": "amber_highland",
       "center_uv": [
-        0.25,
-        0.75
+        0.48,
+        0.22
       ]
     },
     {
-      "id": "verdantia",
-      "name": "Lục Địa Rừng Thiêng (Verdantia)",
+      "id": "emerald_heartland",
+      "name": "Thung Lũng Hươu Khổng Lồ",
+      "biome": "temperate_valley",
+      "center_uv": [
+        0.52,
+        0.44
+      ]
+    },
+    {
+      "id": "primeval_jungle",
+      "name": "Rừng Mưa Nhiệt Đới Nguyên Sinh",
       "biome": "primeval_jungle",
       "center_uv": [
-        0.75,
-        0.75
+        0.72,
+        0.62
       ]
     },
     {
-      "id": "central_ocean",
-      "name": "Biển Trung Tâm & Quần Đảo San Hô",
-      "biome": "coral_atolls",
+      "id": "red_canyon_desert",
+      "name": "Hoang Mạc Cát Đỏ & Đàn Bison",
+      "biome": "sand_desert",
       "center_uv": [
-        0.5,
-        0.5
+        0.31,
+        0.77
+      ]
+    },
+    {
+      "id": "wetland_delta",
+      "name": "Châu Thổ Đầm Lầy Cá Cổ",
+      "biome": "wetland_delta",
+      "center_uv": [
+        0.59,
+        0.88
+      ]
+    },
+    {
+      "id": "se_sanctuary",
+      "name": "Đảo Tiền Tiêu Đông Nam",
+      "biome": "coastal_sanctuary",
+      "center_uv": [
+        0.88,
+        0.88
       ]
     }
   ]
