@@ -1,0 +1,35 @@
+[
+  {
+    "seed": 2026,
+    "resolution": "512x512",
+    "land_ratio": 0.34,
+    "main_continent_share": 0.9748,
+    "minor_islands_count": 3,
+    "inland_bay_cells": 20245,
+    "max_elevation": 0.9127,
+    "elevation_std": 0.1149,
+    "passed_gate": true
+  },
+  {
+    "seed": 4093,
+    "resolution": "512x512",
+    "land_ratio": 0.34,
+    "main_continent_share": 0.9826,
+    "minor_islands_count": 3,
+    "inland_bay_cells": 15712,
+    "max_elevation": 0.8884,
+    "elevation_std": 0.115,
+    "passed_gate": true
+  },
+  {
+    "seed": 7719,
+    "resolution": "512x512",
+    "land_ratio": 0.34,
+    "main_continent_share": 0.9703,
+    "minor_islands_count": 3,
+    "inland_bay_cells": 17506,
+    "max_elevation": 0.918,
+    "elevation_std": 0.1138,
+    "passed_gate": true
+  }
+]
