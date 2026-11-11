@@ -84,7 +84,14 @@ class Game:
 
             # Full Map View Mouse Handling
             if self.minimap.show_full_map and event.type == pygame.MOUSEBUTTONDOWN:
-                self.minimap.handle_mouse_down(event.pos, event.button, self.map_mgr)
+                action = self.minimap.handle_mouse_down(event.pos, event.button, self.map_mgr)
+                if action and action.get("type") == "teleport_camera":
+                    self.free_cam.set_pos(action["x"], action["y"])
+                    self.free_cam.camera.snap_to(self.free_cam.target.rect)
+                    tile_c = int(action["x"] // TILE_SIZE)
+                    tile_r = int(action["y"] // TILE_SIZE)
+                    if hasattr(self, "dialog_mgr"):
+                        self.dialog_mgr.add_toast(f"🔭 Camera đã bay tới vùng quan sát [{tile_c}, {tile_r}]")
                 continue
 
             # Keyboard Shortcuts

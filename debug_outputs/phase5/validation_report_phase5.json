@@ -1,0 +1,31 @@
+{
+  "seed": 2026,
+  "present_soil_types": 7,
+  "target_soil_types": 7,
+  "present_biomes": 10,
+  "target_biomes": 11,
+  "ecotone_transition_ratio": 0.2936,
+  "soil_distribution": {
+    "soil_1": 0.1455,
+    "soil_2": 0.1426,
+    "soil_3": 0.0261,
+    "soil_4": 0.3335,
+    "soil_5": 0.0005,
+    "soil_6": 0.0067,
+    "soil_7": 0.1543
+  },
+  "biome_distribution": {
+    "biome_1": 0.2362,
+    "biome_2": 0.1775,
+    "biome_3": 0.0183,
+    "biome_4": 0.0823,
+    "biome_5": 0.0126,
+    "biome_6": 0.0105,
+    "biome_7": 0.0144,
+    "biome_8": 0.0002,
+    "biome_9": 0.0013,
+    "biome_10": 0.0315,
+    "biome_11": 0.2243
+  },
+  "passed_gate": true
+}

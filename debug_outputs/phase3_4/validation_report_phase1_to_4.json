@@ -1,0 +1,26 @@
+{
+  "phase_1_2": {
+    "seed": 2026,
+    "resolution": "512x512",
+    "land_ratio": 0.34,
+    "main_continent_share": 0.9748,
+    "minor_islands_count": 3,
+    "inland_bay_cells": 20245,
+    "max_elevation": 0.9127,
+    "elevation_std": 0.1163,
+    "passed_gate": true
+  },
+  "phase_3_4": {
+    "seed": 2026,
+    "nw_windward_precip_avg": 0.3872,
+    "sw_rain_shadow_precip_avg": 0.1531,
+    "rain_shadow_contrast": 0.2341,
+    "river_branches_count": 172,
+    "river_cells": 12282,
+    "lake_cells": 5391,
+    "endorheic_lake_cells": 2896,
+    "uphill_river_violations": 0,
+    "total_river_segments_checked": 4100,
+    "passed_gate": true
+  }
+}

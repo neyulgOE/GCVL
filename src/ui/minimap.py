@@ -286,11 +286,13 @@ class MinimapSystem:
             map_h = map_size
             map_x = px + 24
             map_y = py + 92
+            self.macro_map_rect = pygame.Rect(map_x, map_y, map_w, map_h)
         else:
             map_w = 756
             map_h = 360
             map_x = px + (pw - map_w) // 2
             map_y = py + 88
+            self.valley_map_rect = pygame.Rect(map_x, map_y, map_w, map_h)
 
         if is_view_flora:
             # Render Prehistoric Flora & Foraging Atlas
@@ -311,11 +313,16 @@ class MinimapSystem:
             # Render Prehistoric Overworld Macro Map in crisp 1:1 square
             if self._macro_map_surface is None:
                 import os
-                macro_path = "assets/sprites/world_overview_macro.png"
-                if os.path.exists(macro_path):
-                    raw_macro = pygame.image.load(macro_path).convert_alpha()
-                    self._macro_map_surface = pygame.transform.smoothscale(raw_macro, (map_w, map_h))
-                else:
+                for macro_path in [
+                    "assets/sprites/world_atlas.png",
+                    "debug_outputs/phase6_7_final/world_atlas.png",
+                    "assets/sprites/world_overview_macro.png",
+                ]:
+                    if os.path.exists(macro_path):
+                        raw_macro = pygame.image.load(macro_path).convert_alpha()
+                        self._macro_map_surface = pygame.transform.smoothscale(raw_macro, (map_w, map_h))
+                        break
+                if self._macro_map_surface is None:
                     self._macro_map_surface = pygame.Surface((map_w, map_h))
                     self._macro_map_surface.fill((80, 110, 70))
 
@@ -371,7 +378,7 @@ class MinimapSystem:
                 screen.blit(t_bsub, (info_x + 14, by + 16))
 
             # Footer tip
-            t_tip = font_small.render("[WASD] Bay quan sát | [M] Đóng Atlas", True, (200, 220, 200))
+            t_tip = font_small.render("🖱️ Click bản đồ: Bay Camera | [M] Đóng Atlas", True, (220, 240, 160))
             screen.blit(t_tip, (info_x + 14, info_y + info_h - 26))
 
             # Dynamic Spectator Position Pin on Macro Map
@@ -492,5 +499,21 @@ class MinimapSystem:
         if hasattr(self, "tab_flora_rect") and self.tab_flora_rect.collidepoint(pos):
             self.viewing_zone = "flora"
             return None
+
+        # Click on Macro Continent Map -> Camera Teleport
+        if self.viewing_zone == "macro" and hasattr(self, "macro_map_rect") and self.macro_map_rect.collidepoint(pos):
+            u = (pos[0] - self.macro_map_rect.x) / float(self.macro_map_rect.w)
+            v = (pos[1] - self.macro_map_rect.y) / float(self.macro_map_rect.h)
+            target_x = max(0.0, min(float(WORLD_WIDTH), u * WORLD_WIDTH))
+            target_y = max(0.0, min(float(WORLD_HEIGHT), v * WORLD_HEIGHT))
+            return {"type": "teleport_camera", "x": target_x, "y": target_y, "u": u, "v": v}
+
+        # Click on Local Valley Map -> Camera Teleport
+        if self.viewing_zone == "valley" and hasattr(self, "valley_map_rect") and self.valley_map_rect.collidepoint(pos):
+            u = (pos[0] - self.valley_map_rect.x) / float(self.valley_map_rect.w)
+            v = (pos[1] - self.valley_map_rect.y) / float(self.valley_map_rect.h)
+            target_x = max(0.0, min(float(WORLD_WIDTH), u * WORLD_WIDTH))
+            target_y = max(0.0, min(float(WORLD_HEIGHT), v * WORLD_HEIGHT))
+            return {"type": "teleport_camera", "x": target_x, "y": target_y, "u": u, "v": v}
 
         return None
