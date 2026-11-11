@@ -79,7 +79,7 @@ def save_shaded_relief_preview(landmass, terrain, path: str) -> None:
     Image.fromarray(np.clip(rgb, 0, 255).astype(np.uint8), mode="RGB").save(path, "PNG")
 
 
-def run_pipeline(output_root: str = "debug_outputs/phase1_2") -> None:
+def run_pipeline(output_root: str = "debug_outputs/experimental_phase1_2") -> None:
     os.makedirs(output_root, exist_ok=True)
     base_cfg = WorldConfig()
     reports = []

@@ -1,0 +1,44 @@
+{
+  "world_name": "Primeval Reach - Canonical Multi-Continent Archipelago",
+  "source_atlas": "assets/sprites/primeval_reach_canonical_atlas.png",
+  "source_size": [
+    1024,
+    572
+  ],
+  "inner_bounds_xyxy": [
+    21,
+    18,
+    1003,
+    554
+  ],
+  "grid_size": [
+    400,
+    218
+  ],
+  "axis": {
+    "x": "west_to_east",
+    "z": "north_to_south"
+  },
+  "elevation_range": [
+    0.0,
+    1.3
+  ],
+  "sea_level": 0.35,
+  "climate_baseline": "cool_late_paleolithic_relative_temperature",
+  "vegetation_layers": [
+    "canopy",
+    "shrub",
+    "ground"
+  ],
+  "biome_legend": {
+    "0": "deep_ocean",
+    "1": "coastal_reef_halo",
+    "2": "meandering_river",
+    "3": "primeval_forest_valley",
+    "4": "autumn_steppes_plateau",
+    "5": "terracotta_dunes",
+    "6": "glacial_alpine_massif",
+    "7": "sanctuary_island"
+  },
+  "data_file": "primeval_world_data.npz"
+}

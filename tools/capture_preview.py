@@ -27,7 +27,8 @@ for _ in range(60):
     game.update(1.0 / 60.0)
     game.render()
 
-out_path = "/home/huyen1905/.gemini/antigravity/brain/fed854e2-3b10-4d89-9cc2-ce9ec962f36a/preview_nature_world.png"
+out_path = "debug_outputs/runtime_previews/preview_nature_world.png"
+os.makedirs(os.path.dirname(out_path), exist_ok=True)
 pygame.image.save(game.screen, out_path)
 print(f"Saved nature preview to {out_path}")
 pygame.quit()

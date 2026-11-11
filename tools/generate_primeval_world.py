@@ -2,17 +2,17 @@
 # -*- coding: utf-8 -*-
 """
 Bộ xử lý & Sinh dữ liệu bản đồ thế giới Primeval Reach (GCVL).
-Nguồn dữ liệu chuẩn (Single Source of Truth) từ bản đồ tham chiếu canonical:
-- assets/sprites/primeval_reach_canonical_atlas.png
-- Xuất dữ liệu lưới chuẩn 200x200: stone_age_world_200x200.json
-- Xuất bản đồ kết cấu 3D và độ cao: debug_outputs/primeval_world_texture.png & heightmap.png
-- Đồng bộ toàn diện vào tài nguyên game: assets/sprites/world_atlas.png
+
+Nguồn dữ liệu chuẩn (Single Source of Truth) là bản đồ tham chiếu canonical.
+Lưới thế giới chính giữ gần đúng tỉ lệ vùng bản đồ gốc, còn JSON 200x200 chỉ
+được giữ lại như một gói tương thích cho các công cụ cũ.
 """
 
 import json
 import math
 import os
 import shutil
+import sys
 from pathlib import Path
 import cv2
 import numpy as np
@@ -20,22 +20,30 @@ from PIL import Image
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.world.canonical_ecology import build_ecology_maps
+
+
 CANONICAL_IMG_PATH = PROJECT_ROOT / "assets" / "sprites" / "primeval_reach_canonical_atlas.png"
-FALLBACK_UPLOAD_PATH = Path("/home/huyen1905/.gemini/antigravity/brain/fed854e2-3b10-4d89-9cc2-ce9ec962f36a/.user_uploaded/media_1794378570616_6655a5d3.jpg")
+CANONICAL_GRID_SIZE = (400, 218)  # Giữ tỉ lệ vùng bản đồ gốc ~982:536.
+LEGACY_GRID_SIZE = (200, 200)
+WORLD_DATA_PATH = PROJECT_ROOT / "debug_outputs" / "primeval_world_data.npz"
+WORLD_MANIFEST_PATH = PROJECT_ROOT / "debug_outputs" / "primeval_world_manifest.json"
 
 
 def load_canonical_atlas():
     """Tải ảnh bản đồ thế giới chuẩn."""
     if CANONICAL_IMG_PATH.exists():
         return Image.open(CANONICAL_IMG_PATH)
-    elif FALLBACK_UPLOAD_PATH.exists():
-        shutil.copy(FALLBACK_UPLOAD_PATH, CANONICAL_IMG_PATH)
-        return Image.open(CANONICAL_IMG_PATH)
-    else:
-        raise FileNotFoundError(f"Không tìm thấy ảnh bản đồ chuẩn tại {CANONICAL_IMG_PATH}")
+    raise FileNotFoundError(
+        "Không tìm thấy bản đồ canonical tại "
+        f"{CANONICAL_IMG_PATH}. Hãy đặt ảnh chuẩn vào đúng đường dẫn trước khi build."
+    )
 
 
-def extract_world_data(target_size=(200, 200)):
+def extract_world_data(target_size=CANONICAL_GRID_SIZE):
     """
     Trích xuất bản đồ độ cao (Elevation), quần xã (Biomes), sông hồ (Rivers)
     và bản đồ bề mặt (Texture) trực tiếp từ bản đồ tham chiếu.
@@ -129,7 +137,7 @@ def extract_world_data(target_size=(200, 200)):
     is_forest = is_land & (biome_map == 0)
     biome_map[is_forest] = 3
 
-    # 4. Giảm mẫu chính xác về kích thước lưới mục tiêu (mặc định 200x200)
+    # 4. Giảm mẫu về lưới mục tiêu nhưng giữ nguyên tỉ lệ vùng bản đồ.
     tw, th = target_size
     elev_grid = cv2.resize(elev, (tw, th), interpolation=cv2.INTER_AREA)
     biome_grid = cv2.resize(biome_map, (tw, th), interpolation=cv2.INTER_NEAREST)
@@ -144,6 +152,7 @@ def extract_world_data(target_size=(200, 200)):
         "elevation_grid": elev_grid,
         "biome_grid": biome_grid,
         "river_grid": river_grid,
+        "land_grid": cv2.resize(is_land.astype(np.uint8), (tw, th), interpolation=cv2.INTER_NEAREST),
         "texture_grid": texture_grid,
     }
 
@@ -151,7 +160,7 @@ def extract_world_data(target_size=(200, 200)):
 def export_all():
     """Xuất toàn bộ tệp dữ liệu, hình ảnh và tài nguyên chuẩn."""
     print("[GCVL] Đang trích xuất dữ liệu bản đồ từ ảnh chuẩn...")
-    data = extract_world_data(target_size=(200, 200))
+    data = extract_world_data(target_size=CANONICAL_GRID_SIZE)
 
     debug_dir = PROJECT_ROOT / "debug_outputs"
     debug_dir.mkdir(parents=True, exist_ok=True)
@@ -173,13 +182,13 @@ def export_all():
     Image.fromarray(data["inner_texture"]).save(tex_path, "PNG")
     print(f"[GCVL] Đã lưu kết cấu 3D tại: {tex_path}")
 
-    # 3. Lưu ảnh bản đồ độ cao (Heightmap)
-    h_norm = np.clip(data["elevation_full"] / 1.30 * 255.0, 0, 255).astype(np.uint8)
+    # 3. Lưu ảnh bản đồ độ cao cùng kích thước với WorldData canonical.
+    h_norm = np.clip(data["elevation_grid"] / 1.30 * 255.0, 0, 255).astype(np.uint8)
     h_path = debug_dir / "primeval_world_heightmap.png"
     Image.fromarray(h_norm).save(h_path, "PNG")
     print(f"[GCVL] Đã lưu bản đồ độ cao tại: {h_path}")
 
-    # 4. Xuất dữ liệu lưới thế giới stone_age_world_200x200.json
+    # 4. WorldData binary canonical: một gói dữ liệu duy nhất cho runtime/renderer.
     biome_legend = {
         0: "deep_ocean",
         1: "coastal_reef_halo",
@@ -191,19 +200,76 @@ def export_all():
         7: "sanctuary_island",
     }
 
+    ecology = build_ecology_maps(
+        data["elevation_grid"],
+        data["biome_grid"],
+        data["river_grid"],
+        data["land_grid"],
+    )
+
+    # 4a. Ảnh kiểm định các lớp sinh thái, dùng để tuning mà không đụng silhouette.
+    vegetation_path = debug_dir / "primeval_world_vegetation_density.png"
+    vegetation_img = np.clip(ecology["vegetation_density"] * 255.0, 0, 255).astype(np.uint8)
+    Image.fromarray(vegetation_img).save(vegetation_path, "PNG")
+    temperature_path = debug_dir / "primeval_world_temperature.png"
+    temperature_img = np.clip(ecology["temperature"] * 255.0, 0, 255).astype(np.uint8)
+    Image.fromarray(temperature_img).save(temperature_path, "PNG")
+    print(f"[GCVL] Đã lưu bản đồ mật độ thực vật tại: {vegetation_path}")
+    print(f"[GCVL] Đã lưu bản đồ nhiệt độ tương đối tại: {temperature_path}")
+
+    # 4b. WorldData binary canonical: một gói dữ liệu duy nhất cho runtime/renderer.
+    np.savez_compressed(
+        WORLD_DATA_PATH,
+        elevation=data["elevation_grid"].astype(np.float32),
+        biome_id=data["biome_grid"].astype(np.uint8),
+        river_mask=data["river_grid"].astype(np.uint8),
+        land_mask=data["land_grid"].astype(np.uint8),
+        temperature=ecology["temperature"].astype(np.float32),
+        moisture=ecology["moisture"].astype(np.float32),
+        water_proximity=ecology["water_proximity"].astype(np.float32),
+        canopy_cover=ecology["canopy_cover"].astype(np.float32),
+        shrub_cover=ecology["shrub_cover"].astype(np.float32),
+        ground_cover=ecology["ground_cover"].astype(np.float32),
+        vegetation_density=ecology["vegetation_density"].astype(np.float32),
+    )
+    manifest = {
+        "world_name": "Primeval Reach - Canonical Multi-Continent Archipelago",
+        "source_atlas": str(CANONICAL_IMG_PATH.relative_to(PROJECT_ROOT)),
+        "source_size": [int(data["full_img"].width), int(data["full_img"].height)],
+        "inner_bounds_xyxy": [21, 18, 1003, 554],
+        "grid_size": [CANONICAL_GRID_SIZE[0], CANONICAL_GRID_SIZE[1]],
+        "axis": {"x": "west_to_east", "z": "north_to_south"},
+        "elevation_range": [0.0, 1.30],
+        "sea_level": 0.35,
+        "climate_baseline": "cool_late_paleolithic_relative_temperature",
+        "vegetation_layers": ["canopy", "shrub", "ground"],
+        "biome_legend": biome_legend,
+        "data_file": WORLD_DATA_PATH.name,
+    }
+    with open(WORLD_MANIFEST_PATH, "w", encoding="utf-8") as f:
+        json.dump(manifest, f, ensure_ascii=False, indent=2)
+    print(f"[GCVL] Đã xuất WorldData canonical tại: {WORLD_DATA_PATH}")
+
+    # 5. Xuất JSON 200x200 tương thích ngược, không còn là nguồn chuẩn.
+    legacy_elev = cv2.resize(data["elevation_grid"], LEGACY_GRID_SIZE, interpolation=cv2.INTER_AREA)
+    legacy_biome = cv2.resize(data["biome_grid"], LEGACY_GRID_SIZE, interpolation=cv2.INTER_NEAREST)
+    legacy_river = cv2.resize(data["river_grid"], LEGACY_GRID_SIZE, interpolation=cv2.INTER_NEAREST)
+
     payload = {
         "world_name": "Primeval Reach - Canonical Multi-Continent Archipelago",
-        "grid_size": [200, 200],
+        "grid_size": [LEGACY_GRID_SIZE[0], LEGACY_GRID_SIZE[1]],
+        "source": "debug_outputs/primeval_world_data.npz",
+        "compatibility_only": True,
         "biome_legend": biome_legend,
-        "elevation": np.round(data["elevation_grid"], 4).tolist(),
-        "biome_id": data["biome_grid"].tolist(),
-        "river_mask": data["river_grid"].tolist(),
+        "elevation": np.round(legacy_elev, 4).tolist(),
+        "biome_id": legacy_biome.tolist(),
+        "river_mask": legacy_river.tolist(),
     }
 
     json_path = PROJECT_ROOT / "stone_age_world_200x200.json"
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False)
-    print(f"[GCVL] Đã xuất tệp dữ liệu lưới 200x200 tại: {json_path}")
+    print(f"[GCVL] Đã xuất tệp tương thích 200x200 tại: {json_path}")
 
 
 if __name__ == "__main__":

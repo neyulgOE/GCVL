@@ -68,6 +68,28 @@ Hệ sinh thái vận hành theo cơ chế **Quan sát tự do (Spectator Free C
 
 ---
 
+## 🧭 PIPELINE BẢN ĐỒ CHUẨN
+
+Bản đồ chuẩn chỉ được build theo một đường ống:
+
+```text
+primeval_reach_canonical_atlas.png
+  -> generate_primeval_world.py
+  -> WorldData NPZ + manifest + texture + heightmap
+  -> stone_age_world_200x200.json (compatibility only)
+  -> render_primeval_world_3d.py
+  -> OBJ/MTL + 3D preview + Game3D
+```
+
+Chạy toàn bộ pipeline:
+
+```bash
+python3 tools/run_canonical_pipeline.py
+```
+
+Chi tiết phân loại pipeline nằm trong [docs/PIPELINE.md](docs/PIPELINE.md).
+Mô hình khí hậu lạnh và phân tầng thực vật nằm trong [docs/VEGETATION.md](docs/VEGETATION.md).
+
 ## 🚀 HƯỚNG DẪN CÀI ĐẶT & KHỞI CHẠY
 
 ### 1. Khởi chạy Mô phỏng

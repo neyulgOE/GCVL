@@ -11,3 +11,7 @@ venv/
 *.tmp
 *.log
 
+# Generated previews from non-canonical/diagnostic tools.
+debug_outputs/runtime_previews/
+debug_outputs/legacy_*
+debug_outputs/experimental_*

@@ -1,5 +1,8 @@
 """
-Palworld-Grade Master Overworld Generator (AAA Cartographic Overworld).
+LEGACY compatibility module for the former Palworld-style overworld generator.
+
+The public compatibility entry point now mirrors the canonical atlas and no
+longer invokes the historical multi-continent builder.
 Refined to achieve identical aesthetic fidelity to Palworld (Image 3):
 - True archipelago continent surrounded by open deep ocean
 - Signature glowing neon-turquoise shallow coral reef halo hugging all coastlines
@@ -18,6 +21,7 @@ Refined to achieve identical aesthetic fidelity to Palworld (Image 3):
 import os
 import math
 import random
+from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
@@ -526,14 +530,20 @@ def generate_palworld_overworld(
     seed: int = 2026,
     output_path: str = "assets/sprites/world_overview_macro.png",
 ) -> Image.Image:
-    """Entry point backed by the multi-continent world generator."""
+    """Return the canonical atlas for old callers without rebuilding the map."""
     try:
-        from tools.build_multi_continent_world import generate_multi_continent_overworld
+        from tools.generate_primeval_world import load_canonical_atlas
     except ModuleNotFoundError:  # Running this file directly from tools/.
-        from build_multi_continent_world import generate_multi_continent_overworld
+        from generate_primeval_world import load_canonical_atlas
 
-    out_png = generate_multi_continent_overworld(out_path=output_path, size_px=max(width, height))
-    return Image.open(out_png)
+    image = load_canonical_atlas().convert("RGB")
+    target_size = (int(width), int(height))
+    if image.size != target_size:
+        image = image.resize(target_size, Image.Resampling.LANCZOS)
+    output = Path(output_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    image.save(output, "PNG")
+    return image
 
 
 if __name__ == "__main__":

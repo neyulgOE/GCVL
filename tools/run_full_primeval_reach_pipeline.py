@@ -1,5 +1,9 @@
 """
-tools/run_full_primeval_reach_pipeline.py
+EXPERIMENTAL procedural validation pipeline.
+
+This file is retained for debugging the old procedural `world/` package. It
+is not the canonical map build and must not overwrite the current atlas.
+
 Thực thi toàn bộ 7 Phase của kiến trúc Primeval Reach (Phase 1 -> Phase 7):
 Xuất đầy đủ các tạo phẩm nghiệm thu Phase 6 & Phase 7:
 - habitat.png (Bản đồ sinh cảnh & 18 loài động vật hoang dã)
@@ -26,7 +30,7 @@ from world.data.local_map_bridge import LocalMapBridge
 from world.data.world_validator import WorldValidator
 
 
-def run_all_phases(output_dir: str = "debug_outputs/phase6_7_final") -> None:
+def run_all_phases(output_dir: str = "debug_outputs/experimental_phase6_7") -> None:
     os.makedirs(output_dir, exist_ok=True)
     cfg = WorldConfig(seed=2026)
 
@@ -60,10 +64,6 @@ def run_all_phases(output_dir: str = "debug_outputs/phase6_7_final") -> None:
         atlas_out,
         upscale_factor=2,
     )
-    import shutil
-    shutil.copy(atlas_out, "assets/sprites/world_atlas.png")
-    shutil.copy(atlas_out, "assets/sprites/world_overview_macro.png")
-
     # 3. Kiểm thử Cầu nối Local Map Bridge (Phase 7B) tại trung tâm lưu vực sông chính
     bridge = LocalMapBridge(cfg, landmass, terrain, climate, hydrology, soil, biome, ecology)
     local_patch = bridge.extract_local_patch(center_world_col=236, center_world_row=248)
@@ -127,4 +127,3 @@ def run_all_phases(output_dir: str = "debug_outputs/phase6_7_final") -> None:
 
 if __name__ == "__main__":
     run_all_phases()
-

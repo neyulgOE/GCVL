@@ -20,7 +20,7 @@ pygame.init()
 screen = pygame.display.set_mode((1024, 640))
 
 from src.core.game import Game
-from src.world.procedural_stone_age_world_generator import ProceduralStoneAgeWorldGenerator
+from tools.generate_primeval_world import load_canonical_atlas
 
 views = [
     ("colossal_rib_fossils", 44 * 64, 40 * 64),
@@ -29,7 +29,8 @@ views = [
     ("meadow_wildlife", 29 * 64, 36 * 64),
 ]
 
-out_dir = "/home/huyen1905/.gemini/antigravity/brain/fed854e2-3b10-4d89-9cc2-ce9ec962f36a"
+out_dir = "debug_outputs/runtime_previews"
+os.makedirs(out_dir, exist_ok=True)
 
 for name, wx, wy in views:
     game = Game()
@@ -44,11 +45,8 @@ for name, wx, wy in views:
     pygame.image.save(game.screen, out_file)
     print(f"Captured {name} to {out_file}")
 
-# Also render the macro watershed overworld map
-gen = ProceduralStoneAgeWorldGenerator(width=200, height=200, seed=2026)
-gen.generate_world()
 macro_file = os.path.join(out_dir, "preview_macro_watershed.png")
-gen.render_natural_overworld_map(tile_scale=4, output_path=macro_file)
+load_canonical_atlas().convert("RGB").save(macro_file, "PNG")
 print(f"Captured macro watershed map to {macro_file}")
 
 pygame.quit()

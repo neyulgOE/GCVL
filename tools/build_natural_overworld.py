@@ -1,4 +1,7 @@
-"""Generate a massive, complete natural prehistoric continent overworld map.
+"""LEGACY: generate the former procedural natural overworld map.
+
+The canonical map now comes from the supplied Primeval Reach atlas. This file
+is retained for comparison and must not be used to rebuild runtime assets.
 
 Synthesizes an expansive, complete prehistoric continent & archipelago
 ("ĐẠI LỤC NGUYÊN SINH") inspired by epic open-world survival game maps (Palworld, Ark):
@@ -976,7 +979,7 @@ def render_grand_overworld(fields: Dict[str, np.ndarray], out_size: int = 1024) 
 def generate_natural_overworld(
     seed: int = 7,
     size_px: int = 1024,
-    out_path: str | Path = "assets/sprites/world_overview_macro.png",
+    out_path: str | Path = "debug_outputs/legacy_natural_overworld.png",
 ) -> Tuple[Path, Path]:
     """Generate the grand complete continental overworld map."""
     out_path = Path(out_path)
@@ -1028,7 +1031,7 @@ def generate_natural_overworld(
 
 if __name__ == "__main__":
     s = int(sys.argv[1]) if len(sys.argv) > 1 else 7
-    out = sys.argv[2] if len(sys.argv) > 2 else "assets/sprites/world_overview_macro.png"
+    out = sys.argv[2] if len(sys.argv) > 2 else "debug_outputs/legacy_natural_overworld.png"
     p, _ = generate_natural_overworld(seed=s, size_px=1024, out_path=out)
     f = np.load(p.with_name(p.stem + "_field.npz"))
     land_pct = int(round(100.0 * float(f["land"].mean())))

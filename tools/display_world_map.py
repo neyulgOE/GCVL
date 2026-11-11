@@ -1,9 +1,8 @@
-"""Display and capture the complete grand prehistoric world map and in-game atlas views.
+"""Display and capture the canonical Primeval Reach map and 3D runtime view.
 
 Renders:
-1. High-resolution Grand Continental Overworld Map ("ĐẠI LỤC NGUYÊN SINH").
-2. In-game Full-Screen Atlas View (Simulating pressing 'M' in-game with Spectator Tracking).
-3. Panoramic in-game observation views across the primeval world.
+1. Canonical atlas and 3D deliverables.
+2. Headless 3D runtime preview.
 """
 
 import os
@@ -23,17 +22,17 @@ os.environ["SDL_AUDIODRIVER"] = "dummy"
 import pygame
 from PIL import Image
 
-from tools.run_full_primeval_reach_pipeline import run_all_phases
-from src.core.game import Game
+from tools.run_canonical_pipeline import run_canonical_pipeline
+from src.core.game_3d import Game3D
 
-OUT_DIR = Path("/home/huyen1905/.gemini/antigravity/brain/fed854e2-3b10-4d89-9cc2-ce9ec962f36a")
+OUT_DIR = ROOT / "debug_outputs" / "runtime_previews"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def main():
-    print("1. Running 7-Phase Primeval Reach Pipeline (1024x1024 Atlas)...")
-    run_all_phases()
-    out_atlas = ROOT / "assets" / "sprites" / "world_atlas.png"
+    print("1. Building canonical Primeval Reach map and 3D deliverables...")
+    run_canonical_pipeline()
+    out_atlas = ROOT / "assets" / "sprites" / "primeval_reach_canonical_atlas.png"
 
     # Save artifact copy
     img = Image.open(out_atlas)
@@ -41,37 +40,18 @@ def main():
     img.save(artifact_macro)
     print(f"Saved complete world map artifact to: {artifact_macro}")
 
-    print("2. Initializing Game and capturing Full-Screen Atlas View...")
+    print("2. Initializing canonical 3D runtime preview...")
     pygame.init()
-    game = Game()
-
-    # Move free camera to valley center and toggle full map
-    game.free_cam.target.set_pos(42.0 * 64.0, 36.0 * 64.0)
-    game.camera.snap_to(game.free_cam.target.rect)
-    game.minimap.viewing_zone = "macro"
-    game.minimap.show_full_map = True
-    game.minimap._modal_alpha = 1.0
+    game = Game3D(headless=True)
 
     # Simulate 5 frames for rendering
     for _ in range(5):
         game.update(1.0 / 60.0)
         game.render()
 
-    artifact_atlas = OUT_DIR / "preview_ingame_atlas.png"
+    artifact_atlas = OUT_DIR / "preview_ingame_3d.png"
     pygame.image.save(game.screen, str(artifact_atlas))
-    print(f"Saved in-game atlas preview to: {artifact_atlas}")
-
-    print("3. Capturing In-Game Natural World Views...")
-    # View A: Natural Valley View with Spectator Camera HUD & Minimap
-    game.minimap.show_full_map = False
-    game.minimap._modal_alpha = 0.0
-    for _ in range(30):
-        game.update(1.0 / 60.0)
-        game.render()
-
-    artifact_ingame = OUT_DIR / "preview_ingame_world.png"
-    pygame.image.save(game.screen, str(artifact_ingame))
-    print(f"Saved in-game world view to: {artifact_ingame}")
+    print(f"Saved 3D runtime preview to: {artifact_atlas}")
 
     pygame.quit()
     print("All world displays generated successfully!")
@@ -79,4 +59,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

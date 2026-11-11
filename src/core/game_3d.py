@@ -3,7 +3,7 @@ Bộ Điều Phối & Kết Xuất Phối Cảnh 3D (3D Perspective Spectator En
 cho Thế Giới Hoang Dã Tiền Sử Primeval Reach (GCVL).
 
 - Hoàn toàn độc lập, sử dụng Pygame (tích hợp sẵn trong libs/) và NumPy.
-- Tải bản đồ thế giới đa lục địa chuẩn Single Source of Truth từ stone_age_world_200x200.json.
+- Tải bản đồ thế giới đa lục địa chuẩn Single Source of Truth từ debug_outputs/primeval_world_data.npz.
 - Chiếu phối cảnh 3D thời gian thực (Perspective Camera, Depth Sorting, Lambertian Hillshading).
 - Tích hợp động vật cổ đại (Voi ma mút, Bò rừng, Hổ răng kiếm, Gấu hang, Hươu khổng lồ) di chuyển trên bề mặt 3D.
 - Hỗ trợ đầy đủ chế độ đồ họa cửa sổ và chế độ kiểm thử tự động không đầu (Headless mode).
@@ -34,6 +34,7 @@ from src.settings import (
 )
 from src.world.map_manager import MapManager
 from src.world.wildlife_manager import WildlifeManager
+from src.world.canonical_ecology import build_ecology_maps, spawn_vegetation_instances
 
 
 # Bảng màu 8 Quần xã chuẩn cho mô hình 3D
@@ -137,7 +138,7 @@ class Game3D:
         self.font_bold = pygame.font.Font(font_name, 16)
         self.font_small = pygame.font.Font(font_name, 12)
 
-        # 1. Tải bản đồ thế giới 200x200 chuẩn
+        # 1. Tải WorldData canonical giữ đúng tỉ lệ bản đồ
         self._load_world_grid()
 
         # 2. Quản lý động vật hoang dã
@@ -147,14 +148,16 @@ class Game3D:
 
         # 3. Tải tài nguyên bản đồ mini (Minimap Texture)
         self._load_minimap_atlas()
+        self._load_vegetation_assets()
 
         # 4. Thiết lập Camera 3D
         # Vị trí quan sát ban đầu: Nhìn bao quát toàn bộ lục địa từ phía Nam
-        self.cam_x = 100.0 * self.TILE_SIZE_3D
-        self.cam_y = 65.0
-        self.cam_z = 240.0 * self.TILE_SIZE_3D
+        self.cam_x = self.grid_cols * 0.5 * self.TILE_SIZE_3D
+        self.cam_y = 82.0
+        # Đứng trên phần đất phía Nam để khung mặc định không chỉ thấy mặt biển.
+        self.cam_z = self.grid_rows * 0.86 * self.TILE_SIZE_3D
         self.yaw = 0.0          # 0: nhìn về hướng Bắc (-Z)
-        self.pitch = -0.38      # Nghiêng nhìn xuống ~22 độ
+        self.pitch = -0.48      # Nghiêng nhìn xuống ~28 độ
         self.fov = 56.0
         self.speed = 45.0
 
@@ -166,19 +169,37 @@ class Game3D:
         self.current_preset_name = "Toàn cảnh lục địa Primeval Reach"
 
     def _load_world_grid(self):
-        """Tải dữ liệu lưới 200x200 từ stone_age_world_200x200.json."""
-        json_path = os.path.join(root_dir, "stone_age_world_200x200.json")
-        if not os.path.exists(json_path):
-            from tools.generate_primeval_world import generate_primeval_world, export_world_json
-            export_world_json(json_path)
+        """Tải WorldData canonical từ gói nén duy nhất của pipeline."""
+        world_data_path = os.path.join(root_dir, "debug_outputs", "primeval_world_data.npz")
+        if not os.path.exists(world_data_path):
+            from tools.generate_primeval_world import export_all
+            export_all()
 
-        with open(json_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        world_data = np.load(world_data_path)
+        self.elevation = np.array(world_data["elevation"], dtype=np.float32)
+        self.biome_id = np.array(world_data["biome_id"], dtype=np.int32)
+        self.river_mask = np.array(world_data["river_mask"], dtype=np.bool_)
+        self.land_mask = np.array(world_data["land_mask"], dtype=np.bool_)
+        self.grid_rows, self.grid_cols = self.elevation.shape
+        self.grid_scale_x = self.grid_cols / 200.0
+        self.grid_scale_z = self.grid_rows / 200.0
 
-        self.grid_cols, self.grid_rows = data["grid_size"]
-        self.elevation = np.array(data["elevation"], dtype=np.float32)
-        self.biome_id = np.array(data["biome_id"], dtype=np.int32)
-        self.river_mask = np.array(data["river_mask"], dtype=np.bool_)
+        ecology_keys = (
+            "temperature", "moisture", "water_proximity", "canopy_cover",
+            "shrub_cover", "ground_cover", "vegetation_density",
+        )
+        if all(key in world_data.files for key in ecology_keys):
+            self.ecology = {key: np.array(world_data[key], dtype=np.float32) for key in ecology_keys}
+        else:
+            self.ecology = build_ecology_maps(
+                self.elevation, self.biome_id, self.river_mask, self.land_mask
+            )
+        self.vegetation_instances = spawn_vegetation_instances(
+            self.biome_id,
+            self.land_mask,
+            self.ecology,
+            self.river_mask,
+        )
 
         # Tính trước độ cao thực tế trong không gian 3D
         # Đất nổi (elevation >= 0.35) vươn lên từ mặt biển, biển phẳng ở y = WATER_Y
@@ -242,8 +263,8 @@ class Game3D:
         for beast_type, gc, gr in spawns:
             self.world_beasts.append({
                 "type": beast_type,
-                "x": gc * self.TILE_SIZE_3D,
-                "z": gr * self.TILE_SIZE_3D,
+                "x": gc * self.grid_scale_x * self.TILE_SIZE_3D,
+                "z": gr * self.grid_scale_z * self.TILE_SIZE_3D,
                 "vx": random.uniform(-1.2, 1.2),
                 "vz": random.uniform(-1.2, 1.2),
                 "state": "graze",
@@ -266,6 +287,99 @@ class Game3D:
             except Exception:
                 self.minimap_surf = None
 
+    def _load_vegetation_assets(self):
+        """Nạp đúng bộ cây/thực vật tiền sử trong assets/stone_age."""
+        asset_root = os.path.join(root_dir, "assets", "stone_age")
+        specs = {
+            "tree_tundra": ("04_prehistoric_trees_and_wood/tree_tundra_spruce_birch_{:02d}.png", 10, 10.5),
+            "tree_steppe": ("04_prehistoric_trees_and_wood/tree_steppe_oak_pine_{:02d}.png", 10, 10.0),
+            "tree_forest": ("04_prehistoric_trees_and_wood/tree_primeval_fern_cycad_{:02d}.png", 10, 9.0),
+            "tree_swamp": ("04_prehistoric_trees_and_wood/tree_swamp_mangrove_{:02d}.png", 2, 8.4),
+            "berry_bush": ("05_forageable_flora_3stages/flora_berry_bush_stage_{:02d}.png", 9, 3.2),
+            "reed": ("05_forageable_flora_3stages/flora_grain_fiber_reed_stage_{:02d}.png", 9, 3.1),
+            "mushroom": ("05_forageable_flora_3stages/flora_mushroom_herb_stage_{:02d}.png", 9, 2.2),
+        }
+        self.vegetation_sprites = {}
+        self.vegetation_sprite_heights = {}
+        for kind, (pattern, count, world_height) in specs.items():
+            sprites = []
+            for index in range(1, count + 1):
+                path = os.path.join(asset_root, pattern.format(index))
+                if os.path.exists(path):
+                    try:
+                        sprites.append(pygame.image.load(path).convert_alpha())
+                    except pygame.error:
+                        pass
+            if sprites:
+                self.vegetation_sprites[kind] = sprites
+                self.vegetation_sprite_heights[kind] = world_height
+        self._vegetation_scale_cache = {}
+
+    def _draw_3d_vegetation(self):
+        """Vẽ các tầng cây/bụi/cỏ theo WorldData và khí hậu Paleolithic mát."""
+        if not self.vegetation_instances:
+            return
+
+        s = self.TILE_SIZE_3D
+        cx, cy, cz = self.cam_x, self.cam_y, self.cam_z
+        f_x = math.sin(self.yaw) * math.cos(self.pitch)
+        f_y = math.sin(self.pitch)
+        f_z = -math.cos(self.yaw) * math.cos(self.pitch)
+        forward = np.array([f_x, f_y, f_z], dtype=np.float32)
+        up_hint = np.array([0.0, 1.0, 0.0], dtype=np.float32)
+        right = np.cross(forward, up_hint)
+        right /= np.linalg.norm(right) + 1e-6
+        up = np.cross(right, forward)
+        fov_rad = math.radians(self.fov)
+        f_scale = (self.width * 0.5) / math.tan(fov_rad * 0.5)
+        half_w = self.width * 0.5
+        half_h = self.height * 0.5
+        grid_c = int(cx / s)
+        grid_r = int(cz / s)
+        view_radius = max(42, int(self.grid_rows * 0.34)) + 8
+        draw_queue = []
+
+        for plant in self.vegetation_instances:
+            col, row = int(plant["col"]), int(plant["row"])
+            if abs(col - grid_c) > view_radius or abs(row - grid_r) > view_radius:
+                continue
+            kind = str(plant["kind"])
+            sprites = self.vegetation_sprites.get(kind)
+            if not sprites:
+                continue
+
+            wx, wz = col * s, row * s
+            wy = float(self.world_heights[row, col])
+            dx, dy, dz = wx - cx, wy - cy, wz - cz
+            depth = dx * forward[0] + dy * forward[1] + dz * forward[2]
+            if depth <= 2.0 or depth > 260.0:
+                continue
+
+            screen_u = dx * right[0] + dy * right[1] + dz * right[2]
+            screen_v_base = dx * up[0] + dy * up[1] + dz * up[2]
+            height_world = self.vegetation_sprite_heights.get(kind, 3.0) * float(plant.get("scale", 1.0))
+            top_dx, top_dy, top_dz = dx, dy + height_world, dz
+            screen_v_top = top_dx * up[0] + top_dy * up[1] + top_dz * up[2]
+            sx = half_w + (screen_u * f_scale / depth)
+            sy_base = half_h - (screen_v_base * f_scale / depth)
+            sy_top = half_h - (screen_v_top * f_scale / depth)
+            pixel_h = int(max(4.0, min(260.0, abs(sy_base - sy_top))))
+            if sx < -180 or sx > self.width + 180 or sy_base < -80 or sy_top > self.height + 100:
+                continue
+
+            variant = (col * 17 + row * 31) % len(sprites)
+            cache_key = (kind, variant, pixel_h)
+            scaled = self._vegetation_scale_cache.get(cache_key)
+            if scaled is None:
+                source = sprites[variant]
+                pixel_w = max(3, int(source.get_width() * pixel_h / max(1, source.get_height())))
+                scaled = pygame.transform.smoothscale(source, (pixel_w, pixel_h))
+                self._vegetation_scale_cache[cache_key] = scaled
+            draw_queue.append((depth, scaled, int(sx - scaled.get_width() * 0.5), int(sy_top)))
+
+        for depth, sprite, x, y in sorted(draw_queue, key=lambda item: item[0], reverse=True):
+            self.screen.blit(sprite, (x, y))
+
     # --------------------------------------------------------------------------
     # ĐIỀU KHIỂN & SỰ KIỆN (INPUT HANDLING)
     # --------------------------------------------------------------------------
@@ -287,9 +401,9 @@ class Game3D:
                 # Phím nhảy nhanh đến các địa danh lớn
                 elif event.key in self.CAMERA_PRESETS:
                     preset = self.CAMERA_PRESETS[event.key]
-                    self.cam_x = preset["pos"][0] * self.TILE_SIZE_3D
+                    self.cam_x = preset["pos"][0] * self.grid_scale_x * self.TILE_SIZE_3D
                     self.cam_y = preset["pos"][1]
-                    self.cam_z = preset["pos"][2] * self.TILE_SIZE_3D
+                    self.cam_z = preset["pos"][2] * self.grid_scale_z * self.TILE_SIZE_3D
                     self.yaw = preset["yaw"]
                     self.pitch = preset["pitch"]
                     self.current_preset_name = preset["name"]
@@ -405,10 +519,9 @@ class Game3D:
 
     def _get_terrain_height_at(self, wx: float, wz: float) -> float:
         """Lấy độ cao bề mặt 3D tại tọa độ thế giới (wx, wz)."""
-        aspect_ratio = 1.83
         s = self.TILE_SIZE_3D
         half_w = self.grid_cols * 0.5 * s
-        gc = (wx - half_w) / (s * aspect_ratio) + self.grid_cols * 0.5
+        gc = (wx - half_w) / s + self.grid_cols * 0.5
         gr = wz / s
         c0 = max(0, min(self.grid_cols - 1, int(math.floor(gc))))
         r0 = max(0, min(self.grid_rows - 1, int(math.floor(gr))))
@@ -424,10 +537,13 @@ class Game3D:
         # 2. Chiếu & Vẽ địa hình 3D (Terrain Mesh Quads)
         self._draw_3d_terrain()
 
-        # 3. Vẽ động vật cổ đại (Beast Billboards/Cubes)
+        # 3. Vẽ thảm thực vật canonical theo các tầng sinh thái
+        self._draw_3d_vegetation()
+
+        # 4. Vẽ động vật cổ đại (Beast Billboards/Cubes)
         self._draw_3d_wildlife()
 
-        # 4. Giao diện HUD & Bản đồ mini
+        # 5. Giao diện HUD & Bản đồ mini
         if self.show_hud:
             self._draw_hud()
 
@@ -476,10 +592,10 @@ class Game3D:
         half_w = self.width * 0.5
         half_h = self.height * 0.5
 
-        # Xác định phạm vi ô lưới hiển thị (tầm nhìn bán kính ~45 ô)
+        # Xác định phạm vi ô lưới hiển thị; tăng nhẹ theo lưới canonical mới.
         center_c = int(cx / s)
         center_r = int(cz / s)
-        view_radius = 42
+        view_radius = max(42, int(self.grid_rows * 0.34))
 
         c_min = max(0, center_c - view_radius)
         c_max = min(self.grid_cols - 1, center_c + view_radius)
@@ -493,8 +609,8 @@ class Game3D:
         r_range = np.arange(r_min, r_max + 1)
         C_grid, R_grid = np.meshgrid(c_range, r_range)
 
-        # Tọa độ thế giới đỉnh (co giãn theo tỷ lệ 16:9 của bản đồ thực)
-        aspect_ratio = 1.83
+        # WorldData đã giữ tỉ lệ vùng bản đồ canonical; hai trục dùng cùng đơn vị.
+        aspect_ratio = 1.0
         half_w = self.grid_cols * 0.5 * s
         X_world = (C_grid.astype(np.float32) * s - half_w) * aspect_ratio + half_w
         Z_world = R_grid.astype(np.float32) * s

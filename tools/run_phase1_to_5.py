@@ -71,7 +71,7 @@ def save_biome_png(landmass, terrain, hydrology, biome, path: str) -> None:
     Image.fromarray(np.clip(rgb, 0, 255).astype(np.uint8), mode="RGB").save(path, "PNG")
 
 
-def run_phase1_to_5(output_dir: str = "debug_outputs/phase5") -> None:
+def run_phase1_to_5(output_dir: str = "debug_outputs/experimental_phase5") -> None:
     os.makedirs(output_dir, exist_ok=True)
     cfg = WorldConfig(seed=2026)
 
@@ -106,4 +106,3 @@ def run_phase1_to_5(output_dir: str = "debug_outputs/phase5") -> None:
 
 if __name__ == "__main__":
     run_phase1_to_5()
-

@@ -49,7 +49,8 @@ BIOME_COLORS = {
 
 def load_canonical_data():
     """Tải dữ liệu độ cao và kết cấu bề mặt từ bản đồ chuẩn."""
-    if not TEXTURE_PATH.exists() or not (PROJECT_ROOT / "stone_age_world_200x200.json").exists():
+    world_data_path = DEBUG_DIR / "primeval_world_data.npz"
+    if not TEXTURE_PATH.exists() or not world_data_path.exists():
         from tools.generate_primeval_world import export_all
         export_all()
 
@@ -57,12 +58,11 @@ def load_canonical_data():
     texture_full = np.array(tex_img)
     th, tw, _ = texture_full.shape
 
-    with open(PROJECT_ROOT / "stone_age_world_200x200.json", "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    elev_grid = np.array(data["elevation"], dtype=np.float32)
-    biome_grid = np.array(data["biome_id"], dtype=np.int32)
-    tex_grid = cv2.resize(texture_full, (200, 200), interpolation=cv2.INTER_AREA)
+    world_data = np.load(world_data_path)
+    elev_grid = np.array(world_data["elevation"], dtype=np.float32)
+    biome_grid = np.array(world_data["biome_id"], dtype=np.int32)
+    rows, cols = elev_grid.shape
+    tex_grid = cv2.resize(texture_full, (cols, rows), interpolation=cv2.INTER_AREA)
 
     return elev_grid, biome_grid, tex_grid, texture_full
 
@@ -80,7 +80,7 @@ def render_3d_view(
     out_height=520,
     height_scale=22.0,
     subsample_range=None,
-    aspect_ratio_correction=1.83,
+    aspect_ratio_correction=1.0,
     sky_gradient=((14, 24, 42), (64, 88, 118)),
 ):
     rows, cols = elevation.shape
@@ -189,11 +189,14 @@ def render_3d_view(
 # 2. BẢNG XEM TRƯỚC 4 GÓC NHÌN PHỐI CẢNH 3D (COMPOSITE PREVIEW)
 # ==============================================================================
 def generate_3d_preview(elevation: np.ndarray, texture: np.ndarray, output_path: str):
+    rows, cols = elevation.shape
+    sx, sz = cols / 200.0, rows / 200.0
+
     print("[3D] Đang kết xuất Góc nhìn 1: Toàn cảnh phối cảnh đại lục Primeval Reach...")
     view1 = render_3d_view(
         elevation, texture,
-        cam_pos=(100.0, 110.0, 255.0),
-        look_at=(100.0, 8.0, 95.0),
+        cam_pos=(100.0 * sx, 110.0, 255.0 * sz),
+        look_at=(100.0 * sx, 8.0, 95.0 * sz),
         fov_deg=52.0,
         out_width=860,
         out_height=520,
@@ -203,37 +206,37 @@ def generate_3d_preview(elevation: np.ndarray, texture: np.ndarray, output_path:
     print("[3D] Đang kết xuất Góc nhìn 2: Dãy núi tuyết băng giá Tây-Bắc (Glacial Alpine)...")
     view2 = render_3d_view(
         elevation, texture,
-        cam_pos=(45.0, 52.0, 112.0),
-        look_at=(52.0, 12.0, 48.0),
+        cam_pos=(45.0 * sx, 52.0, 112.0 * sz),
+        look_at=(52.0 * sx, 12.0, 48.0 * sz),
         fov_deg=56.0,
         out_width=860,
         out_height=520,
         height_scale=26.0,
-        subsample_range=(0, 110, 0, 110),
+        subsample_range=(0, int(rows * 0.55), 0, int(cols * 0.55)),
     )
 
     print("[3D] Đang kết xuất Góc nhìn 3: Hoang mạc cát đỏ & Vành đai đá sừng sững Tây-Nam...")
     view3 = render_3d_view(
         elevation, texture,
-        cam_pos=(42.0, 48.0, 192.0),
-        look_at=(50.0, 8.0, 136.0),
+        cam_pos=(42.0 * sx, 48.0, 192.0 * sz),
+        look_at=(50.0 * sx, 8.0, 136.0 * sz),
         fov_deg=55.0,
         out_width=860,
         out_height=520,
         height_scale=24.0,
-        subsample_range=(90, 200, 0, 110),
+        subsample_range=(int(rows * 0.45), rows, 0, int(cols * 0.55)),
     )
 
     print("[3D] Đang kết xuất Góc nhìn 4: Đại châu thổ hạ lưu sông mẹ & Rừng cổ sinh Đông Nam...")
     view4 = render_3d_view(
         elevation, texture,
-        cam_pos=(122.0, 48.0, 218.0),
-        look_at=(135.0, 8.0, 148.0),
+        cam_pos=(122.0 * sx, 48.0, 218.0 * sz),
+        look_at=(135.0 * sx, 8.0, 148.0 * sz),
         fov_deg=54.0,
         out_width=860,
         out_height=520,
         height_scale=22.0,
-        subsample_range=(80, 200, 80, 200),
+        subsample_range=(int(rows * 0.40), rows, int(cols * 0.40), cols),
     )
 
     canvas_w = 860 * 2 + 30
@@ -313,7 +316,8 @@ def export_wavefront_obj(elevation: np.ndarray, biome_id: np.ndarray, obj_path: 
 
     # 2. Ghi tệp OBJ
     print(f"[3D] Đang xuất tệp mô hình 3D OBJ: {obj_path}...")
-    aspect_scale = 1.83
+    # WorldData đã giữ đúng tỉ lệ vùng ảnh canonical, không cần ép trục X.
+    aspect_scale = 1.0
     half_w = cols * 0.5
     half_h = rows * 0.5
 

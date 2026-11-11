@@ -1,4 +1,4 @@
-"""Coherent natural overworld generator.
+"""LEGACY: coherent procedural overworld generator.
 
 This is deliberately data-first: the same continuous elevation field drives
 coastline, watersheds, climate and biome selection before any pixels are
@@ -10,6 +10,7 @@ from __future__ import annotations
 import math
 import json
 import os
+from pathlib import Path
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
@@ -40,23 +41,29 @@ def generate_coherent_overworld(
     width=1024,
     height=1024,
     seed=2026,
-    output_path="assets/sprites/world_overview_macro.png",
+    output_path="debug_outputs/legacy_coherent_world.png",
 ):
-    """Generate a physically coherent natural atlas and its source field."""
+    """Compatibility wrapper that mirrors the canonical atlas without rebuilding it."""
     try:
-        from tools.build_natural_overworld import generate_natural_overworld
+        from tools.generate_primeval_world import load_canonical_atlas
     except ModuleNotFoundError:
-        from build_natural_overworld import generate_natural_overworld
+        from generate_primeval_world import load_canonical_atlas
 
-    out_png, _ = generate_natural_overworld(seed=int(seed), size_px=max(int(width), int(height)), out_path=output_path)
-    return Image.open(out_png)
+    image = load_canonical_atlas().convert("RGB")
+    target_size = (int(width), int(height))
+    if image.size != target_size:
+        image = image.resize(target_size, Image.Resampling.LANCZOS)
+    output = Path(output_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    image.save(output, "PNG")
+    return image
 
 
 def _legacy_generate_coherent_overworld(
     width=1024,
     height=1024,
     seed=2026,
-    output_path="assets/sprites/world_overview_macro.png",
+    output_path="debug_outputs/legacy_coherent_world.png",
 ):
     """Legacy elliptical generator kept only for reference."""
     W, H = int(width), int(height)

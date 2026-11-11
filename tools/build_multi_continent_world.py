@@ -1,4 +1,7 @@
-"""Assemble and render the Grand Multi-Continent Prehistoric World Atlas.
+"""LEGACY: assemble the historical four-continent world atlas.
+
+This generator is retained for archaeology only. It is not part of the
+canonical Primeval Reach pipeline and must not write to assets/sprites.
 
 Stitches the continents from ow_7, ow_42, ow_2026_v4 and an organic desert continent
 into a grand 4-continent world map ("THẾ GIỚI ĐA LỤC ĐỊA"):
@@ -419,7 +422,7 @@ def render_stitched_multi_continent_map(fields: dict, out_size: int = 1024) -> I
 
 
 def generate_multi_continent_overworld(
-    out_path: str = "assets/sprites/world_overview_macro.png",
+    out_path: str = "debug_outputs/legacy_multi_continent_world.png",
     size_px: int = 1024,
 ) -> Path:
     out_path = Path(out_path)
@@ -467,4 +470,3 @@ def generate_multi_continent_overworld(
 
 if __name__ == "__main__":
     generate_multi_continent_overworld()
-
