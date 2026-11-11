@@ -312,3 +312,4 @@ class EcologyGenerator:
             wildlife_corridor_score=corridor_score,
             spawned_wildlife_herds=spawned_herds,
         )
+

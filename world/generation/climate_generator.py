@@ -184,3 +184,4 @@ class ClimateGenerator:
             aridity_index=aridity_index,
             climate_zones=zones,
         )
+

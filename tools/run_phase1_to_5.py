@@ -106,3 +106,4 @@ def run_phase1_to_5(output_dir: str = "debug_outputs/phase5") -> None:
 
 if __name__ == "__main__":
     run_phase1_to_5()
+

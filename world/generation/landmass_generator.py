@@ -1,10 +1,9 @@
 """
 world/generation/landmass_generator.py
-Sinh khung hình học tần số thấp cho đại lục Primeval Reach, Vịnh Nội Địa (Inland Bay),
-các bán đảo bất đối xứng và độ sâu đáy biển (Bathymetry).
+Tạo hình lục địa Primeval Reach bằng Tectonic Skeleton + Multi-Scale Domain Warping,
+loại bỏ hoàn toàn hiện tượng "cục tròn Gaussian", tạo bán đảo, vịnh hẹp (fjord) và vịnh nội địa.
 """
 
-import math
 import random
 from dataclasses import dataclass
 import numpy as np
@@ -12,7 +11,7 @@ from world.config.world_config import WorldConfig
 
 
 class FastNoise2D:
-    """Bộ sinh nhiễu Perlin 2D vector hóa trên NumPy tốc độ cao cho lưới 512x512 / 1024x1024."""
+    """Bộ sinh nhiễu Perlin & Ridged FBM vector hóa trên NumPy."""
 
     def __init__(self, seed: int = 2026) -> None:
         rng = random.Random(seed)
@@ -20,8 +19,8 @@ class FastNoise2D:
         rng.shuffle(perm)
         self.perm = np.array(perm + perm, dtype=np.int32)
         angles = np.linspace(0, 2.0 * np.pi, 16, endpoint=False)
-        self.grad_x = np.cos(angles)
-        self.grad_y = np.sin(angles)
+        self.grad_x = np.cos(angles).astype(np.float32)
+        self.grad_y = np.sin(angles).astype(np.float32)
 
     @staticmethod
     def _fade(t: np.ndarray) -> np.ndarray:
@@ -36,7 +35,6 @@ class FastNoise2D:
         yi = np.floor(y).astype(np.int32) & 255
         xf = x - np.floor(x)
         yf = y - np.floor(y)
-
         u = self._fade(xf)
         v = self._fade(yf)
 
@@ -53,9 +51,9 @@ class FastNoise2D:
         self,
         x: np.ndarray,
         y: np.ndarray,
-        octaves: int = 5,
-        persistence: float = 0.52,
-        lacunarity: float = 2.05,
+        octaves: int = 6,
+        persistence: float = 0.54,
+        lacunarity: float = 2.12,
         base_scale: float = 3.0,
     ) -> np.ndarray:
         total = np.zeros_like(x, dtype=np.float32)
@@ -67,25 +65,39 @@ class FastNoise2D:
             max_val += amplitude
             amplitude *= persistence
             frequency *= lacunarity
-        norm = total / max(1e-6, max_val)
-        return np.clip(0.5 + norm * 0.82, 0.0, 1.0)
+        return np.clip(0.5 + (total / max(1e-6, max_val)) * 0.88, 0.0, 1.0)
 
 
 @dataclass
 class LandmassResult:
-    base_elevation: np.ndarray   # Độ cao cơ sở [0..1]
-    landmask: np.ndarray         # Boolean mask (True = Đất nổi, False = Biển)
-    bathymetry: np.ndarray       # Độ sâu đáy biển [0..1] (0 = mặt biển, 1 = vực biển sâu)
-    coastal_shelf: np.ndarray    # Thềm lục địa nông [0..1]
-    inland_bay_mask: np.ndarray  # Vùng vịnh nội địa Đông Nam
+    base_elevation: np.ndarray
+    landmask: np.ndarray
+    bathymetry: np.ndarray
+    coastal_shelf: np.ndarray
+    inland_bay_mask: np.ndarray
 
 
 class LandmassGenerator:
     def __init__(self, config: WorldConfig) -> None:
         self.cfg = config
-        self.macro_noise = FastNoise2D(seed=config.seed + 11)
-        self.warp_noise = FastNoise2D(seed=config.seed + 37)
-        self.coast_noise = FastNoise2D(seed=config.seed + 89)
+        self.warp1 = FastNoise2D(seed=config.seed + 17)
+        self.warp2 = FastNoise2D(seed=config.seed + 53)
+        self.coast_noise = FastNoise2D(seed=config.seed + 109)
+        self.detail_noise = FastNoise2D(seed=config.seed + 223)
+
+    @staticmethod
+    def _segment_influence(
+        px: np.ndarray, py: np.ndarray, x1: float, y1: float, x2: float, y2: float, r1: float, r2: float
+    ) -> np.ndarray:
+        """Tính trường khoảng cách có bán kính biến thiên dọc theo đoạn xương sống lục địa."""
+        dx, dy = x2 - x1, y2 - y1
+        l2 = max(1e-6, dx * dx + dy * dy)
+        t = np.clip(((px - x1) * dx + (py - y1) * dy) / l2, 0.0, 1.0)
+        proj_x = x1 + t * dx
+        proj_y = y1 + t * dy
+        rad = r1 + t * (r2 - r1)
+        dist = np.hypot((px - proj_x) * 1.35, py - proj_y)
+        return np.clip(1.0 - (dist / rad) ** 1.65, 0.0, 1.0)
 
     def generate(self) -> LandmassResult:
         h, w = self.cfg.height, self.cfg.width
@@ -95,74 +107,86 @@ class LandmassGenerator:
             indexing="ij",
         )
 
-        # 1. Domain Warping tạo đường bờ biển tự nhiên, bất đối xứng
-        warp_x = (self.warp_noise.fbm_grid(nx, ny, octaves=3, base_scale=2.2) - 0.5) * 0.16
-        warp_y = (self.warp_noise.fbm_grid(nx + 3.7, ny + 1.9, octaves=3, base_scale=2.2) - 0.5) * 0.16
-        wx = nx + warp_x
-        wy = ny + warp_y
+        # 1. Two-Stage Domain Warping (Uốn cong mạnh không gian để bờ biển gồ ghề tự nhiên)
+        q_x = (self.warp1.fbm_grid(nx * 1.5, ny, octaves=4, base_scale=2.2) - 0.5) * 0.24
+        q_y = (self.warp1.fbm_grid(nx * 1.5 + 4.2, ny + 1.8, octaves=4, base_scale=2.2) - 0.5) * 0.24
+        r_x = (self.warp2.fbm_grid(nx * 1.5 + q_x, ny + q_y, octaves=5, base_scale=4.5) - 0.5) * 0.14
+        r_y = (self.warp2.fbm_grid(nx * 1.5 + q_y + 2.1, ny + q_x + 3.4, octaves=5, base_scale=4.5) - 0.5) * 0.14
 
-        # 2. Khung hình học tần số thấp của đại lục Primeval Reach:
-        #    - Khối lục địa chính trải từ Bắc Cao xuống Nam Ven Biển
-        #    - Mở rộng về phía Tây Bắc (Windward) và Đông Bắc (Temperate Plains)
-        core_continent = np.exp(-(((wx - 0.44) / 0.31) ** 2 + ((wy - 0.46) / 0.36) ** 2))
-        northern_alpine_lobe = 0.78 * np.exp(-(((wx - 0.46) / 0.28) ** 2 + ((wy - 0.20) / 0.16) ** 2))
-        nw_windward_peninsula = 0.62 * np.exp(-(((wx - 0.24) / 0.15) ** 2 + ((wy - 0.32) / 0.18) ** 2))
-        ne_temperate_lobe = 0.68 * np.exp(-(((wx - 0.68) / 0.18) ** 2 + ((wy - 0.34) / 0.20) ** 2))
-        sw_arid_plateau = 0.72 * np.exp(-(((wx - 0.32) / 0.20) ** 2 + ((wy - 0.68) / 0.20) ** 2))
-        se_coastal_hook = 0.54 * np.exp(-(((wx - 0.74) / 0.13) ** 2 + ((wy - 0.72) / 0.16) ** 2))
+        wx = nx + q_x + r_x
+        wy = ny + q_y + r_y
 
-        # 3. Đảo phụ nhỏ tách biệt ngoài khơi Tây Bắc & Đông Nam
-        island_nw = 0.48 * np.exp(-(((wx - 0.12) / 0.055) ** 2 + ((wy - 0.18) / 0.045) ** 2))
-        island_se = 0.46 * np.exp(-(((wx - 0.85) / 0.050) ** 2 + ((wy - 0.82) / 0.050) ** 2))
+        # 2. Khung xương kiến tạo bất đối xứng của đại lục Primeval Reach (7 vùng địa lý):
+        # - Trục Bắc Cao & Tây Bắc (Windward Fjord Range)
+        seg_north_alpine = self._segment_influence(wx, wy, 0.26, 0.18, 0.58, 0.22, 0.22, 0.25)
+        seg_nw_peninsula = self._segment_influence(wx, wy, 0.28, 0.20, 0.16, 0.42, 0.19, 0.11)
+        # - Sống lưng Trung Tâm & Bồn địa Khuất mưa Tây Nam (Rain Shadow Plateau)
+        seg_central_spine = self._segment_influence(wx, wy, 0.42, 0.22, 0.38, 0.72, 0.26, 0.24)
+        seg_sw_desert_lobe = self._segment_influence(wx, wy, 0.38, 0.56, 0.22, 0.78, 0.23, 0.16)
+        # - Đồng bằng Đông Bắc & Vòng cung ôm Vịnh Nội Địa Đông Nam (Inland Sea Hook)
+        seg_ne_plains = self._segment_influence(wx, wy, 0.55, 0.24, 0.76, 0.44, 0.24, 0.19)
+        seg_se_peninsula = self._segment_influence(wx, wy, 0.75, 0.44, 0.78, 0.76, 0.16, 0.10)
+        seg_south_delta = self._segment_influence(wx, wy, 0.38, 0.70, 0.56, 0.84, 0.21, 0.14)
 
-        macro_shape = np.maximum.reduce([
-            core_continent,
-            northern_alpine_lobe,
-            nw_windward_peninsula,
-            ne_temperate_lobe,
-            sw_arid_plateau,
-            se_coastal_hook,
-            island_nw,
-            island_se,
+        # - Quần đảo phụ ngoài khơi Tây Bắc & Đông Nam (Archipelago Arcs)
+        island_arc_nw = self._segment_influence(wx, wy, 0.11, 0.16, 0.08, 0.28, 0.065, 0.045) * 0.78
+        island_arc_se = self._segment_influence(wx, wy, 0.84, 0.68, 0.89, 0.82, 0.070, 0.050) * 0.76
+
+        macro_continent = np.maximum.reduce([
+            seg_north_alpine,
+            seg_nw_peninsula,
+            seg_central_spine,
+            seg_sw_desert_lobe,
+            seg_ne_plains,
+            seg_se_peninsula,
+            seg_south_delta,
+            island_arc_nw,
+            island_arc_se,
         ])
 
-        # 4. Khoét Vịnh Nội Địa lớn (Inland Sea / Bay) ở Đông Nam ăn sâu vào lục địa
-        #    nhưng giữ lại eo đất phía Bắc & Tây để không cắt rời lục địa.
-        inland_bay_cavity = 0.68 * np.exp(-(((wx - 0.62) / 0.13) ** 2 + ((wy - 0.62) / 0.14) ** 2))
-        bay_mouth_channel = 0.55 * np.exp(-(((wx - 0.68) / 0.08) ** 2 + ((wy - 0.78) / 0.12) ** 2))
-        inland_bay_total = np.maximum(inland_bay_cavity, bay_mouth_channel)
+        # 3. Khoét Vịnh Nội Địa Đông Nam (Inland Sea/Bay) ăn sâu vào giữa Đông Bắc và Nam
+        bay_core = self._segment_influence(wx, wy, 0.56, 0.50, 0.68, 0.68, 0.18, 0.16)
+        bay_strait = self._segment_influence(wx, wy, 0.66, 0.66, 0.68, 0.90, 0.13, 0.18)
+        inland_bay_carve = np.maximum(bay_core, bay_strait)
 
-        # 5. Cộng nhiễu bờ biển đa tần số (Multi-frequency coastal detail)
-        coast_fbm = self.coast_noise.fbm_grid(nx, ny, octaves=6, persistence=0.54, base_scale=4.2)
-        edge_falloff = np.clip(
-            np.minimum.reduce([nx / 0.07, (1.0 - nx) / 0.07, ny / 0.06, (1.0 - ny) / 0.08]),
-            0.0,
-            1.0,
-        )
+        # Khoét các vịnh hẹp Fjord ở bờ biển Tây Bắc
+        fjord_noise = np.abs(self.detail_noise.noise_grid(nx * 18.0, ny * 18.0))
+        nw_fjord_carve = np.where((nx < 0.32) & (ny < 0.42), (1.0 - np.clip(fjord_noise * 4.5, 0.0, 1.0)) * 0.28, 0.0)
 
-        raw_elev = (macro_shape * 0.76 + coast_fbm * 0.34 - inland_bay_total * 0.65) * edge_falloff
+        # 4. Kết hợp nhiễu đa tần số tạo đường bờ biển sắc nét
+        coast_roughness = self.coast_noise.fbm_grid(nx * 1.5, ny, octaves=6, persistence=0.56, base_scale=4.8)
+        micro_coast = self.detail_noise.fbm_grid(nx * 1.5, ny, octaves=5, persistence=0.52, base_scale=14.0)
 
-        # 6. Tự động cân chỉnh ngưỡng Sea Level để tỷ lệ đất nổi luôn nằm trong [30%, 38%]
-        target_ratio = 0.34  # Mục tiêu trung tâm 34% diện tích là đất nổi
-        quantile_threshold = float(np.quantile(raw_elev, 1.0 - target_ratio))
-        base_elevation = np.clip(raw_elev - quantile_threshold + self.cfg.sea_level, 0.0, 1.0)
+        # Đảm bảo đại dương bao bọc toàn bộ mép khung ảnh
+        border_dist = np.minimum.reduce([nx / 0.06, (1.0 - nx) / 0.06, ny / 0.06, (1.0 - ny) / 0.07])
+        border_mask = np.clip(border_dist, 0.0, 1.0) ** 0.75
 
+        raw_elev = (
+            macro_continent * 0.72
+            + coast_roughness * 0.26
+            + micro_coast * 0.12
+            - inland_bay_carve * 0.58
+            - nw_fjord_carve
+        ) * border_mask
+
+        # 5. Chuẩn hóa mực nước biển để diện tích đất nổi đạt chuẩn 35% (nằm giữa [30%, 38%])
+        target_land_ratio = 0.355
+        q_thresh = float(np.quantile(raw_elev, 1.0 - target_land_ratio))
+        base_elevation = np.clip(raw_elev - q_thresh + self.cfg.sea_level, 0.0, 1.0)
         landmask = base_elevation >= self.cfg.sea_level
 
-        # 7. Tính độ sâu đáy biển (Bathymetry) và thềm lục địa nông (Continental Shelf)
+        # 6. Tính độ sâu đáy biển (Bathymetry) có rãnh đại dương & thềm lục địa nông
         sea_span = max(1e-5, self.cfg.sea_level)
-        bathymetry = np.where(
-            landmask,
-            0.0,
-            np.clip((self.cfg.sea_level - base_elevation) / sea_span, 0.0, 1.0),
-        )
-        coastal_shelf = np.where((~landmask) & (bathymetry <= 0.28), 1.0 - (bathymetry / 0.28), 0.0)
-        inland_bay_mask = (~landmask) & (inland_bay_total > 0.25)
+        raw_depth = np.clip((self.cfg.sea_level - base_elevation) / sea_span, 0.0, 1.0)
+        bathymetry = np.where(landmask, 0.0, raw_depth ** 0.82).astype(np.float32)
+
+        coastal_shelf = np.where((~landmask) & (bathymetry <= 0.32), 1.0 - (bathymetry / 0.32), 0.0).astype(np.float32)
+        inland_bay_mask = (~landmask) & (inland_bay_carve > 0.22)
 
         return LandmassResult(
             base_elevation=base_elevation.astype(np.float32),
             landmask=landmask,
-            bathymetry=bathymetry.astype(np.float32),
-            coastal_shelf=coastal_shelf.astype(np.float32),
+            bathymetry=bathymetry,
+            coastal_shelf=coastal_shelf,
             inland_bay_mask=inland_bay_mask,
         )

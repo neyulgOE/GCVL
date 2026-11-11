@@ -123,3 +123,4 @@ def run_all_phases(output_dir: str = "debug_outputs/phase6_7_final") -> None:
 
 if __name__ == "__main__":
     run_all_phases()
+
