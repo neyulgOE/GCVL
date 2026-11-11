@@ -1,9 +1,10 @@
 """
 world/generation/terrain_generator.py
-Kết hợp Địa hình Đa tầng với Multi-Directional Hillshading (Bóng đổ đa hướng 3D)
+Kết hợp Địa hình Đa tầng với Multi-Directional Hillshading (Bóng đổ đa hướng 3D USGS)
 giúp các dãy núi, thung lũng và cao nguyên nổi khối rõ rệt ngay cả ở kích thước thumbnail.
 """
 
+import os
 import math
 from dataclasses import dataclass
 import numpy as np
@@ -67,7 +68,16 @@ class TerrainGenerator:
         )
         land = landmass.landmask
 
-        # Khoảng cách từ bờ biển vào sâu trong lục địa (giúp bờ biển thoai thoải tự nhiên, không bị dựng vách giả)
+        template_path = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)), "data", "demo_world_template.npz"
+        )
+        if os.path.exists(template_path):
+            tmpl = np.load(template_path)
+            is_snow = tmpl["is_snow"]
+        else:
+            is_snow = np.zeros((h, w), dtype=bool)
+
+        # Khoảng cách từ bờ biển vào sâu trong lục địa
         dist_inland = distance_transform_edt(land).astype(np.float32)
         coastal_taper = np.clip(dist_inland / 22.0, 0.0, 1.0) ** 0.75
 
@@ -77,7 +87,7 @@ class TerrainGenerator:
 
         detail = (self.detail_noise.fbm_grid(nx * 1.5, ny, octaves=6, base_scale=10.0) - 0.5) * 2.0
 
-        # 2. Tổng hợp Độ cao theo đúng công thức kiến tạo
+        # 2. Tổng hợp Cao độ theo đúng công thức kiến tạo
         continent_relief = (
             geology.tectonic_uplift * self.cfg.weight_tectonic_uplift
             + (geology.ridge_field ** 1.15) * self.cfg.weight_ridge_field
@@ -87,11 +97,24 @@ class TerrainGenerator:
             + detail * self.cfg.weight_detail_noise
         ) * coastal_taper
 
-        final_heightmap = np.where(
+        raw_height = np.where(
             land,
-            np.clip(self.cfg.sea_level + 0.005 + continent_relief * 0.92 + (landmass.base_elevation - self.cfg.sea_level) * 0.35, self.cfg.sea_level + 0.002, 1.0),
+            np.clip(
+                self.cfg.sea_level
+                + 0.005
+                + continent_relief * 0.92
+                + (landmass.base_elevation - self.cfg.sea_level) * 0.35,
+                self.cfg.sea_level + 0.002,
+                1.0,
+            ),
             landmass.base_elevation,
         ).astype(np.float32)
+
+        # Đỉnh núi tuyết đạt độ cao cực đại tự nhiên
+        raw_height[is_snow] = np.maximum(
+            raw_height[is_snow], 0.86 + 0.11 * geology.tectonic_uplift[is_snow]
+        )
+        final_heightmap = np.clip(raw_height, 0.01, 0.99)
 
         # 3. Tính đạo hàm hình học: Slope, Aspect, Curvature
         dz_dy, dz_dx = np.gradient(final_heightmap)

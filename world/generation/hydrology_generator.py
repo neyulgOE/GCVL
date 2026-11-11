@@ -61,7 +61,7 @@ class HydrologyGenerator:
         elev = terrain.final_heightmap.copy()
         land = landmass.landmask
 
-        # Xác định vùng lõi Hồ Nội Lưu ở bồn địa khuất mưa Tây Nam
+        # Xác định vùng lõi Hồ Nội Lưu ở bồn địa khuất mưa Tây Nam (hồ ốc đảo nhỏ tự nhiên)
         ny, nx = np.meshgrid(
             np.linspace(0.0, 1.0, h, dtype=np.float32),
             np.linspace(0.0, 1.0, w, dtype=np.float32),
@@ -70,11 +70,11 @@ class HydrologyGenerator:
         sw_sink_score = (
             geology.basin_field
             * climate.rain_shadow
-            * np.exp(-(((nx - 0.29) / 0.055) ** 2 + ((ny - 0.65) / 0.055) ** 2))
+            * np.exp(-(((nx - 0.28) / 0.008) ** 2 + ((ny - 0.64) / 0.008) ** 2))
             * land
         )
-        endorheic_lake = sw_sink_score > 0.14
-        # Hạ nhẹ đáy bồn địa Tây Nam để thu nước vùng khuất mưa
+        endorheic_lake = sw_sink_score > 0.35
+        # Hạ nhẹ đáy hồ ốc đảo Tây Nam để thu nước vùng khuất mưa
         elev = np.where(endorheic_lake, np.minimum(elev, self.cfg.sea_level + 0.035), elev)
 
         # Khởi tạo hàng đợi ưu tiên (Min-Heap) từ biển và tâm hồ nội lưu

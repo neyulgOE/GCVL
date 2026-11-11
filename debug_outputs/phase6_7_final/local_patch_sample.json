@@ -15,88 +15,116 @@
     80,
     80
   ],
-  "water_tiles_count": 3401,
-  "flora_instances_spawned": 395,
-  "fauna_herds_in_region": 1,
+  "water_tiles_count": 1722,
+  "flora_instances_spawned": 874,
+  "fauna_herds_in_region": 5,
   "sample_flora": [
     {
-      "col": 33,
+      "col": 6,
       "row": 0,
       "species_id": "garlic",
       "layer": "herb",
       "growth_stage": "sprout"
     },
     {
-      "col": 35,
+      "col": 8,
       "row": 0,
       "species_id": "garlic",
       "layer": "herb",
       "growth_stage": "prime"
     },
     {
-      "col": 42,
+      "col": 15,
       "row": 0,
       "species_id": "garlic",
       "layer": "herb",
       "growth_stage": "mature"
     },
     {
-      "col": 47,
+      "col": 20,
       "row": 0,
       "species_id": "garlic",
       "layer": "herb",
       "growth_stage": "mature"
     },
     {
-      "col": 48,
+      "col": 21,
       "row": 0,
       "species_id": "garlic",
       "layer": "herb",
       "growth_stage": "prime"
     },
     {
-      "col": 51,
+      "col": 24,
       "row": 0,
+      "species_id": "mushroom",
+      "layer": "ground",
+      "growth_stage": "sprout"
+    },
+    {
+      "col": 3,
+      "row": 1,
+      "species_id": "garlic",
+      "layer": "herb",
+      "growth_stage": "prime"
+    },
+    {
+      "col": 7,
+      "row": 1,
       "species_id": "garlic",
       "layer": "herb",
       "growth_stage": "sprout"
     },
     {
-      "col": 52,
-      "row": 0,
+      "col": 9,
+      "row": 1,
       "species_id": "garlic",
       "layer": "herb",
-      "growth_stage": "prime"
+      "growth_stage": "mature"
     },
     {
-      "col": 56,
-      "row": 0,
+      "col": 18,
+      "row": 1,
       "species_id": "garlic",
       "layer": "herb",
-      "growth_stage": "prime"
-    },
-    {
-      "col": 61,
-      "row": 0,
-      "species_id": "bramble",
-      "layer": "shrub",
-      "growth_stage": "prime"
-    },
-    {
-      "col": 66,
-      "row": 0,
-      "species_id": "bramble",
-      "layer": "shrub",
-      "growth_stage": "prime"
+      "growth_stage": "mature"
     }
   ],
   "sample_fauna": [
     {
-      "species_id": "dire_wolf",
-      "guild": "pack_predator",
+      "species_id": "ancient_bison",
+      "guild": "megafauna_herbivore",
       "local_col": 75,
       "local_row": 3,
       "count": 8
+    },
+    {
+      "species_id": "megaloceros_elk",
+      "guild": "medium_herbivore",
+      "local_col": 3,
+      "local_row": 22,
+      "count": 5
+    },
+    {
+      "species_id": "giant_ground_sloth",
+      "guild": "megafauna_herbivore",
+      "local_col": 64,
+      "local_row": 37,
+      "count": 4
+    },
+    {
+      "species_id": "wild_boar",
+      "guild": "omnivore",
+      "local_col": 3,
+      "local_row": 32,
+      "count": 9
+    },
+    {
+      "species_id": "marsh_crocodile",
+      "guild": "aquatic_semi",
+      "local_col": 17,
+      "local_row": 7,
+      "count": 3
     }
   ]
 }

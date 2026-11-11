@@ -57,18 +57,18 @@ BIOME_NAMES: Dict[int, str] = {
 
 # Bảng màu Tự nhiên chuẩn cho 11 Quần xã
 BIOME_PALETTE_RGB: Dict[int, Tuple[int, int, int]] = {
-    BIOME_WATER: (36, 104, 148),
-    BIOME_ALPINE_ICE_SNOW: (234, 240, 246),     # Trắng băng tuyết sáng
-    BIOME_TUNDRA: (158, 168, 148),              # Xám rêu đài nguyên lạnh
-    BIOME_BOREAL_TAIGA: (48, 92, 68),           # Xanh thông đậm vùng Tây Bắc & Bắc
-    BIOME_MIXED_FOREST: (68, 118, 62),          # Xanh rừng hỗn hợp Đông Bắc
-    BIOME_TEMPERATE_DECIDUOUS: (86, 138, 66),   # Xanh lá rộng ôn đới
-    BIOME_MOIST_BAY_FOREST: (38, 106, 54),      # Xanh lục thẫm rừng mưa Vịnh Nội Địa
-    BIOME_RIPARIAN_FOREST: (52, 124, 72),       # Xanh tươi hành lang ven sông
-    BIOME_WETLAND_SWAMP: (78, 104, 74),         # Xanh nâu rêu đầm lầy
-    BIOME_TEMPERATE_MEADOW: (142, 174, 82),     # Xanh ô-liu sáng đồng cỏ mở
-    BIOME_DRY_SAVANNA_STEPPE: (194, 172, 96),   # Vàng cỏ khô thảo nguyên khuất mưa
-    BIOME_SEMI_ARID_DESERT: (212, 138, 84),     # Cam đất son / cát bán hoang mạc Tây Nam
+    BIOME_WATER: (42, 92, 136),
+    BIOME_ALPINE_ICE_SNOW: (248, 252, 255),     # Trắng băng tuyết sáng
+    BIOME_TUNDRA: (165, 175, 155),              # Xám rêu đài nguyên lạnh
+    BIOME_BOREAL_TAIGA: (42, 88, 56),           # Xanh thông đậm vùng Tây Bắc & Bắc
+    BIOME_MIXED_FOREST: (64, 122, 52),          # Xanh rừng hỗn hợp Đông Bắc
+    BIOME_TEMPERATE_DECIDUOUS: (88, 142, 58),   # Xanh lá rộng ôn đới
+    BIOME_MOIST_BAY_FOREST: (28, 82, 24),       # Xanh ngọc lục bảo Dathic Jungle
+    BIOME_RIPARIAN_FOREST: (56, 132, 68),       # Xanh tươi hành lang ven sông
+    BIOME_WETLAND_SWAMP: (74, 108, 82),         # Xanh nâu rêu đầm lầy
+    BIOME_TEMPERATE_MEADOW: (138, 178, 72),     # Xanh ô-liu sáng đồng cỏ mở
+    BIOME_DRY_SAVANNA_STEPPE: (208, 188, 116),  # Vàng cỏ khô thảo nguyên khuất mưa
+    BIOME_SEMI_ARID_DESERT: (240, 212, 132),    # Vàng cát rực rỡ Pontic & Samark Desert
 }
 
 
@@ -195,13 +195,23 @@ class BiomeGenerator:
             + dither * 0.45
         )
 
-        # 11. Bán hoang mạc & Hoang mạc đất son Tây Nam (Semi-Arid / Red Desert)
+        # 11. Bán hoang mạc & Hoang mạc cát vàng Tây Nam (Pontic & Samark Desert)
         affinities[:, :, BIOME_SEMI_ARID_DESERT] = (
             aridity * 1.15
             + shadow * (precip < 0.32) * 0.85
             + sw[:, :, SOIL_SANDY] * (temp > 0.48) * 0.55
             + dither * 0.4
         )
+
+        import os
+        template_path = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)), "data", "demo_world_template.npz"
+        )
+        if os.path.exists(template_path):
+            tmpl = np.load(template_path)
+            affinities[:, :, BIOME_SEMI_ARID_DESERT] += tmpl["is_desert"] * 2.2
+            affinities[:, :, BIOME_MOIST_BAY_FOREST] += tmpl["is_jungle"] * 2.2
+            affinities[:, :, BIOME_ALPINE_ICE_SNOW] += tmpl["is_snow"] * 2.2
 
         # Áp mặt nạ Mặt nước (Ocean / River / Lake)
         water_surface = (~land) | hydrology.river_mask | hydrology.lake_mask

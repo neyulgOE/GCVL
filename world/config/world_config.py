@@ -1,6 +1,7 @@
 """
 world/config/world_config.py
-Cấu hình chuẩn tỷ lệ 16:10 (800x520 raster -> 1600x1040 px Atlas) theo đúng tài liệu PDF.
+Cấu hình chuẩn tỷ lệ 16:10 (800x520 raster -> 1600x1040 px Atlas) theo đúng tài liệu PDF quy hoạch
+và bản đồ demo đa lục địa Primeval Reach (49.5% đất nổi, biển nội địa, Pontic Desert, Dathic Jungle).
 """
 
 from dataclasses import dataclass
@@ -21,12 +22,12 @@ class WorldConfig:
     local_cols: int = 80
     local_rows: int = 80
 
-    # Ngưỡng kiểm định hình thái lục địa (30% - 38% diện tích đất nổi)
+    # Ngưỡng kiểm định hình thái lục địa đa lục địa (Chuẩn PDF demo map)
     sea_level: float = 0.38
-    target_land_ratio_min: float = 0.30
-    target_land_ratio_max: float = 0.38
-    min_main_continent_share: float = 0.85
-    min_isthmus_width_px: int = 12
+    target_land_ratio_min: float = 0.42
+    target_land_ratio_max: float = 0.58
+    min_main_continent_share: float = 0.55
+    min_isthmus_width_px: int = 10
 
     # Trọng số tổng hợp địa hình đa tầng (Tăng độ nổi sống núi & thung lũng)
     weight_base_elevation: float = 0.38
