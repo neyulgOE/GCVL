@@ -4,8 +4,9 @@ using PrimevalWorld.WorldGen;
 namespace PrimevalWorld.Terrain
 {
     /// <summary>
-    /// Builds both the coastal ocean plane (at sea level) and the sloped meandering
-    /// river ribbon mesh that follows the carved river channel downhill to the bay.
+    /// Builds an expansive 16km x 16km Horizon Ocean Plane that merges seamlessly into
+    /// atmospheric fog (eliminating floating square borders) plus a variable-width
+    /// sloped RiverRibbon mesh following the carved river valley.
     /// </summary>
     public partial class WaterSurface : Node3D
     {
@@ -20,37 +21,38 @@ namespace PrimevalWorld.Terrain
             {
                 var waterShader = GD.Load<Shader>("res://shaders/water_river_ocean.gdshader");
                 _oceanMaterial = new ShaderMaterial { Shader = waterShader };
-                _oceanMaterial.SetShaderParameter("flow_speed", new Vector2(0.03f, 0.02f));
-                _oceanMaterial.SetShaderParameter("shallow_color", new Color(0.08f, 0.58f, 0.62f, 0.84f));
-                _oceanMaterial.SetShaderParameter("deep_color", new Color(0.02f, 0.14f, 0.28f, 0.96f));
+                _oceanMaterial.SetShaderParameter("flow_speed", new Vector2(0.025f, 0.018f));
+                _oceanMaterial.SetShaderParameter("shallow_color", new Color(0.07f, 0.48f, 0.52f, 0.85f));
+                _oceanMaterial.SetShaderParameter("deep_color", new Color(0.02f, 0.11f, 0.22f, 0.98f));
 
                 _riverMaterial = new ShaderMaterial { Shader = waterShader };
-                _riverMaterial.SetShaderParameter("flow_speed", new Vector2(0.0f, 0.22f));
-                _riverMaterial.SetShaderParameter("shallow_color", new Color(0.10f, 0.52f, 0.56f, 0.82f));
-                _riverMaterial.SetShaderParameter("deep_color", new Color(0.04f, 0.24f, 0.36f, 0.92f));
+                _riverMaterial.SetShaderParameter("flow_speed", new Vector2(0.0f, 0.26f));
+                _riverMaterial.SetShaderParameter("shallow_color", new Color(0.09f, 0.44f, 0.48f, 0.82f));
+                _riverMaterial.SetShaderParameter("deep_color", new Color(0.03f, 0.20f, 0.30f, 0.94f));
             }
 
-            BuildOceanPlane();
+            BuildHorizonOceanPlane();
             BuildRiverRibbon(generator);
         }
 
-        private void BuildOceanPlane()
+        private void BuildHorizonOceanPlane()
         {
             if (_oceanMesh == null)
             {
                 _oceanMesh = new MeshInstance3D
                 {
-                    Name = "OceanPlane",
+                    Name = "HorizonOceanPlane",
                     CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
                 };
                 AddChild(_oceanMesh);
             }
 
+            // 16km x 16km ocean plane extends well beyond fog horizon
             var plane = new PlaneMesh
             {
-                Size = new Vector2(WorldGenerator.RegionSizeMeters + 400.0f, WorldGenerator.RegionSizeMeters + 400.0f),
-                SubdivideWidth = 48,
-                SubdivideDepth = 48,
+                Size = new Vector2(16384.0f, 16384.0f),
+                SubdivideWidth = 96,
+                SubdivideDepth = 96,
             };
             _oceanMesh.Mesh = plane;
             _oceanMesh.MaterialOverride = _oceanMaterial;
@@ -71,21 +73,21 @@ namespace PrimevalWorld.Terrain
             };
             AddChild(_riverMesh);
 
-            const int zSteps = 160;
+            const int zSteps = 180;
             const int xSteps = 9;
-            float maxZ = WorldGenerator.RegionSizeMeters * 0.88f;
-            float dz = maxZ / zSteps;
+            float minZ = WorldGenerator.RegionSizeMeters * 0.06f;
+            float maxZ = WorldGenerator.RegionSizeMeters * 0.84f;
+            float dz = (maxZ - minZ) / zSteps;
 
             var st = new SurfaceTool();
             st.Begin(Mesh.PrimitiveType.Triangles);
 
             for (int iz = 0; iz <= zSteps; iz++)
             {
-                float z = iz * dz;
-                var (centerX, waterY, halfW) = generator.SampleRiverSpine(z);
-                // Slightly wider than carved riverbed so water edges tuck cleanly into banks
-                float ribbonHalfW = halfW * 1.38f;
-                float vCoord = z * 0.04f;
+                float z = minZ + iz * dz;
+                var (centerX, waterY, halfW, _) = generator.SampleRiverSpine(z);
+                float ribbonHalfW = halfW * 1.42f;
+                float vCoord = z * 0.045f;
 
                 for (int ix = 0; ix < xSteps; ix++)
                 {

@@ -2,16 +2,6 @@ using System;
 
 namespace PrimevalWorld.WorldGen
 {
-    public enum BiomeType
-    {
-        DeepOcean = 0,
-        CoastalReef = 1,
-        PrimevalForest = 2,
-        AutumnSteppe = 3,
-        TerracottaBasin = 4,
-        GlacialAlpine = 5,
-    }
-
     public readonly struct TerrainSample
     {
         public readonly float Height;
@@ -32,8 +22,11 @@ namespace PrimevalWorld.WorldGen
 
     /// <summary>
     /// Stage 1 Vertical Slice World Generator (1024m x 1024m).
-    /// Pure mathematical Seed-based generation (fBm + Ridged + Domain Warping + River Spline)
-    /// architected cleanly for Stage 3 expansion into multi-continent SDF + Climate worlds.
+    /// Generates a 513x513 heightfield from Seed using:
+    /// - Domain-warped Island Falloff (natural coastlines, bays, zero square cutoffs)
+    /// - Sharp Ridged Multifractal + Rock Strata Terracing
+    /// - 50,000-droplet Particle Hydraulic Erosion (carves gullies & sharp ridges)
+    /// - Variable-width, asymmetric meandering river carving
     /// </summary>
     public sealed class WorldGenerator
     {
@@ -45,113 +38,343 @@ namespace PrimevalWorld.WorldGen
         public const int ChunkVerticesPerSide = 65; // 2.0m vertex spacing
         public const float SeaLevel = 0.0f;
 
+        private const int GridSize = 513; // 2.0m per cell across 1024m
+        private const float CellSize = RegionSizeMeters / (GridSize - 1); // 2.0m
+
+        private readonly float[] _heightGrid = new float[GridSize * GridSize];
+        private readonly float[] _riverMaskGrid = new float[GridSize * GridSize];
+        private readonly float[] _riverWaterYGrid = new float[GridSize * GridSize];
+        private readonly float[] _moistureGrid = new float[GridSize * GridSize];
+
         public WorldGenerator(int seed = 2026)
         {
-            Seed = seed;
+            SetSeed(seed);
         }
 
         public void SetSeed(int newSeed)
         {
             Seed = newSeed;
+            GenerateHeightfield();
         }
 
         /// <summary>
-        /// Parametric meandering river spine flowing from NE highlands (z = 0..1024)
-        /// toward the SW coastal bay. Returns centerline X and river surface Y.
+        /// Parametric meandering river spine with variable width (narrows in rocky gorges,
+        /// widens at bends/delta) and asymmetric bank profile.
         /// </summary>
-        public (float CenterX, float WaterY, float HalfWidth) SampleRiverSpine(float worldZ)
+        public (float CenterX, float WaterY, float HalfWidth, float Curvature) SampleRiverSpine(float worldZ)
         {
             float t = Math.Clamp(worldZ / RegionSizeMeters, 0.0f, 1.0f);
 
-            // Diagonal flow from NE (x ~ 760) to SW bay (x ~ 290)
-            float baseCenter = 760.0f - 470.0f * t;
+            // Flows from NE highland valley (~x=720) toward SW coastal bay (~x=310)
+            float baseCenter = 720.0f - 410.0f * t;
 
-            // Multi-frequency domain-warped meandering
-            float warp = (FastNoise.Fbm2D(worldZ * 0.0022f, 17.3f, Seed + 501, 3) - 0.5f) * 190.0f;
-            float bend = MathF.Sin(t * MathF.PI * 2.4f - 0.5f) * 78.0f;
+            float warp = (FastNoise.Fbm2D(worldZ * 0.0024f, 17.3f, Seed + 501, 3) - 0.5f) * 210.0f;
+            float bend = MathF.Sin(t * MathF.PI * 2.8f - 0.4f) * 86.0f;
             float centerX = baseCenter + bend + warp;
 
-            // River widens as it approaches the coastal delta
-            float halfWidth = 10.5f + 16.0f * FastNoise.SmoothStep(0.35f, 0.92f, t);
+            // Approximate local bend curvature for asymmetric cutbank vs point bar
+            float dBend = MathF.Cos(t * MathF.PI * 2.8f - 0.4f);
 
-            // Gentle downhill water surface from +11.5m in the upper valley down to sea level 0.0m
-            float slopeDrop = 1.0f - FastNoise.SmoothStep(0.05f, 0.78f, t);
-            float waterY = MathF.Max(SeaLevel, slopeDrop * 11.5f);
+            // Organic width variation: narrow rapids vs wider pools & delta mouth
+            float widthNoise = FastNoise.Fbm2D(worldZ * 0.007f, 91.2f, Seed + 613, 3);
+            float halfWidth = 7.5f + widthNoise * 11.0f + 18.0f * FastNoise.SmoothStep(0.55f, 0.88f, t);
 
-            return (centerX, waterY, halfWidth);
+            // Downhill water profile from +12m in upper gorge down to 0.0m sea level
+            float slopeDrop = 1.0f - FastNoise.SmoothStep(0.08f, 0.72f, t);
+            float waterY = MathF.Max(SeaLevel, slopeDrop * 12.0f);
+
+            return (centerX, waterY, halfWidth, dBend);
         }
 
-        /// <summary>
-        /// Samples continuous height & ecological masks at any world (x, z) coordinate in meters.
-        /// </summary>
+        private void GenerateHeightfield()
+        {
+            // Pass 1: Macro Island Falloff + Sharp Ridged Mountains + Terracing
+            for (int gz = 0; gz < GridSize; gz++)
+            {
+                float worldZ = gz * CellSize;
+                float nz = worldZ / RegionSizeMeters;
+
+                for (int gx = 0; gx < GridSize; gx++)
+                {
+                    float worldX = gx * CellSize;
+                    float nx = worldX / RegionSizeMeters;
+
+                    // Domain warping for irregular bays, headlands & coves
+                    float warpX = (FastNoise.Fbm2D(worldX * 0.0022f, worldZ * 0.0022f, Seed + 11, 4) - 0.5f) * 190.0f;
+                    float warpZ = (FastNoise.Fbm2D(worldX * 0.0022f + 37.1f, worldZ * 0.0022f - 23.8f, Seed + 29, 4) - 0.5f) * 190.0f;
+                    float wx = worldX + warpX;
+                    float wz = worldZ + warpZ;
+
+                    // Radial + domain-warped Island Mask: ensures ALL 4 borders submerge smoothly below sea level
+                    float dx = (wx - RegionSizeMeters * 0.5f) / (RegionSizeMeters * 0.44f);
+                    float dz = (wz - RegionSizeMeters * 0.47f) / (RegionSizeMeters * 0.44f);
+                    float radialDist = MathF.Sqrt(dx * dx + dz * dz);
+
+                    // Extra SW bay indentation where the river meets the ocean
+                    float bayDx = (wx - 280.0f) / 260.0f;
+                    float bayDz = (wz - 820.0f) / 220.0f;
+                    float bayDist = MathF.Sqrt(bayDx * bayDx + bayDz * bayDz);
+                    float bayCarve = 1.0f - FastNoise.SmoothStep(0.35f, 1.05f, bayDist);
+
+                    float coastNoise = (FastNoise.Fbm2D(worldX * 0.0045f, worldZ * 0.0045f, Seed + 71, 4) - 0.5f) * 0.34f;
+                    float islandMask = (1.0f - FastNoise.SmoothStep(0.62f, 1.04f, radialDist + coastNoise)) * (1.0f - bayCarve * 0.85f);
+
+                    // Sharp Ridged Multifractal peaks (North/NW massif + East ridge)
+                    float ridgedPrimary = FastNoise.RidgedFbm2D(wx * 0.0029f, wz * 0.0029f, Seed + 307, 6);
+                    float ridgedSharp = MathF.Pow(ridgedPrimary, 1.15f);
+
+                    float northMassif = FastNoise.SmoothStep(0.58f, 0.14f, nz)
+                                      * (0.60f + 0.40f * FastNoise.SmoothStep(0.92f, 0.22f, nx));
+                    float eastMassif = FastNoise.SmoothStep(0.45f, 0.82f, nx)
+                                     * FastNoise.SmoothStep(0.80f, 0.22f, nz);
+
+                    float hills = FastNoise.Fbm2D(wx * 0.0026f, wz * 0.0026f, Seed + 101, 5);
+                    float micro = (FastNoise.Fbm2D(worldX * 0.018f, worldZ * 0.018f, Seed + 173, 3) - 0.5f) * 2.8f;
+
+                    float rawElevation = 3.5f
+                        + hills * 20.0f
+                        + northMassif * ridgedSharp * 92.0f
+                        + eastMassif * ridgedSharp * 44.0f
+                        + micro;
+
+                    // Subtle geological rock terracing/strata on mid-high elevations
+                    float terraceMask = FastNoise.SmoothStep(18.0f, 45.0f, rawElevation);
+                    float strataStep = 9.5f;
+                    float terraced = MathF.Floor(rawElevation / strataStep) * strataStep
+                                   + FastNoise.SmoothStep(0.15f, 0.85f, (rawElevation % strataStep) / strataStep) * strataStep;
+                    rawElevation = rawElevation * (1.0f - terraceMask * 0.24f) + terraced * (terraceMask * 0.24f);
+
+                    // Blend smoothly down into deep ocean seabed (-12m) outside island mask
+                    float seaBed = -12.0f + hills * 3.5f;
+                    float height = seaBed * (1.0f - islandMask) + rawElevation * islandMask;
+
+                    _heightGrid[gz * GridSize + gx] = height;
+                }
+            }
+
+            // Pass 2: 50,000-Droplet Particle Hydraulic Erosion (carves gullies & sharp arêtes)
+            ApplyHydraulicErosion(50000);
+
+            // Pass 3: Carve variable-width, asymmetric meandering river & compute ecological masks
+            for (int gz = 0; gz < GridSize; gz++)
+            {
+                float worldZ = gz * CellSize;
+                float nz = worldZ / RegionSizeMeters;
+                var (riverX, riverWaterY, riverHalfW, curvature) = SampleRiverSpine(worldZ);
+
+                for (int gx = 0; gx < GridSize; gx++)
+                {
+                    int idx = gz * GridSize + gx;
+                    float worldX = gx * CellSize;
+                    float h = _heightGrid[idx];
+
+                    // Irregular bank edge perturbation so shores aren't parallel
+                    float bankJitter = (FastNoise.Fbm2D(worldX * 0.025f, worldZ * 0.025f, Seed + 709, 3) - 0.5f) * 9.0f;
+                    float signedOffset = worldX - riverX;
+                    float distToRiver = MathF.Abs(signedOffset + bankJitter);
+
+                    // Asymmetric cutbank (outer bend steeper) vs point bar (inner bend gentler)
+                    bool isOuterBank = (signedOffset * curvature) > 0.0f;
+                    float bankSlopeMult = isOuterBank ? 1.15f : 1.75f;
+
+                    float valleyT = 1.0f - FastNoise.SmoothStep(riverHalfW * 1.1f, riverHalfW * 4.6f, distToRiver);
+                    float riverActive = (1.0f - FastNoise.SmoothStep(0.72f, 0.86f, nz))
+                                      * FastNoise.SmoothStep(0.06f, 0.14f, nz);
+
+                    // Only carve river where land is near or above river level
+                    float targetFloor = riverWaterY + 1.4f;
+                    float valleyH = h * (1.0f - valleyT * 0.68f * riverActive) + targetFloor * (valleyT * 0.68f * riverActive);
+
+                    float channelT = (1.0f - FastNoise.SmoothStep(riverHalfW * 0.42f, riverHalfW * bankSlopeMult, distToRiver)) * riverActive;
+                    float riverBedY = riverWaterY - 3.4f;
+                    float finalH = valleyH * (1.0f - channelT) + MathF.Min(valleyH, riverBedY) * channelT;
+
+                    _heightGrid[idx] = finalH;
+
+                    // Asymmetric gravel/sand mask (wider on gentle point bars, narrower on steep cutbanks)
+                    float shoreNoise = FastNoise.Fbm2D(worldX * 0.032f, worldZ * 0.032f, Seed + 811, 3);
+                    float bankSandT = (1.0f - FastNoise.SmoothStep(riverHalfW * 0.6f, riverHalfW * (isOuterBank ? 1.25f : 1.95f) + shoreNoise * 5.0f, distToRiver)) * riverActive;
+                    _riverMaskGrid[idx] = MathF.Max(channelT, bankSandT * 0.82f);
+                    _riverWaterYGrid[idx] = riverWaterY;
+
+                    float coastal = FastNoise.SmoothStep(3.5f, -1.5f, finalH);
+                    _moistureGrid[idx] = Math.Clamp(0.38f + valleyT * 0.48f + coastal * 0.22f - (finalH / 95.0f) * 0.35f, 0.0f, 1.0f);
+                }
+            }
+        }
+
+        private void ApplyHydraulicErosion(int numDroplets)
+        {
+            var rng = new Random(Seed + 991);
+            const int maxLifetime = 30;
+            const float inertia = 0.08f;
+            const float sedimentCapacityFactor = 3.8f;
+            const float minSedimentCapacity = 0.01f;
+            const float erodeSpeed = 0.32f;
+            const float depositSpeed = 0.28f;
+            const float evaporateSpeed = 0.02f;
+            const float gravity = 4.0f;
+            const int brushRadius = 2;
+
+            for (int d = 0; d < numDroplets; d++)
+            {
+                float posX = (float)(rng.NextDouble() * (GridSize - 4) + 2);
+                float posZ = (float)(rng.NextDouble() * (GridSize - 4) + 2);
+                float dirX = 0.0f;
+                float dirZ = 0.0f;
+                float speed = 1.0f;
+                float water = 1.0f;
+                float sediment = 0.0f;
+
+                for (int step = 0; step < maxLifetime; step++)
+                {
+                    int nodeX = (int)posX;
+                    int nodeZ = (int)posZ;
+                    if (nodeX < 1 || nodeX >= GridSize - 2 || nodeZ < 1 || nodeZ >= GridSize - 2)
+                        break;
+
+                    float cellOffsetX = posX - nodeX;
+                    float cellOffsetZ = posZ - nodeZ;
+
+                    int idx00 = nodeZ * GridSize + nodeX;
+                    float h00 = _heightGrid[idx00];
+                    float h10 = _heightGrid[idx00 + 1];
+                    float h01 = _heightGrid[idx00 + GridSize];
+                    float h11 = _heightGrid[idx00 + GridSize + 1];
+
+                    // Don't erode underwater seabed
+                    float oldH = (h00 * (1 - cellOffsetX) + h10 * cellOffsetX) * (1 - cellOffsetZ)
+                               + (h01 * (1 - cellOffsetX) + h11 * cellOffsetX) * cellOffsetZ;
+                    if (oldH < SeaLevel - 0.5f)
+                        break;
+
+                    float gradX = (h10 - h00) * (1 - cellOffsetZ) + (h11 - h01) * cellOffsetZ;
+                    float gradZ = (h01 - h00) * (1 - cellOffsetX) + (h11 - h10) * cellOffsetX;
+
+                    dirX = dirX * inertia - gradX * (1.0f - inertia);
+                    dirZ = dirZ * inertia - gradZ * (1.0f - inertia);
+                    float len = MathF.Sqrt(dirX * dirX + dirZ * dirZ);
+                    if (len < 1e-5f)
+                    {
+                        float angle = (float)(rng.NextDouble() * MathF.PI * 2.0);
+                        dirX = MathF.Cos(angle);
+                        dirZ = MathF.Sin(angle);
+                    }
+                    else
+                    {
+                        dirX /= len;
+                        dirZ /= len;
+                    }
+
+                    posX += dirX;
+                    posZ += dirZ;
+                    if (posX < 1 || posX >= GridSize - 2 || posZ < 1 || posZ >= GridSize - 2)
+                        break;
+
+                    int newX = (int)posX;
+                    int newZ = (int)posZ;
+                    float u = posX - newX;
+                    float v = posZ - newZ;
+                    int nIdx = newZ * GridSize + newX;
+                    float newH = (_heightGrid[nIdx] * (1 - u) + _heightGrid[nIdx + 1] * u) * (1 - v)
+                               + (_heightGrid[nIdx + GridSize] * (1 - u) + _heightGrid[nIdx + GridSize + 1] * u) * v;
+
+                    float deltaH = newH - oldH;
+                    float capacity = MathF.Max(-deltaH * speed * water * sedimentCapacityFactor, minSedimentCapacity);
+
+                    if (sediment > capacity || deltaH > 0.0f)
+                    {
+                        float amountToDeposit = deltaH > 0.0f
+                            ? MathF.Min(deltaH, sediment)
+                            : (sediment - capacity) * depositSpeed;
+                        sediment -= amountToDeposit;
+
+                        _heightGrid[idx00] += amountToDeposit * (1 - cellOffsetX) * (1 - cellOffsetZ);
+                        _heightGrid[idx00 + 1] += amountToDeposit * cellOffsetX * (1 - cellOffsetZ);
+                        _heightGrid[idx00 + GridSize] += amountToDeposit * (1 - cellOffsetX) * cellOffsetZ;
+                        _heightGrid[idx00 + GridSize + 1] += amountToDeposit * cellOffsetX * cellOffsetZ;
+                    }
+                    else
+                    {
+                        float amountToErode = MathF.Min((capacity - sediment) * erodeSpeed, -deltaH);
+                        float totalWeight = 0.0f;
+                        for (int bz = -brushRadius; bz <= brushRadius; bz++)
+                        {
+                            for (int bx = -brushRadius; bx <= brushRadius; bx++)
+                            {
+                                int tx = nodeX + bx;
+                                int tz = nodeZ + bz;
+                                if (tx < 0 || tx >= GridSize || tz < 0 || tz >= GridSize) continue;
+                                float dist = MathF.Sqrt(bx * bx + bz * bz);
+                                if (dist < brushRadius)
+                                    totalWeight += brushRadius - dist;
+                            }
+                        }
+
+                        if (totalWeight > 1e-5f)
+                        {
+                            for (int bz = -brushRadius; bz <= brushRadius; bz++)
+                            {
+                                for (int bx = -brushRadius; bx <= brushRadius; bx++)
+                                {
+                                    int tx = nodeX + bx;
+                                    int tz = nodeZ + bz;
+                                    if (tx < 0 || tx >= GridSize || tz < 0 || tz >= GridSize) continue;
+                                    float dist = MathF.Sqrt(bx * bx + bz * bz);
+                                    if (dist < brushRadius)
+                                    {
+                                        float w = (brushRadius - dist) / totalWeight;
+                                        float deltaSediment = MathF.Min(_heightGrid[tz * GridSize + tx] - (SeaLevel - 12.0f), amountToErode * w);
+                                        _heightGrid[tz * GridSize + tx] -= deltaSediment;
+                                        sediment += deltaSediment;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    speed = MathF.Sqrt(MathF.Max(0.01f, speed * speed + deltaH * gravity));
+                    water *= (1.0f - evaporateSpeed);
+                }
+            }
+        }
+
+        private static float SampleBilinear(float[] grid, float gx, float gz)
+        {
+            float cx = Math.Clamp(gx, 0.0f, GridSize - 1.001f);
+            float cz = Math.Clamp(gz, 0.0f, GridSize - 1.001f);
+            int x0 = (int)cx;
+            int z0 = (int)cz;
+            float tx = cx - x0;
+            float tz = cz - z0;
+
+            int idx = z0 * GridSize + x0;
+            float v00 = grid[idx];
+            float v10 = grid[idx + 1];
+            float v01 = grid[idx + GridSize];
+            float v11 = grid[idx + GridSize + 1];
+
+            return (v00 * (1 - tx) + v10 * tx) * (1 - tz) + (v01 * (1 - tx) + v11 * tx) * tz;
+        }
+
         public TerrainSample SamplePoint(float worldX, float worldZ)
         {
-            // Normalized coordinates [0..1] across the 1x1 km vertical slice
-            float nx = worldX / RegionSizeMeters;
-            float nz = worldZ / RegionSizeMeters;
+            // Outside the 1x1 km island region, continue smoothly as deep ocean seabed
+            if (worldX < 0.0f || worldX > RegionSizeMeters || worldZ < 0.0f || worldZ > RegionSizeMeters)
+            {
+                return new TerrainSample(-10.0f, 0.0f, SeaLevel, 1.0f, 1.0f);
+            }
 
-            // Domain warping for organic ridges & shorelines
-            float warpX = (FastNoise.Fbm2D(worldX * 0.0018f, worldZ * 0.0018f, Seed + 11, 3) - 0.5f) * 140.0f;
-            float warpZ = (FastNoise.Fbm2D(worldX * 0.0018f + 31.7f, worldZ * 0.0018f - 19.4f, Seed + 29, 3) - 0.5f) * 140.0f;
-            float wx = worldX + warpX;
-            float wz = worldZ + warpZ;
+            float gx = worldX / CellSize;
+            float gz = worldZ / CellSize;
 
-            // 1. Macro landform gradient:
-            //    - High alpine massif in North / Northwest
-            //    - Rolling hills in East
-            //    - Gentle coastal bay & shallow turquoise reef in South / Southwest
-            float dxBay = (wx - 240.0f) / 360.0f;
-            float dzBay = (wz - 940.0f) / 290.0f;
-            float bayDist = MathF.Sqrt(dxBay * dxBay + dzBay * dzBay);
-            float bayCarve = 1.0f - FastNoise.SmoothStep(0.45f, 1.15f, bayDist);
+            float height = SampleBilinear(_heightGrid, gx, gz);
+            float riverMask = SampleBilinear(_riverMaskGrid, gx, gz);
+            float riverWaterY = SampleBilinear(_riverWaterYGrid, gx, gz);
+            float moisture = SampleBilinear(_moistureGrid, gx, gz);
+            float coastalMask = FastNoise.SmoothStep(3.5f, -1.5f, height);
 
-            // Southern ocean shelf drop-off
-            float southSea = FastNoise.SmoothStep(0.76f, 0.98f, wz / RegionSizeMeters);
-            float oceanMask = MathF.Max(bayCarve, southSea * 0.85f);
-
-            // Base rolling plains & valley elevation
-            float rollingHills = FastNoise.Fbm2D(wx * 0.0024f, wz * 0.0024f, Seed + 101, 5);
-            float detail = (FastNoise.Fbm2D(worldX * 0.014f, worldZ * 0.014f, Seed + 173, 3) - 0.5f) * 3.2f;
-
-            // Northern / Northwestern alpine mountain ridge
-            float mountainZone = FastNoise.SmoothStep(0.48f, 0.08f, wz / RegionSizeMeters)
-                               * (0.55f + 0.45f * FastNoise.SmoothStep(0.95f, 0.15f, wx / RegionSizeMeters));
-            float ridged = FastNoise.RidgedFbm2D(wx * 0.0028f, wz * 0.0028f, Seed + 307, 5);
-            float alpineHeight = mountainZone * MathF.Pow(ridged, 1.35f) * 78.0f;
-
-            // Secondary eastern ridge framing the valley
-            float eastRidgeZone = FastNoise.SmoothStep(0.60f, 0.94f, wx / RegionSizeMeters)
-                                * FastNoise.SmoothStep(0.85f, 0.25f, wz / RegionSizeMeters);
-            float eastRidge = eastRidgeZone * MathF.Pow(FastNoise.RidgedFbm2D(wx * 0.0034f + 8.2f, wz * 0.0034f, Seed + 409, 4), 1.4f) * 42.0f;
-
-            float baseLandHeight = 4.0f + rollingHills * 22.0f + alpineHeight + eastRidge + detail;
-
-            // Smoothly submerge coastal shelf below sea level
-            float seaFloorHeight = -9.5f + rollingHills * 3.0f;
-            float rawHeight = baseLandHeight * (1.0f - oceanMask) + seaFloorHeight * oceanMask;
-
-            // 2. Carve the meandering river valley & channel
-            var (riverX, riverWaterY, riverHalfW) = SampleRiverSpine(worldZ);
-            float distToRiver = MathF.Abs(worldX - riverX);
-
-            // Wide floodplain flattening so riverbanks sit naturally in a valley
-            float valleyT = 1.0f - FastNoise.SmoothStep(riverHalfW * 1.1f, riverHalfW * 5.2f, distToRiver);
-            float targetValleyFloor = riverWaterY + 1.6f;
-            float valleyFlattened = rawHeight * (1.0f - valleyT * 0.72f) + targetValleyFloor * (valleyT * 0.72f);
-
-            // Deep river channel cut below riverWaterY
-            float channelT = 1.0f - FastNoise.SmoothStep(riverHalfW * 0.45f, riverHalfW * 1.35f, distToRiver);
-            // Fade river carving once it merges into the open coastal bay
-            float riverActive = 1.0f - FastNoise.SmoothStep(0.74f, 0.88f, nz);
-            channelT *= riverActive;
-
-            float riverBedY = riverWaterY - 3.6f;
-            float finalHeight = valleyFlattened * (1.0f - channelT) + MathF.Min(valleyFlattened, riverBedY) * channelT;
-
-            float coastalMask = FastNoise.SmoothStep(3.0f, -1.5f, finalHeight);
-            float moisture = Math.Clamp(0.42f + valleyT * 0.48f + coastalMask * 0.25f - (finalHeight / 85.0f) * 0.3f, 0.0f, 1.0f);
-
-            return new TerrainSample(finalHeight, channelT, riverWaterY, coastalMask, moisture);
+            return new TerrainSample(height, riverMask, riverWaterY, coastalMask, moisture);
         }
 
         public float SampleHeight(float worldX, float worldZ) => SamplePoint(worldX, worldZ).Height;

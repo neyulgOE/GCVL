@@ -7,12 +7,12 @@ namespace PrimevalWorld.Core
 {
     /// <summary>
     /// Root scene controller for Stage 1 Vertical Slice (1x1 km).
-    /// Sets up ProceduralSky, DirectionalLight3D soft shadows, ACES tonemapping,
-    /// Depth Fog, Terrain/Water generation, and compact telemetry HUD with Seed switcher.
+    /// Sets up ProceduralSky, raking-angle DirectionalLight3D soft shadows, ACES tonemapping,
+    /// horizon-blending Depth Fog, SSAO, Terrain/Water generation, and compact HUD.
     /// </summary>
     public partial class MainController : Node3D
     {
-        private WorldGenerator _worldGen = new WorldGenerator(2026);
+        private readonly WorldGenerator _worldGen = new WorldGenerator(2026);
         private TerrainManager? _terrainMgr;
         private WaterSurface? _waterSurface;
         private SpectatorCamera? _camera;
@@ -38,14 +38,16 @@ namespace PrimevalWorld.Core
 
         private void SetupEnvironmentAndLighting()
         {
+            var horizonColor = new Color(0.62f, 0.72f, 0.82f);
+
             var skyMaterial = new ProceduralSkyMaterial
             {
-                SkyTopColor = new Color(0.18f, 0.36f, 0.62f),
-                SkyHorizonColor = new Color(0.68f, 0.78f, 0.88f),
-                GroundBottomColor = new Color(0.14f, 0.16f, 0.18f),
-                GroundHorizonColor = new Color(0.56f, 0.64f, 0.72f),
-                SunAngleMax = 28.0f,
-                SunCurve = 0.08f,
+                SkyTopColor = new Color(0.16f, 0.32f, 0.56f),
+                SkyHorizonColor = horizonColor,
+                GroundBottomColor = new Color(0.10f, 0.14f, 0.20f),
+                GroundHorizonColor = horizonColor,
+                SunAngleMax = 24.0f,
+                SunCurve = 0.07f,
             };
 
             var sky = new Sky { SkyMaterial = skyMaterial };
@@ -54,17 +56,19 @@ namespace PrimevalWorld.Core
                 BackgroundMode = Environment.BGMode.Sky,
                 Sky = sky,
                 AmbientLightSource = Environment.AmbientSource.Sky,
-                AmbientLightSkyContribution = 0.55f,
+                AmbientLightSkyContribution = 0.36f,
                 TonemapMode = Environment.ToneMapper.Aces,
-                TonemapExposure = 1.05f,
+                TonemapExposure = 1.02f,
                 FogEnabled = true,
                 FogMode = Environment.FogModeEnum.Depth,
-                FogLightColor = new Color(0.64f, 0.75f, 0.85f),
-                FogDensity = 0.0012f,
-                FogDepthBegin = 120.0f,
-                FogDepthEnd = 950.0f,
-                FogAerialPerspective = 0.45f,
+                FogLightColor = horizonColor,
+                FogDensity = 0.0014f,
+                FogDepthBegin = 220.0f,
+                FogDepthEnd = 4200.0f,
+                FogAerialPerspective = 0.62f,
                 SsaoEnabled = true,
+                SsaoRadius = 2.6f,
+                SsaoIntensity = 2.2f,
             };
 
             var worldEnv = new WorldEnvironment
@@ -77,15 +81,15 @@ namespace PrimevalWorld.Core
             var sun = new DirectionalLight3D
             {
                 Name = "SunLight",
-                LightColor = new Color(1.0f, 0.94f, 0.84f),
-                LightEnergy = 1.65f,
+                LightColor = new Color(1.0f, 0.90f, 0.76f),
+                LightEnergy = 1.95f,
                 ShadowEnabled = true,
-                ShadowBlur = 1.5f,
+                ShadowBlur = 1.2f,
                 DirectionalShadowMode = DirectionalLight3D.ShadowMode.Parallel4Splits,
-                DirectionalShadowMaxDistance = 420.0f,
+                DirectionalShadowMaxDistance = 850.0f,
             };
-            // Northwest golden-hour sun angle
-            sun.RotationDegrees = new Vector3(-36.0f, -135.0f, 0.0f);
+            // Low raking sun (~26 deg elevation) for strong ridge & gully shadow relief
+            sun.RotationDegrees = new Vector3(-26.0f, -128.0f, 0.0f);
             AddChild(sun);
         }
 
