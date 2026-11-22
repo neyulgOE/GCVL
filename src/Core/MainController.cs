@@ -7,7 +7,11 @@ using PrimevalWorld.WorldGen;
 namespace PrimevalWorld.Core
 {
     /// <summary>
-    /// Root scene controller for Stage 2 (2x2 km Island + Sloped River + MultiMesh Flora).
+    /// Root scene controller for Primeval Reach (3x3 km Prehistoric Multi-Continent World):
+    /// - 4 Continents / 5 Biomes
+    /// - 45k-65k MultiMesh prehistoric flora & boulders
+    /// - [M] High-res 2D Topographic World Map Overlay (click to teleport)
+    /// - [1-5] Quick camera jump presets to each biome
     /// </summary>
     public partial class MainController : Node3D
     {
@@ -17,6 +21,10 @@ namespace PrimevalWorld.Core
         private FloraManager? _floraMgr;
         private SpectatorCamera? _camera;
         private Label? _telemetryLabel;
+
+        private Control? _worldMapOverlay;
+        private TextureRect? _worldMapRect;
+        private Control? _cameraPin;
 
         public override void _Ready()
         {
@@ -36,6 +44,7 @@ namespace PrimevalWorld.Core
             _camera.Current = true;
 
             BuildCompactHud();
+            BuildWorldMapOverlay();
             RegenerateWorld(_worldGen.Seed);
         }
 
@@ -65,21 +74,16 @@ namespace PrimevalWorld.Core
                 FogEnabled = true,
                 FogMode = Environment.FogModeEnum.Depth,
                 FogLightColor = horizonColor,
-                FogDensity = 0.0012f,
-                FogDepthBegin = 260.0f,
-                FogDepthEnd = 5200.0f,
-                FogAerialPerspective = 0.65f,
+                FogDensity = 0.00095f,
+                FogDepthBegin = 320.0f,
+                FogDepthEnd = 6800.0f,
+                FogAerialPerspective = 0.62f,
                 SsaoEnabled = true,
                 SsaoRadius = 2.6f,
-                SsaoIntensity = 2.1f,
+                SsaoIntensity = 2.0f,
             };
 
-            var worldEnv = new WorldEnvironment
-            {
-                Name = "WorldEnvironment",
-                Environment = env,
-            };
-            AddChild(worldEnv);
+            AddChild(new WorldEnvironment { Name = "WorldEnvironment", Environment = env });
 
             var sun = new DirectionalLight3D
             {
@@ -89,9 +93,9 @@ namespace PrimevalWorld.Core
                 ShadowEnabled = true,
                 ShadowBlur = 1.2f,
                 DirectionalShadowMode = DirectionalLight3D.ShadowMode.Parallel4Splits,
-                DirectionalShadowMaxDistance = 1100.0f,
+                DirectionalShadowMaxDistance = 1200.0f,
             };
-            sun.RotationDegrees = new Vector3(-26.0f, -128.0f, 0.0f);
+            sun.RotationDegrees = new Vector3(-27.0f, -128.0f, 0.0f);
             AddChild(sun);
         }
 
@@ -100,13 +104,10 @@ namespace PrimevalWorld.Core
             var hudLayer = new CanvasLayer { Name = "HudLayer" };
             AddChild(hudLayer);
 
-            var panel = new PanelContainer
-            {
-                Position = new Vector2(14, 14),
-            };
+            var panel = new PanelContainer { Position = new Vector2(14, 14) };
             var style = new StyleBoxFlat
             {
-                BgColor = new Color(0.05f, 0.08f, 0.12f, 0.78f),
+                BgColor = new Color(0.05f, 0.08f, 0.12f, 0.80f),
                 BorderColor = new Color(0.28f, 0.42f, 0.56f, 0.90f),
                 BorderWidthLeft = 1,
                 BorderWidthTop = 1,
@@ -127,34 +128,28 @@ namespace PrimevalWorld.Core
             var vbox = new VBoxContainer();
             panel.AddChild(vbox);
 
-            _telemetryLabel = new Label
-            {
-                Text = "Primeval Reach | Godot 4 Forward+",
-            };
+            _telemetryLabel = new Label { Text = "Primeval Reach | Godot 4 Forward+" };
             _telemetryLabel.AddThemeFontSizeOverride("font_size", 14);
             vbox.AddChild(_telemetryLabel);
 
             var btnRow = new HBoxContainer();
             vbox.AddChild(btnRow);
 
-            var newSeedBtn = new Button
-            {
-                Text = "Đổi Seed (G)",
-            };
+            var newSeedBtn = new Button { Text = "Đổi Seed (G)" };
             newSeedBtn.Pressed += () => RegenerateWorld((int)(GD.Randi() % 90000 + 1000));
             btnRow.AddChild(newSeedBtn);
 
-            var resetCamBtn = new Button
-            {
-                Text = "Reset Cam (R)",
-            };
+            var mapBtn = new Button { Text = "Bản đồ (M)" };
+            mapBtn.Pressed += ToggleWorldMap;
+            btnRow.AddChild(mapBtn);
+
+            var resetCamBtn = new Button { Text = "Toàn cảnh (R)" };
             resetCamBtn.Pressed += () => _camera?.ResetToScenicOverlook();
             btnRow.AddChild(resetCamBtn);
 
             var helpLabel = new Label
             {
-                Text = "WASD: Bay | Chuột phải + kéo: Xoay | Q/E: Lên/Xuống | Shift: Bay nhanh | Cuộn chuột: Tốc độ | ESC: Thoát",
-                Position = new Vector2(16, 868),
+                Text = "WASD: Bay | Chuột phải: Xoay | Q/E: Lên/Xuống | Shift: Nhanh | 1-5: Nhảy tới 5 Quần xã | M: Bản đồ | G: Đổi Seed",
             };
             helpLabel.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
             helpLabel.OffsetLeft = 16;
@@ -164,19 +159,146 @@ namespace PrimevalWorld.Core
             hudLayer.AddChild(helpLabel);
         }
 
+        private void BuildWorldMapOverlay()
+        {
+            var mapLayer = new CanvasLayer { Name = "WorldMapLayer" };
+            AddChild(mapLayer);
+
+            var backdrop = new ColorRect
+            {
+                Color = new Color(0.02f, 0.04f, 0.07f, 0.78f),
+                Visible = false,
+            };
+            backdrop.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+            mapLayer.AddChild(backdrop);
+            _worldMapOverlay = backdrop;
+
+            var centerBox = new PanelContainer
+            {
+                CustomMinimumSize = new Vector2(560, 610),
+            };
+            centerBox.SetAnchorsPreset(Control.LayoutPreset.Center);
+            centerBox.OffsetLeft = -280;
+            centerBox.OffsetRight = 280;
+            centerBox.OffsetTop = -305;
+            centerBox.OffsetBottom = 305;
+            backdrop.AddChild(centerBox);
+
+            var vbox = new VBoxContainer();
+            centerBox.AddChild(vbox);
+
+            var title = new Label
+            {
+                Text = "BẢN ĐỒ THẾ GIỚI TIỀN SỬ PRIMEVAL REACH (Click vào bản đồ để bay tới | M để đóng)",
+                HorizontalAlignment = HorizontalAlignment.Center,
+            };
+            title.AddThemeFontSizeOverride("font_size", 13);
+            vbox.AddChild(title);
+
+            _worldMapRect = new TextureRect
+            {
+                CustomMinimumSize = new Vector2(512, 512),
+                StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
+            };
+            _worldMapRect.GuiInput += OnWorldMapClick;
+            vbox.AddChild(_worldMapRect);
+
+            // Red pin indicating current camera XZ location
+            var pin = new ColorRect
+            {
+                Color = new Color(1.0f, 0.25f, 0.20f, 1.0f),
+                CustomMinimumSize = new Vector2(10, 10),
+                Size = new Vector2(10, 10),
+                MouseFilter = Control.MouseFilterEnum.Ignore,
+            };
+            _worldMapRect.AddChild(pin);
+            _cameraPin = pin;
+
+            var legend = new Label
+            {
+                Text = "[1] Băng giá Tây-Bắc  |  [2] Đất đỏ & Ốc đảo Tây-Nam  |  [3] Đại ngàn Trung/Đông  |  [4] Thảo nguyên Thu Đông-Bắc  |  [5] Đảo Bảo tồn",
+                HorizontalAlignment = HorizontalAlignment.Center,
+            };
+            legend.AddThemeFontSizeOverride("font_size", 11);
+            vbox.AddChild(legend);
+        }
+
+        private void OnWorldMapClick(InputEvent @event)
+        {
+            if (_worldMapRect == null || _camera == null) return;
+            if (@event is InputEventMouseButton mb && mb.Pressed && mb.ButtonIndex == MouseButton.Left)
+            {
+                Vector2 size = _worldMapRect.Size;
+                float nx = Mathf.Clamp(mb.Position.X / size.X, 0.0f, 1.0f);
+                float nz = Mathf.Clamp(mb.Position.Y / size.Y, 0.0f, 1.0f);
+                float wx = nx * WorldGenerator.RegionSizeMeters;
+                float wz = nz * WorldGenerator.RegionSizeMeters;
+                float h = Mathf.Max(8.0f, _worldGen.SampleHeight(wx, wz));
+                _camera.TeleportTo(new Vector3(wx, h + 45.0f, wz + 70.0f), new Vector3(wx, h, wz));
+                ToggleWorldMap();
+            }
+        }
+
+        private void ToggleWorldMap()
+        {
+            if (_worldMapOverlay == null) return;
+            _worldMapOverlay.Visible = !_worldMapOverlay.Visible;
+            if (_worldMapOverlay.Visible)
+            {
+                Input.MouseMode = Input.MouseModeEnum.Visible;
+                UpdateCameraPin();
+            }
+        }
+
+        private void UpdateCameraPin()
+        {
+            if (_cameraPin == null || _worldMapRect == null || _camera == null) return;
+            float nx = Mathf.Clamp(_camera.Position.X / WorldGenerator.RegionSizeMeters, 0.0f, 1.0f);
+            float nz = Mathf.Clamp(_camera.Position.Z / WorldGenerator.RegionSizeMeters, 0.0f, 1.0f);
+            _cameraPin.Position = new Vector2(nx * _worldMapRect.Size.X - 5.0f, nz * _worldMapRect.Size.Y - 5.0f);
+        }
+
         private void RegenerateWorld(int seed)
         {
             _worldGen.SetSeed(seed);
             _terrainMgr?.BuildTerrain(_worldGen);
             _waterSurface?.BuildWater(_worldGen);
             _floraMgr?.BuildFlora(_worldGen);
+            if (_worldMapRect != null)
+            {
+                _worldMapRect.Texture = _worldGen.BuildWorldMapTexture(512);
+            }
         }
 
         public override void _UnhandledInput(InputEvent @event)
         {
-            if (@event is InputEventKey key && key.Pressed && !key.Echo && key.Keycode == Key.G)
+            if (@event is InputEventKey key && key.Pressed && !key.Echo)
             {
-                RegenerateWorld((int)(GD.Randi() % 90000 + 1000));
+                switch (key.Keycode)
+                {
+                    case Key.G:
+                        RegenerateWorld((int)(GD.Randi() % 90000 + 1000));
+                        break;
+                    case Key.M:
+                        ToggleWorldMap();
+                        break;
+                    case Key.Key1:
+                        _camera?.TeleportTo(new Vector3(880.0f, 145.0f, 1180.0f), new Vector3(780.0f, 40.0f, 650.0f));
+                        break;
+                    case Key.Key2:
+                        _camera?.TeleportTo(new Vector3(_worldGen.OasisCenter.X + 180.0f, 72.0f, _worldGen.OasisCenter.Y + 240.0f),
+                            new Vector3(_worldGen.OasisCenter.X, 4.0f, _worldGen.OasisCenter.Y));
+                        break;
+                    case Key.Key3:
+                        _camera?.TeleportTo(new Vector3(1780.0f, 88.0f, 2060.0f), new Vector3(2040.0f, 10.0f, 1620.0f));
+                        break;
+                    case Key.Key4:
+                        _camera?.TeleportTo(new Vector3(2240.0f, 95.0f, 1260.0f), new Vector3(2120.0f, 24.0f, 840.0f));
+                        break;
+                    case Key.Key5:
+                        _camera?.TeleportTo(new Vector3(2440.0f, 92.0f, 2820.0f), new Vector3(2660.0f, 10.0f, 2560.0f));
+                        break;
+                }
             }
         }
 
@@ -185,11 +307,28 @@ namespace PrimevalWorld.Core
             if (_telemetryLabel != null && _camera != null)
             {
                 Vector3 p = _camera.Position;
+                TerrainSample s = _worldGen.SamplePoint(p.X, p.Z);
                 int floraCount = _floraMgr?.TotalInstanceCount ?? 0;
                 _telemetryLabel.Text =
-                    $"Primeval Reach (Chặng 2: 2x2 km) | FPS: {Engine.GetFramesPerSecond():0} | Seed: {_worldGen.Seed} | Thực vật/Đá: {floraCount:N0}\n" +
-                    $"Vị trí: X={p.X:0.0}m  Y={p.Y:0.0}m  Z={p.Z:0.0}m | Tốc độ: {_camera.CurrentSpeed:0} m/s";
+                    $"Primeval Reach (4 Lục địa | 3x3 km) | FPS: {Engine.GetFramesPerSecond():0} | Seed: {_worldGen.Seed} | Thực thể: {floraCount:N0}\n" +
+                    $"Quần xã: {FormatBiomeName(s.Biome)} | X={p.X:0.0}m Y={p.Y:0.0}m Z={p.Z:0.0}m | Tốc độ: {_camera.CurrentSpeed:0} m/s";
+            }
+
+            if (_worldMapOverlay != null && _worldMapOverlay.Visible)
+            {
+                UpdateCameraPin();
             }
         }
+
+        private static string FormatBiomeName(BiomeId biome) => biome switch
+        {
+            BiomeId.GlacialAlpine => "Núi băng Tây-Bắc",
+            BiomeId.TerracottaDesert => "Hoang mạc Đất đỏ Tây-Nam",
+            BiomeId.PrimevalForest => "Đại ngàn Nguyên sinh",
+            BiomeId.AutumnSteppe => "Thảo nguyên Mùa thu Đông-Bắc",
+            BiomeId.SanctuaryIsland => "Đảo Bảo tồn Đông-Nam",
+            BiomeId.CoastalReef => "Thềm San hô Nông",
+            _ => "Đại dương Sâu",
+        };
     }
 }

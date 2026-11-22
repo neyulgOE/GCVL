@@ -1,9 +1,12 @@
 shader_type spatial;
 render_mode blend_mix, depth_draw_opaque, cull_back, diffuse_burley, specular_schlick_ggx;
 
+uniform sampler2D biome_splat_tex : filter_linear, repeat_disable;
+
 varying vec3 v_world_pos;
 varying vec3 v_world_normal;
-varying vec4 v_masks; // r = riverMask, g = moisture, b = coastalMask
+varying vec4 v_masks; // r = riverMask, g = moisture, b = coastalMask, a = forestDensity
+varying vec2 v_world_uv;
 
 float hash21(vec2 p) {
 	p = fract(p * vec2(123.34, 456.21));
@@ -39,7 +42,6 @@ float fbm3(vec2 p) {
 	return v;
 }
 
-// Angular cellular rock fracture pattern (crisp crevices for cliffs)
 float rock_cracks(vec2 p) {
 	vec2 i = floor(p);
 	vec2 f = fract(p);
@@ -79,6 +81,7 @@ void vertex() {
 	v_world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	v_world_normal = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
 	v_masks = COLOR;
+	v_world_uv = UV;
 }
 
 void fragment() {
@@ -87,88 +90,103 @@ void fragment() {
 	float slope = 1.0 - clamp(wn.y, 0.0, 1.0);
 	float river_mask = v_masks.r;
 	float moisture = v_masks.g;
-	float forest_density = v_masks.a;
+
+	vec4 splat = texture(biome_splat_tex, clamp(v_world_uv, vec2(0.0), vec2(1.0)));
+	float w_autumn = splat.r;
+	float w_desert = splat.g;
+	float w_glacial = splat.b;
+	float forest_cov = max(splat.a, v_masks.a);
 
 	vec3 tri_blend = pow(abs(wn), vec3(4.0));
 	tri_blend /= max(dot(tri_blend, vec3(1.0)), 0.0001);
 
-	float macro_var = fbm3(v_world_pos.xz * 0.022);
-	float dry_patch = fbm3(v_world_pos.xz * 0.048 + vec2(17.3, 9.1));
-	float micro_detail = triplanar_fbm(v_world_pos, tri_blend, 0.36);
-	float cliff_cracks = triplanar_cracks(v_world_pos, tri_blend, 0.14);
-	float strata = sin(v_world_pos.y * 1.45 + fbm3(v_world_pos.xz * 0.06) * 4.5) * 0.5 + 0.5;
+	float macro_var = fbm3(v_world_pos.xz * 0.016);
+	float dry_patch = fbm3(v_world_pos.xz * 0.038 + vec2(17.3, 9.1));
+	float micro_detail = triplanar_fbm(v_world_pos, tri_blend, 0.30);
+	float cliff_cracks = triplanar_cracks(v_world_pos, tri_blend, 0.12);
+	float strata = sin(v_world_pos.y * 1.35 + fbm3(v_world_pos.xz * 0.05) * 4.5) * 0.5 + 0.5;
 
-	// Natural earthy Stone Age palette (no neon/plastic greens)
-	vec3 reef_bed = vec3(0.11, 0.30, 0.29);
-	vec3 sand_wet = vec3(0.32, 0.28, 0.21);
-	vec3 sand_dry = vec3(0.58, 0.51, 0.38);
-	vec3 soil_earth = vec3(0.24, 0.19, 0.13);
-	vec3 grass_moss = vec3(0.11, 0.22, 0.09);
-	vec3 grass_olive = vec3(0.22, 0.27, 0.12);
-	vec3 grass_dry = vec3(0.32, 0.29, 0.16);
-	vec3 rock_dark = vec3(0.13, 0.13, 0.14);
-	vec3 rock_slate = vec3(0.25, 0.24, 0.22);
-	vec3 snow_lit = vec3(0.84, 0.88, 0.93);
+	// 1. Primeval Forest / Valley Base Palette
+	vec3 grass_olive = vec3(0.20, 0.27, 0.11);
+	vec3 grass_moss = vec3(0.09, 0.21, 0.08);
+	vec3 woodland_humus = vec3(0.038, 0.082, 0.032); // Rich dark canopy floor
+	vec3 base_meadow = mix(grass_olive, grass_moss, clamp(moisture * 0.8 + macro_var * 0.25, 0.0, 1.0));
+	base_meadow = mix(base_meadow, vec3(0.29, 0.26, 0.14), smoothstep(0.58, 0.90, dry_patch) * 0.42);
 
-	// 1. Grass / moss / dry earth / darkened woodland humus under forest groves
-	vec3 woodland_humus = vec3(0.075, 0.135, 0.055);
-	vec3 meadow = mix(grass_olive, grass_moss, clamp(moisture * 0.85 + macro_var * 0.25, 0.0, 1.0));
-	meadow = mix(meadow, grass_dry, smoothstep(0.55, 0.88, dry_patch) * 0.50);
-	meadow = mix(meadow, soil_earth, smoothstep(0.72, 0.96, dry_patch) * 0.35);
-	meadow = mix(meadow, woodland_humus, smoothstep(0.32, 0.82, forest_density) * 0.72);
-	meadow *= (0.78 + 0.42 * micro_detail);
+	// 2. Autumn Steppes Plateau (Golden-Amber & Burnt-Orange Grass)
+	vec3 autumn_gold = vec3(0.68, 0.43, 0.13);
+	vec3 autumn_amber = vec3(0.54, 0.28, 0.09);
+	vec3 autumn_col = mix(autumn_gold, autumn_amber, clamp(dry_patch * 0.75 + macro_var * 0.35, 0.0, 1.0));
+	base_meadow = mix(base_meadow, autumn_col, smoothstep(0.20, 0.75, w_autumn));
 
-	// 2. Coastal seabed -> wet sand -> dry beach -> meadow
-	vec3 shore_col = mix(reef_bed, sand_wet, smoothstep(-2.0, 0.3, h));
+	// 3. Terracotta Desert (Red-Ochre Sand Dunes + Oasis Emerald Rim)
+	vec3 terracotta_sand = vec3(0.72, 0.36, 0.19);
+	vec3 terracotta_ochre = vec3(0.56, 0.31, 0.17);
+	vec3 desert_col = mix(terracotta_ochre, terracotta_sand, clamp(macro_var * 0.7 + micro_detail * 0.4, 0.0, 1.0));
+	desert_col = mix(desert_col, vec3(0.12, 0.30, 0.11), smoothstep(0.55, 0.85, moisture) * 0.85); // Oasis green rim
+	base_meadow = mix(base_meadow, desert_col, smoothstep(0.20, 0.75, w_desert));
+
+	// 4. Glacial Tundra Lowlands
+	vec3 tundra_col = mix(vec3(0.16, 0.22, 0.12), vec3(0.26, 0.28, 0.20), dry_patch);
+	base_meadow = mix(base_meadow, tundra_col, smoothstep(0.25, 0.78, w_glacial) * (1.0 - smoothstep(0.35, 0.75, forest_cov) * 0.6));
+
+	// Apply heavy woodland canopy darkening so dense forests form continuous dark-green masses from afar
+	base_meadow = mix(base_meadow, woodland_humus, smoothstep(0.28, 0.76, forest_cov) * 0.86);
+	base_meadow *= (0.78 + 0.42 * micro_detail);
+
+	// 5. Shallow Reef Seabed -> Wet Sand -> Dry Beach
+	vec3 reef_bed = vec3(0.14, 0.44, 0.42);
+	vec3 sand_wet = vec3(0.38, 0.34, 0.25);
+	vec3 sand_dry = mix(vec3(0.62, 0.54, 0.40), vec3(0.72, 0.42, 0.24), smoothstep(0.25, 0.75, w_desert));
+	vec3 shore_col = mix(reef_bed, sand_wet, smoothstep(-2.2, 0.3, h));
 	shore_col = mix(shore_col, sand_dry * (0.86 + 0.28 * micro_detail), smoothstep(0.2, 1.6, h));
-	vec3 terrain_col = mix(shore_col, meadow, smoothstep(1.4, 4.8, h));
+	vec3 terrain_col = mix(shore_col, base_meadow, smoothstep(1.3, 4.4, h));
 
-	// 3. Asymmetric riverbanks & wet pebble bars
-	float river_bank = smoothstep(0.18, 0.78, river_mask);
-	vec3 pebble_rock = mix(sand_wet, rock_slate * 0.80, cliff_cracks * 0.45 + micro_detail * 0.35);
-	terrain_col = mix(terrain_col, pebble_rock, river_bank * 0.90);
+	// 6. Riverbeds & Pebble Bars (light natural gravel/sand so rivers never turn black)
+	float river_bank = smoothstep(0.20, 0.80, river_mask);
+	vec3 river_pebble = mix(vec3(0.42, 0.38, 0.30), vec3(0.30, 0.28, 0.24), cliff_cracks * 0.45);
+	terrain_col = mix(terrain_col, river_pebble, river_bank * 0.88);
 
-	// 4. Steep slope -> sharp granite/slate cliff exposure (starts at ~24 deg)
-	vec3 rock_col = mix(rock_dark, rock_slate, clamp(cliff_cracks * 0.65 + strata * 0.35, 0.0, 1.0));
-	rock_col *= (0.76 + 0.46 * micro_detail);
-	float rock_height_blend = (micro_detail - 0.5) * 0.07 + (macro_var - 0.5) * 0.05;
-	float rock_weight = smoothstep(0.075, 0.185, slope + rock_height_blend);
+	// 7. Steep Slope -> Stratified Granite / Sandstone Cliff Exposure
+	vec3 granite_rock = mix(vec3(0.13, 0.13, 0.15), vec3(0.26, 0.25, 0.24), cliff_cracks * 0.65 + strata * 0.35);
+	vec3 sandstone_rock = mix(vec3(0.42, 0.24, 0.14), vec3(0.58, 0.37, 0.22), cliff_cracks * 0.60 + strata * 0.40);
+	vec3 rock_col = mix(granite_rock, sandstone_rock, smoothstep(0.25, 0.75, w_desert));
+	rock_col *= (0.76 + 0.44 * micro_detail);
+	float rock_weight = smoothstep(0.075, 0.185, slope + (micro_detail - 0.5) * 0.06);
 	terrain_col = mix(terrain_col, rock_col, rock_weight);
 
-	// 5. High-altitude alpine snow (height-blended, sheds cleanly off steep rock cliffs!)
-	float snow_alt = smoothstep(42.0, 58.0, h + (macro_var - 0.5) * 10.0 + (micro_detail - 0.5) * 4.0);
+	// 8. Alpine Snow (confined primarily to Glacial NW peaks & highest ridges)
+	float snow_alt = smoothstep(38.0, 56.0, h + (macro_var - 0.5) * 9.0) * smoothstep(0.15, 0.65, w_glacial + smoothstep(68.0, 95.0, h));
 	float snow_slope_mask = 1.0 - smoothstep(0.09, 0.22, slope + (cliff_cracks - 0.5) * 0.04);
 	float snow_weight = snow_alt * snow_slope_mask;
-	vec3 snow_col = snow_lit * (0.90 + 0.14 * micro_detail);
+	vec3 snow_col = vec3(0.86, 0.90, 0.95) * (0.90 + 0.14 * micro_detail);
 	terrain_col = mix(terrain_col, snow_col, snow_weight);
 
-	// 6. Procedural Triplanar Normal Map Perturbation (eliminates plastic/clay look)
-	float eps = 0.28;
+	// 9. Procedural Triplanar Normal Perturbation
+	float eps = 0.32;
 	float h_center = mix(micro_detail, cliff_cracks * 0.7 + strata * 0.3, rock_weight);
-	float h_dx = mix(triplanar_fbm(v_world_pos + vec3(eps, 0.0, 0.0), tri_blend, 0.36),
-	                 triplanar_cracks(v_world_pos + vec3(eps, 0.0, 0.0), tri_blend, 0.14) * 0.7 + strata * 0.3, rock_weight);
-	float h_dy = mix(triplanar_fbm(v_world_pos + vec3(0.0, eps, 0.0), tri_blend, 0.36),
-	                 triplanar_cracks(v_world_pos + vec3(0.0, eps, 0.0), tri_blend, 0.14) * 0.7 + strata * 0.3, rock_weight);
-	float h_dz = mix(triplanar_fbm(v_world_pos + vec3(0.0, 0.0, eps), tri_blend, 0.36),
-	                 triplanar_cracks(v_world_pos + vec3(0.0, 0.0, eps), tri_blend, 0.14) * 0.7 + strata * 0.3, rock_weight);
+	float h_dx = mix(triplanar_fbm(v_world_pos + vec3(eps, 0.0, 0.0), tri_blend, 0.30),
+	                 triplanar_cracks(v_world_pos + vec3(eps, 0.0, 0.0), tri_blend, 0.12) * 0.7 + strata * 0.3, rock_weight);
+	float h_dy = mix(triplanar_fbm(v_world_pos + vec3(0.0, eps, 0.0), tri_blend, 0.30),
+	                 triplanar_cracks(v_world_pos + vec3(0.0, eps, 0.0), tri_blend, 0.12) * 0.7 + strata * 0.3, rock_weight);
+	float h_dz = mix(triplanar_fbm(v_world_pos + vec3(0.0, 0.0, eps), tri_blend, 0.30),
+	                 triplanar_cracks(v_world_pos + vec3(0.0, 0.0, eps), tri_blend, 0.12) * 0.7 + strata * 0.3, rock_weight);
 
 	vec3 grad = vec3(h_dx - h_center, h_dy - h_center, h_dz - h_center) / eps;
-	float bump_strength = mix(0.28, 0.68, rock_weight);
-	bump_strength = mix(bump_strength, 0.22, snow_weight);
+	float bump_strength = mix(0.26, 0.65, rock_weight);
+	bump_strength = mix(bump_strength, 0.20, snow_weight);
 
-	// Distance fade on high-frequency bump to prevent far-distance shimmer
 	float cam_dist = length(CAMERA_POSITION_WORLD - v_world_pos);
-	float bump_fade = 1.0 - smoothstep(180.0, 750.0, cam_dist);
+	float bump_fade = 1.0 - smoothstep(220.0, 880.0, cam_dist);
 	vec3 perturbed_world_n = normalize(wn - grad * bump_strength * bump_fade);
 
 	NORMAL = normalize((VIEW_MATRIX * vec4(perturbed_world_n, 0.0)).xyz);
 
-	// PBR Roughness & Specular
 	float roughness = mix(0.90, 0.76, rock_weight);
-	roughness = mix(roughness, 0.36, river_bank * 0.75 + (1.0 - smoothstep(-0.5, 1.2, h)) * 0.6);
+	roughness = mix(roughness, 0.38, river_bank * 0.70 + (1.0 - smoothstep(-0.5, 1.2, h)) * 0.55);
 	roughness = mix(roughness, 0.86, snow_weight);
 
 	ALBEDO = terrain_col;
 	ROUGHNESS = roughness;
-	SPECULAR = mix(0.28, 0.55, river_bank);
+	SPECULAR = mix(0.28, 0.52, river_bank);
 }

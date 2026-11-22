@@ -5,17 +5,17 @@ using PrimevalWorld.WorldGen;
 namespace PrimevalWorld.Terrain
 {
     /// <summary>
-    /// Builds:
-    /// - 16km x 16km Horizon Ocean Plane at SeaLevel (0.0m)
-    /// - Highland Source Lake surface at the mountain foothills (+17.5m)
-    /// - Sloped River Ribbon & Tributary Ribbon meshes following river splines downhill to the bay
+    /// Builds the 16km x 16km Horizon Ocean Plane plus the 3 curvy sloped river ribbons
+    /// (Eastern Main River, Curvy Tributary, and NW Glacial Meltwater River)
+    /// and the SW Desert Turquoise Oasis water disc.
     /// </summary>
     public partial class WaterSurface : Node3D
     {
         private MeshInstance3D? _oceanMesh;
-        private MeshInstance3D? _lakeMesh;
-        private MeshInstance3D? _riverMesh;
+        private MeshInstance3D? _oasisMesh;
+        private MeshInstance3D? _mainRiverMesh;
         private MeshInstance3D? _tributaryMesh;
+        private MeshInstance3D? _nwRiverMesh;
         private ShaderMaterial? _oceanMaterial;
         private ShaderMaterial? _riverMaterial;
 
@@ -25,20 +25,21 @@ namespace PrimevalWorld.Terrain
             {
                 var waterShader = GD.Load<Shader>("res://shaders/water_river_ocean.gdshader");
                 _oceanMaterial = new ShaderMaterial { Shader = waterShader };
-                _oceanMaterial.SetShaderParameter("flow_speed", new Vector2(0.025f, 0.018f));
-                _oceanMaterial.SetShaderParameter("shallow_color", new Color(0.07f, 0.48f, 0.52f, 0.85f));
-                _oceanMaterial.SetShaderParameter("deep_color", new Color(0.02f, 0.11f, 0.22f, 0.98f));
+                _oceanMaterial.SetShaderParameter("flow_speed", new Vector2(0.02f, 0.015f));
+                _oceanMaterial.SetShaderParameter("shallow_color", new Color(0.10f, 0.68f, 0.72f, 0.78f));
+                _oceanMaterial.SetShaderParameter("deep_color", new Color(0.03f, 0.16f, 0.30f, 0.96f));
 
                 _riverMaterial = new ShaderMaterial { Shader = waterShader };
                 _riverMaterial.SetShaderParameter("flow_speed", new Vector2(0.0f, 0.28f));
-                _riverMaterial.SetShaderParameter("shallow_color", new Color(0.09f, 0.45f, 0.48f, 0.84f));
-                _riverMaterial.SetShaderParameter("deep_color", new Color(0.03f, 0.20f, 0.30f, 0.94f));
+                _riverMaterial.SetShaderParameter("shallow_color", new Color(0.14f, 0.66f, 0.68f, 0.72f));
+                _riverMaterial.SetShaderParameter("deep_color", new Color(0.06f, 0.34f, 0.48f, 0.88f));
             }
 
             BuildHorizonOceanPlane();
-            BuildSourceLake(generator);
-            BuildSplineRibbon(ref _riverMesh, "MainRiverRibbon", generator.MainRiverNodes, _riverMaterial!);
+            BuildOasisWater(generator);
+            BuildSplineRibbon(ref _mainRiverMesh, "MainRiverRibbon", generator.MainRiverNodes, _riverMaterial!);
             BuildSplineRibbon(ref _tributaryMesh, "TributaryRibbon", generator.TributaryNodes, _riverMaterial!);
+            BuildSplineRibbon(ref _nwRiverMesh, "NwRiverRibbon", generator.NwRiverNodes, _riverMaterial!);
         }
 
         private void BuildHorizonOceanPlane()
@@ -68,28 +69,27 @@ namespace PrimevalWorld.Terrain
             );
         }
 
-        private void BuildSourceLake(WorldGenerator generator)
+        private void BuildOasisWater(WorldGenerator generator)
         {
-            _lakeMesh?.QueueFree();
-            _lakeMesh = new MeshInstance3D
+            _oasisMesh?.QueueFree();
+            _oasisMesh = new MeshInstance3D
             {
-                Name = "SourceLakeSurface",
+                Name = "DesertOasisWater",
                 CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
             };
-            AddChild(_lakeMesh);
+            AddChild(_oasisMesh);
 
-            float radius = generator.SourceLakeRadius * 1.45f;
             var disc = new CylinderMesh
             {
-                TopRadius = radius,
-                BottomRadius = radius,
+                TopRadius = 62.0f,
+                BottomRadius = 62.0f,
                 Height = 0.08f,
-                RadialSegments = 48,
-                Rings = 4,
+                RadialSegments = 36,
+                Rings = 2,
             };
-            _lakeMesh.Mesh = disc;
-            _lakeMesh.MaterialOverride = _riverMaterial;
-            _lakeMesh.Position = generator.SourceLakeCenter;
+            _oasisMesh.Mesh = disc;
+            _oasisMesh.MaterialOverride = _riverMaterial;
+            _oasisMesh.Position = new Vector3(generator.OasisCenter.X, 0.25f, generator.OasisCenter.Y);
         }
 
         private void BuildSplineRibbon(ref MeshInstance3D? target, string nodeName, List<RiverNode> nodes, Material material)
@@ -117,9 +117,8 @@ namespace PrimevalWorld.Terrain
                     cumulativeDist += (node.Position - nodes[i - 1].Position).Length();
                 }
 
-                // Right-hand perpendicular vector in XZ plane
                 Vector2 perp = new Vector2(-node.Tangent.Y, node.Tangent.X);
-                float ribbonHalfW = node.HalfWidth * 1.65f;
+                float ribbonHalfW = node.HalfWidth * 1.55f;
                 float vCoord = cumulativeDist * 0.04f;
 
                 for (int ix = 0; ix < xSteps; ix++)

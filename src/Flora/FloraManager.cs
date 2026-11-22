@@ -6,10 +6,13 @@ using PrimevalWorld.WorldGen;
 namespace PrimevalWorld.Flora
 {
     /// <summary>
-    /// Stage 2 Ecological MultiMesh Distributor:
-    /// Scatters procedural Broadleaf Trees, Conifers, Ferns, Shrubs, Grass Clumps, and Boulders
-    /// across the 2x2 km terrain using forest grove clustering, riparian corridors,
-    /// slope/altitude limits, and distance VisibilityRangeEnd culling.
+    /// Prehistoric Ecological MultiMesh Distributor (45,000-65,000 instances at 80+ FPS):
+    /// - Supports automatic .glb mesh override from res://assets/models/flora/<name>.glb
+    ///   with crisp low-poly procedural fallback.
+    /// - Sub-cell clumping for dense continuous forest canopies + open megafauna corridors.
+    /// - Biome-specific silhouettes (Redwood, Broadleaf, Golden Ginkgo, Crimson Maple,
+    ///   Alpine Spruce, Baobab/Dragon Blood, Oasis Palm, Tree Fern, Shrubs, Grass, Boulders).
+    /// - Shadows disabled on grass/ferns/shrubs/boulders + VisibilityRangeEnd culling.
     /// </summary>
     public partial class FloraManager : Node3D
     {
@@ -18,8 +21,13 @@ namespace PrimevalWorld.Flora
         private ShaderMaterial? _grassMat;
         private StandardMaterial3D? _boulderMat;
 
-        private Mesh? _coniferMesh;
+        private Mesh? _redwoodMesh;
         private Mesh? _broadleafMesh;
+        private Mesh? _ginkgoMesh;
+        private Mesh? _mapleMesh;
+        private Mesh? _coniferMesh;
+        private Mesh? _desertTreeMesh;
+        private Mesh? _palmMesh;
         private Mesh? _fernMesh;
         private Mesh? _shrubMesh;
         private Mesh? _grassMesh;
@@ -38,113 +46,213 @@ namespace PrimevalWorld.Flora
 
             EnsureAssets();
 
-            var conifers = new List<Transform3D>(3500);
-            var broadleafs = new List<Transform3D>(3500);
-            var ferns = new List<Transform3D>(4500);
-            var shrubs = new List<Transform3D>(4500);
-            var grasses = new List<Transform3D>(14000);
-            var boulders = new List<Transform3D>(2000);
+            var redwoods = new List<Transform3D>(2200);
+            var broadleafs = new List<Transform3D>(6500);
+            var ginkgos = new List<Transform3D>(2400);
+            var maples = new List<Transform3D>(2200);
+            var conifers = new List<Transform3D>(3200);
+            var desertTrees = new List<Transform3D>(900);
+            var palms = new List<Transform3D>(900);
+            var ferns = new List<Transform3D>(7500);
+            var shrubs = new List<Transform3D>(7500);
+            var grasses = new List<Transform3D>(24000);
+            var boulders = new List<Transform3D>(2800);
 
             var rng = new Random(generator.Seed + 4242);
 
-            // 1. Trees & Boulders pass (14m stratified grid with organic jitter)
-            const float treeStep = 14.0f;
-            for (float z = 80.0f; z < WorldGenerator.RegionSizeMeters - 80.0f; z += treeStep)
+            // 1. Canopy Trees + Sub-Cell Clumping + Boulders (18m coarse grid across 3072m x 3072m)
+            const float treeStep = 18.0f;
+            for (float z = 90.0f; z < WorldGenerator.RegionSizeMeters - 90.0f; z += treeStep)
             {
-                for (float x = 80.0f; x < WorldGenerator.RegionSizeMeters - 80.0f; x += treeStep)
+                for (float x = 90.0f; x < WorldGenerator.RegionSizeMeters - 90.0f; x += treeStep)
                 {
-                    float wx = x + (float)(rng.NextDouble() - 0.5) * treeStep * 0.92f;
-                    float wz = z + (float)(rng.NextDouble() - 0.5) * treeStep * 0.92f;
+                    float wx = x + (float)(rng.NextDouble() - 0.5) * treeStep * 0.90f;
+                    float wz = z + (float)(rng.NextDouble() - 0.5) * treeStep * 0.90f;
 
                     TerrainSample s = generator.SamplePoint(wx, wz);
                     Vector3 normal = generator.SampleNormal(wx, wz);
-                    float slope = 1.0f - Math.Clamp(normal.Y, 0.0f, 1.0f); // > 0.115 is ~28 deg
+                    float slope = 1.0f - Math.Clamp(normal.Y, 0.0f, 1.0f);
 
-                    // Boulders: along riverbanks, cliff bases, or rocky shores
-                    bool nearRiver = s.RiverMask > 0.18f && s.RiverMask < 0.72f;
-                    bool cliffBase = slope > 0.075f && slope < 0.24f && s.Height > 1.2f && s.Height < 65.0f;
-                    bool rockyShore = s.Height > -0.3f && s.Height < 2.2f && s.CoastalMask > 0.35f;
+                    // Boulders on riverbanks, cliff bases, & rocky shores
+                    bool nearRiver = s.RiverMask > 0.16f && s.RiverMask < 0.72f;
+                    bool cliffBase = slope > 0.075f && slope < 0.25f && s.Height > 1.2f && s.Height < 75.0f;
+                    bool rockyShore = s.Height > -0.3f && s.Height < 2.4f && s.CoastalMask > 0.30f;
 
-                    if ((nearRiver && rng.NextDouble() < 0.14)
-                        || (cliffBase && rng.NextDouble() < 0.10)
-                        || (rockyShore && rng.NextDouble() < 0.07))
+                    if ((nearRiver && rng.NextDouble() < 0.16)
+                        || (cliffBase && rng.NextDouble() < 0.12)
+                        || (rockyShore && rng.NextDouble() < 0.08))
                     {
-                        float bScale = 0.65f + (float)rng.NextDouble() * 1.45f;
-                        boulders.Add(MakeTransform(wx, s.Height - 0.15f, wz, (float)rng.NextDouble() * MathF.Tau, bScale, normal, 0.35f));
+                        float bScale = 0.75f + (float)rng.NextDouble() * 1.65f;
+                        boulders.Add(MakeTransform(wx, s.Height - 0.18f, wz, (float)rng.NextDouble() * MathF.Tau, bScale, normal, 0.35f));
                     }
 
-                    // Trees forbidden underwater, on sandy beaches, on steep cliffs (>27 deg), or snow peaks
-                    if (s.Height < 1.8f || s.Height > 52.0f || slope > 0.11f || s.RiverMask > 0.55f)
+                    // Trees forbidden underwater, on beaches, steep cliffs (>27 deg), or snow peaks
+                    if (s.Height < 1.6f || s.Height > 54.0f || slope > 0.11f || s.RiverMask > 0.52f)
                         continue;
 
-                    // Clustered Forest Groves + Riparian Corridors
-                    float groveThreshold = 0.44f - s.RiverMask * 0.25f;
-                    if (s.ForestDensity < groveThreshold && rng.NextDouble() > 0.04)
+                    if (s.ForestDensity < 0.28f && rng.NextDouble() > 0.03)
                         continue;
 
                     float yaw = (float)rng.NextDouble() * MathF.Tau;
 
-                    // Species zonation by altitude & moisture
-                    if (s.Height > 26.0f || (s.Height > 17.0f && s.Moisture < 0.52f))
+                    switch (s.Biome)
                     {
-                        float scale = 0.85f + (float)rng.NextDouble() * 0.65f;
-                        conifers.Add(MakeTransform(wx, s.Height - 0.15f, wz, yaw, scale, normal, 0.12f));
-                    }
-                    else
-                    {
-                        float scale = 0.82f + (float)rng.NextDouble() * 0.68f;
-                        broadleafs.Add(MakeTransform(wx, s.Height - 0.15f, wz, yaw, scale, normal, 0.10f));
+                        case BiomeId.PrimevalForest:
+                        case BiomeId.SanctuaryIsland:
+                        {
+                            // Emergent Giant Redwoods in deep forest core + Sanctuary Island
+                            if ((s.ForestDensity > 0.68f || s.Biome == BiomeId.SanctuaryIsland) && rng.NextDouble() < 0.26)
+                            {
+                                float rScale = 0.90f + (float)rng.NextDouble() * 0.55f;
+                                redwoods.Add(MakeTransform(wx, s.Height - 0.2f, wz, yaw, rScale, normal, 0.06f));
+                            }
+                            else
+                            {
+                                float bScale = 0.85f + (float)rng.NextDouble() * 0.70f;
+                                broadleafs.Add(MakeTransform(wx, s.Height - 0.2f, wz, yaw, bScale, normal, 0.10f));
+                            }
+
+                            // Sub-cell clumping: add 1-2 satellite broadleaf/fern neighbors to close the canopy
+                            int clumpCount = s.ForestDensity > 0.58f ? 2 : 1;
+                            for (int c = 0; c < clumpCount; c++)
+                            {
+                                float ox = wx + (float)(rng.NextDouble() - 0.5) * 11.0f;
+                                float oz = wz + (float)(rng.NextDouble() - 0.5) * 11.0f;
+                                TerrainSample cs = generator.SamplePoint(ox, oz);
+                                if (cs.Height > 1.6f && cs.RiverMask < 0.50f)
+                                {
+                                    broadleafs.Add(MakeTransform(ox, cs.Height - 0.2f, oz,
+                                        (float)rng.NextDouble() * MathF.Tau, 0.68f + (float)rng.NextDouble() * 0.55f, normal, 0.10f));
+                                }
+                            }
+                            break;
+                        }
+
+                        case BiomeId.AutumnSteppe:
+                        {
+                            if (rng.NextDouble() < 0.55)
+                            {
+                                ginkgos.Add(MakeTransform(wx, s.Height - 0.2f, wz, yaw, 0.80f + (float)rng.NextDouble() * 0.65f, normal, 0.10f));
+                            }
+                            else
+                            {
+                                maples.Add(MakeTransform(wx, s.Height - 0.2f, wz, yaw, 0.78f + (float)rng.NextDouble() * 0.60f, normal, 0.10f));
+                            }
+
+                            // Sub-cell autumn grove clustering
+                            if (s.ForestDensity > 0.48f)
+                            {
+                                float ox = wx + (float)(rng.NextDouble() - 0.5) * 10.0f;
+                                float oz = wz + (float)(rng.NextDouble() - 0.5) * 10.0f;
+                                TerrainSample cs = generator.SamplePoint(ox, oz);
+                                if (cs.Height > 2.0f)
+                                {
+                                    var target = rng.NextDouble() < 0.5 ? ginkgos : maples;
+                                    target.Add(MakeTransform(ox, cs.Height - 0.2f, oz,
+                                        (float)rng.NextDouble() * MathF.Tau, 0.70f + (float)rng.NextDouble() * 0.50f, normal, 0.10f));
+                                }
+                            }
+                            break;
+                        }
+
+                        case BiomeId.GlacialAlpine:
+                        {
+                            if (s.Height < 44.0f)
+                            {
+                                conifers.Add(MakeTransform(wx, s.Height - 0.2f, wz, yaw, 0.85f + (float)rng.NextDouble() * 0.65f, normal, 0.08f));
+                                if (s.ForestDensity > 0.50f)
+                                {
+                                    float ox = wx + (float)(rng.NextDouble() - 0.5) * 9.5f;
+                                    float oz = wz + (float)(rng.NextDouble() - 0.5) * 9.5f;
+                                    TerrainSample cs = generator.SamplePoint(ox, oz);
+                                    if (cs.Height > 2.0f && cs.Height < 44.0f)
+                                    {
+                                        conifers.Add(MakeTransform(ox, cs.Height - 0.2f, oz,
+                                            (float)rng.NextDouble() * MathF.Tau, 0.72f + (float)rng.NextDouble() * 0.50f, normal, 0.08f));
+                                    }
+                                }
+                            }
+                            break;
+                        }
+
+                        case BiomeId.TerracottaDesert:
+                        {
+                            // Lush palms tightly clustered around the turquoise oasis
+                            if (s.Moisture > 0.55f)
+                            {
+                                palms.Add(MakeTransform(wx, s.Height - 0.15f, wz, yaw, 0.85f + (float)rng.NextDouble() * 0.55f, normal, 0.12f));
+                                float ox = wx + (float)(rng.NextDouble() - 0.5) * 9.0f;
+                                float oz = wz + (float)(rng.NextDouble() - 0.5) * 9.0f;
+                                TerrainSample cs = generator.SamplePoint(ox, oz);
+                                if (cs.Height > 1.2f)
+                                {
+                                    palms.Add(MakeTransform(ox, cs.Height - 0.15f, oz,
+                                        (float)rng.NextDouble() * MathF.Tau, 0.75f + (float)rng.NextDouble() * 0.45f, normal, 0.12f));
+                                }
+                            }
+                            // Sparse umbrella Baobab / Dragon Blood trees on desert ridges
+                            else if (rng.NextDouble() < 0.45)
+                            {
+                                desertTrees.Add(MakeTransform(wx, s.Height - 0.2f, wz, yaw, 0.85f + (float)rng.NextDouble() * 0.60f, normal, 0.08f));
+                            }
+                            break;
+                        }
                     }
                 }
             }
 
-            // 2. Understory Ferns, Shrubs & Grass Clumps pass (9m stratified grid)
-            const float groundStep = 9.0f;
-            for (float z = 90.0f; z < WorldGenerator.RegionSizeMeters - 90.0f; z += groundStep)
+            // 2. Dense Understory Ferns, Shrubs & Tall Grass (11m grid with multi-clump fill -> ~40k instances)
+            const float groundStep = 11.0f;
+            for (float z = 100.0f; z < WorldGenerator.RegionSizeMeters - 100.0f; z += groundStep)
             {
-                for (float x = 90.0f; x < WorldGenerator.RegionSizeMeters - 90.0f; x += groundStep)
+                for (float x = 100.0f; x < WorldGenerator.RegionSizeMeters - 100.0f; x += groundStep)
                 {
-                    float wx = x + (float)(rng.NextDouble() - 0.5) * groundStep * 0.90f;
-                    float wz = z + (float)(rng.NextDouble() - 0.5) * groundStep * 0.90f;
+                    float wx = x + (float)(rng.NextDouble() - 0.5) * groundStep * 0.88f;
+                    float wz = z + (float)(rng.NextDouble() - 0.5) * groundStep * 0.88f;
 
                     TerrainSample s = generator.SamplePoint(wx, wz);
-                    if (s.Height < 1.3f || s.Height > 44.0f || s.RiverMask > 0.62f)
+                    if (s.Height < 1.3f || s.Height > 44.0f || s.RiverMask > 0.58f)
                         continue;
 
                     Vector3 normal = generator.SampleNormal(wx, wz);
                     float slope = 1.0f - Math.Clamp(normal.Y, 0.0f, 1.0f);
-                    if (slope > 0.125f)
+                    if (slope > 0.13f)
+                        continue;
+
+                    // Keep desert dunes mostly open except oasis rim
+                    if (s.Biome == BiomeId.TerracottaDesert && s.Moisture < 0.48f && rng.NextDouble() > 0.08)
                         continue;
 
                     float yaw = (float)rng.NextDouble() * MathF.Tau;
 
-                    // Ferns thrive along moist riverbanks & shaded woodland understory
-                    if ((s.RiverMask > 0.10f || s.ForestDensity > 0.42f) && s.Height < 28.0f && rng.NextDouble() < 0.34)
+                    if ((s.RiverMask > 0.10f || s.ForestDensity > 0.45f) && s.Height < 30.0f && rng.NextDouble() < 0.28)
                     {
-                        float fScale = 0.75f + (float)rng.NextDouble() * 0.65f;
-                        ferns.Add(MakeTransform(wx, s.Height - 0.05f, wz, yaw, fScale, normal, 0.25f));
+                        ferns.Add(MakeTransform(wx, s.Height - 0.05f, wz, yaw, 0.85f + (float)rng.NextDouble() * 0.70f, normal, 0.25f));
                     }
-                    // Shrubs along forest edges & moist clearings
-                    else if (s.ForestDensity > 0.28f && s.ForestDensity < 0.78f && rng.NextDouble() < 0.22)
+                    else if (s.ForestDensity > 0.25f && rng.NextDouble() < 0.22)
                     {
-                        float shScale = 0.70f + (float)rng.NextDouble() * 0.60f;
-                        shrubs.Add(MakeTransform(wx, s.Height - 0.08f, wz, yaw, shScale, normal, 0.20f));
+                        shrubs.Add(MakeTransform(wx, s.Height - 0.08f, wz, yaw, 0.80f + (float)rng.NextDouble() * 0.65f, normal, 0.20f));
                     }
-                    // Grass clumps across open meadows & woodland edges (capped for steady frame times)
-                    else if (grasses.Count < 13500 && s.Height < 34.0f && rng.NextDouble() < 0.48)
+                    else if (grasses.Count < 23500 && s.Height < 36.0f && rng.NextDouble() < 0.58)
                     {
-                        float gScale = 0.85f + (float)rng.NextDouble() * 0.75f;
-                        grasses.Add(MakeTransform(wx, s.Height - 0.05f, wz, yaw, gScale, normal, 0.35f));
+                        grasses.Add(MakeTransform(wx, s.Height - 0.05f, wz, yaw, 0.90f + (float)rng.NextDouble() * 0.75f, normal, 0.35f));
                     }
                 }
             }
 
-            CreateMultiMeshLayer("BroadleafTrees", _broadleafMesh!, _foliageMat!, broadleafs, true, 0.0f);
-            CreateMultiMeshLayer("AlpineConifers", _coniferMesh!, _foliageMat!, conifers, true, 0.0f);
-            CreateMultiMeshLayer("RiverbankFerns", _fernMesh!, _foliageMat!, ferns, true, 360.0f);
-            CreateMultiMeshLayer("ForestShrubs", _shrubMesh!, _foliageMat!, shrubs, true, 380.0f);
+            // Canopy trees cast shadows (with generous visibility); understory/grass/boulders skip shadows for 80+ FPS
+            CreateMultiMeshLayer("GiantRedwoods", _redwoodMesh!, _foliageMat!, redwoods, true, 0.0f);
+            CreateMultiMeshLayer("PrimevalBroadleafs", _broadleafMesh!, _foliageMat!, broadleafs, true, 1600.0f);
+            CreateMultiMeshLayer("AutumnGinkgos", _ginkgoMesh!, _foliageMat!, ginkgos, true, 1600.0f);
+            CreateMultiMeshLayer("AutumnMaples", _mapleMesh!, _foliageMat!, maples, true, 1600.0f);
+            CreateMultiMeshLayer("AlpineConifers", _coniferMesh!, _foliageMat!, conifers, true, 1600.0f);
+            CreateMultiMeshLayer("DesertBaobabs", _desertTreeMesh!, _foliageMat!, desertTrees, true, 1600.0f);
+            CreateMultiMeshLayer("OasisPalms", _palmMesh!, _foliageMat!, palms, true, 1400.0f);
+
+            CreateMultiMeshLayer("TreeFerns", _fernMesh!, _foliageMat!, ferns, false, 360.0f);
+            CreateMultiMeshLayer("ForestShrubs", _shrubMesh!, _foliageMat!, shrubs, false, 380.0f);
             CreateMultiMeshLayer("MeadowGrass", _grassMesh!, _grassMat!, grasses, false, 260.0f);
-            CreateMultiMeshLayer("TerrainBoulders", _boulderMesh!, _boulderMat!, boulders, true, 750.0f);
+            CreateMultiMeshLayer("TerrainBoulders", _boulderMesh!, _boulderMat!, boulders, false, 650.0f);
         }
 
         private void EnsureAssets()
@@ -153,13 +261,13 @@ namespace PrimevalWorld.Flora
             {
                 var windShader = GD.Load<Shader>("res://shaders/foliage_wind.gdshader");
                 _foliageMat = new ShaderMaterial { Shader = windShader };
-                _foliageMat.SetShaderParameter("wind_speed", 1.5f);
-                _foliageMat.SetShaderParameter("wind_strength", 0.16f);
+                _foliageMat.SetShaderParameter("wind_speed", 1.45f);
+                _foliageMat.SetShaderParameter("wind_strength", 0.14f);
                 _foliageMat.SetShaderParameter("enable_distance_fade", false);
 
                 _grassMat = new ShaderMaterial { Shader = windShader };
-                _grassMat.SetShaderParameter("wind_speed", 2.1f);
-                _grassMat.SetShaderParameter("wind_strength", 0.24f);
+                _grassMat.SetShaderParameter("wind_speed", 2.0f);
+                _grassMat.SetShaderParameter("wind_strength", 0.22f);
                 _grassMat.SetShaderParameter("enable_distance_fade", true);
                 _grassMat.SetShaderParameter("fade_start", 170.0f);
                 _grassMat.SetShaderParameter("fade_end", 255.0f);
@@ -167,16 +275,53 @@ namespace PrimevalWorld.Flora
                 _boulderMat = new StandardMaterial3D
                 {
                     VertexColorUseAsAlbedo = true,
-                    Roughness = 0.84f,
+                    Roughness = 0.85f,
                 };
             }
 
-            _coniferMesh ??= FloraMeshBuilder.CreateConiferMesh();
-            _broadleafMesh ??= FloraMeshBuilder.CreateBroadleafTreeMesh();
-            _fernMesh ??= FloraMeshBuilder.CreateFernMesh();
-            _shrubMesh ??= FloraMeshBuilder.CreateShrubMesh();
-            _grassMesh ??= FloraMeshBuilder.CreateGrassClumpMesh();
-            _boulderMesh ??= FloraMeshBuilder.CreateBoulderMesh();
+            _redwoodMesh ??= LoadGlbOrFallback("redwood", FloraMeshBuilder.CreateRedwoodMesh);
+            _broadleafMesh ??= LoadGlbOrFallback("broadleaf", FloraMeshBuilder.CreateBroadleafTreeMesh);
+            _ginkgoMesh ??= LoadGlbOrFallback("ginkgo", () => FloraMeshBuilder.CreateAutumnTreeMesh(false));
+            _mapleMesh ??= LoadGlbOrFallback("maple", () => FloraMeshBuilder.CreateAutumnTreeMesh(true));
+            _coniferMesh ??= LoadGlbOrFallback("conifer", FloraMeshBuilder.CreateConiferMesh);
+            _desertTreeMesh ??= LoadGlbOrFallback("baobab", FloraMeshBuilder.CreateDesertTreeMesh);
+            _palmMesh ??= LoadGlbOrFallback("palm", FloraMeshBuilder.CreatePalmMesh);
+            _fernMesh ??= LoadGlbOrFallback("fern", FloraMeshBuilder.CreateFernMesh);
+            _shrubMesh ??= LoadGlbOrFallback("shrub", FloraMeshBuilder.CreateShrubMesh);
+            _grassMesh ??= LoadGlbOrFallback("grass", FloraMeshBuilder.CreateGrassClumpMesh);
+            _boulderMesh ??= LoadGlbOrFallback("boulder", FloraMeshBuilder.CreateBoulderMesh);
+        }
+
+        /// <summary>
+        /// Checks res://assets/models/flora/<name>.glb first so high-detail 3D models
+        /// can drop in seamlessly; otherwise builds the lightweight procedural mesh.
+        /// </summary>
+        private static Mesh LoadGlbOrFallback(string modelName, Func<ArrayMesh> fallback)
+        {
+            string glbPath = $"res://assets/models/flora/{modelName}.glb";
+            if (ResourceLoader.Exists(glbPath))
+            {
+                var packed = GD.Load<PackedScene>(glbPath);
+                if (packed != null)
+                {
+                    Node root = packed.Instantiate();
+                    Mesh? found = FindFirstMesh(root);
+                    root.QueueFree();
+                    if (found != null) return found;
+                }
+            }
+            return fallback();
+        }
+
+        private static Mesh? FindFirstMesh(Node node)
+        {
+            if (node is MeshInstance3D mi && mi.Mesh != null) return mi.Mesh;
+            foreach (Node child in node.GetChildren())
+            {
+                Mesh? found = FindFirstMesh(child);
+                if (found != null) return found;
+            }
+            return null;
         }
 
         private void CreateMultiMeshLayer(

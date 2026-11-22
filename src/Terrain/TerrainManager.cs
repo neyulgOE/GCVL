@@ -5,7 +5,8 @@ using PrimevalWorld.WorldGen;
 namespace PrimevalWorld.Terrain
 {
     /// <summary>
-    /// Manages the 8x8 grid of 128m TerrainChunks covering the 1x1 km vertical slice.
+    /// Manages the 12x12 grid of 256m TerrainChunks (3072m x 3072m)
+    /// and uploads the Biome + Forest Canopy Splat Texture to terrain_triplanar.gdshader.
     /// </summary>
     public partial class TerrainManager : Node3D
     {
@@ -25,6 +26,8 @@ namespace PrimevalWorld.Terrain
                 var shader = GD.Load<Shader>("res://shaders/terrain_triplanar.gdshader");
                 _terrainMaterial = new ShaderMaterial { Shader = shader };
             }
+
+            _terrainMaterial.SetShaderParameter("biome_splat_tex", generator.BuildBiomeSplatTexture());
 
             int count = WorldGenerator.ChunksPerAxis;
             for (int cz = 0; cz < count; cz++)
