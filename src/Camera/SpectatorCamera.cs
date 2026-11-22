@@ -29,8 +29,8 @@ namespace PrimevalWorld.Camera
 
         public void ResetToScenicOverlook()
         {
-            // High panoramic overlook showing all 4 continents across the 3x3 km strait
-            TeleportTo(new Vector3(1536.0f, 380.0f, 2950.0f), new Vector3(1536.0f, 15.0f, 1280.0f));
+            // High panoramic overlook showing the full 3840m x 2048m 4-continent Primeval Reach world
+            TeleportTo(new Vector3(1920.0f, 520.0f, 2680.0f), new Vector3(1920.0f, 12.0f, 960.0f));
         }
 
         public void TeleportTo(Vector3 pos, Vector3 lookTarget)
@@ -110,11 +110,10 @@ namespace PrimevalWorld.Camera
             _velocity = _velocity.Lerp(targetVel, 1.0f - Mathf.Exp(-10.0f * dt));
             Position += _velocity * dt;
 
-            float maxBound = WorldGenerator.RegionSizeMeters + 800.0f;
             Position = new Vector3(
-                Mathf.Clamp(Position.X, -800.0f, maxBound),
-                Mathf.Clamp(Position.Y, 1.5f, 1200.0f),
-                Mathf.Clamp(Position.Z, -800.0f, maxBound)
+                Mathf.Clamp(Position.X, -800.0f, WorldGenerator.RegionWidthMeters + 800.0f),
+                Mathf.Clamp(Position.Y, 1.5f, 1400.0f),
+                Mathf.Clamp(Position.Z, -800.0f, WorldGenerator.RegionDepthMeters + 800.0f)
             );
         }
     }

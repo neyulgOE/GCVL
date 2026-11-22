@@ -60,11 +60,11 @@ namespace PrimevalWorld.Flora
 
             var rng = new Random(generator.Seed + 4242);
 
-            // 1. Canopy Trees + Sub-Cell Clumping + Boulders (18m coarse grid across 3072m x 3072m)
+            // 1. Canopy Trees + Sub-Cell Clumping + Boulders (18m coarse grid across 3840m x 2048m)
             const float treeStep = 18.0f;
-            for (float z = 90.0f; z < WorldGenerator.RegionSizeMeters - 90.0f; z += treeStep)
+            for (float z = 80.0f; z < WorldGenerator.RegionDepthMeters - 80.0f; z += treeStep)
             {
-                for (float x = 90.0f; x < WorldGenerator.RegionSizeMeters - 90.0f; x += treeStep)
+                for (float x = 80.0f; x < WorldGenerator.RegionWidthMeters - 80.0f; x += treeStep)
                 {
                     float wx = x + (float)(rng.NextDouble() - 0.5) * treeStep * 0.90f;
                     float wz = z + (float)(rng.NextDouble() - 0.5) * treeStep * 0.90f;
@@ -203,9 +203,9 @@ namespace PrimevalWorld.Flora
 
             // 2. Dense Understory Ferns, Shrubs & Tall Grass (11m grid with multi-clump fill -> ~40k instances)
             const float groundStep = 11.0f;
-            for (float z = 100.0f; z < WorldGenerator.RegionSizeMeters - 100.0f; z += groundStep)
+            for (float z = 90.0f; z < WorldGenerator.RegionDepthMeters - 90.0f; z += groundStep)
             {
-                for (float x = 100.0f; x < WorldGenerator.RegionSizeMeters - 100.0f; x += groundStep)
+                for (float x = 90.0f; x < WorldGenerator.RegionWidthMeters - 90.0f; x += groundStep)
                 {
                     float wx = x + (float)(rng.NextDouble() - 0.5) * groundStep * 0.88f;
                     float wz = z + (float)(rng.NextDouble() - 0.5) * groundStep * 0.88f;

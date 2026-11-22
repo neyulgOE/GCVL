@@ -175,13 +175,13 @@ namespace PrimevalWorld.Core
 
             var centerBox = new PanelContainer
             {
-                CustomMinimumSize = new Vector2(560, 610),
+                CustomMinimumSize = new Vector2(760, 470),
             };
             centerBox.SetAnchorsPreset(Control.LayoutPreset.Center);
-            centerBox.OffsetLeft = -280;
-            centerBox.OffsetRight = 280;
-            centerBox.OffsetTop = -305;
-            centerBox.OffsetBottom = 305;
+            centerBox.OffsetLeft = -380;
+            centerBox.OffsetRight = 380;
+            centerBox.OffsetTop = -235;
+            centerBox.OffsetBottom = 235;
             backdrop.AddChild(centerBox);
 
             var vbox = new VBoxContainer();
@@ -197,7 +197,7 @@ namespace PrimevalWorld.Core
 
             _worldMapRect = new TextureRect
             {
-                CustomMinimumSize = new Vector2(512, 512),
+                CustomMinimumSize = new Vector2(732, 400),
                 StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
             };
             _worldMapRect.GuiInput += OnWorldMapClick;
@@ -231,8 +231,8 @@ namespace PrimevalWorld.Core
                 Vector2 size = _worldMapRect.Size;
                 float nx = Mathf.Clamp(mb.Position.X / size.X, 0.0f, 1.0f);
                 float nz = Mathf.Clamp(mb.Position.Y / size.Y, 0.0f, 1.0f);
-                float wx = nx * WorldGenerator.RegionSizeMeters;
-                float wz = nz * WorldGenerator.RegionSizeMeters;
+                float wx = nx * WorldGenerator.RegionWidthMeters;
+                float wz = nz * WorldGenerator.RegionDepthMeters;
                 float h = Mathf.Max(8.0f, _worldGen.SampleHeight(wx, wz));
                 _camera.TeleportTo(new Vector3(wx, h + 45.0f, wz + 70.0f), new Vector3(wx, h, wz));
                 ToggleWorldMap();
@@ -253,8 +253,8 @@ namespace PrimevalWorld.Core
         private void UpdateCameraPin()
         {
             if (_cameraPin == null || _worldMapRect == null || _camera == null) return;
-            float nx = Mathf.Clamp(_camera.Position.X / WorldGenerator.RegionSizeMeters, 0.0f, 1.0f);
-            float nz = Mathf.Clamp(_camera.Position.Z / WorldGenerator.RegionSizeMeters, 0.0f, 1.0f);
+            float nx = Mathf.Clamp(_camera.Position.X / WorldGenerator.RegionWidthMeters, 0.0f, 1.0f);
+            float nz = Mathf.Clamp(_camera.Position.Z / WorldGenerator.RegionDepthMeters, 0.0f, 1.0f);
             _cameraPin.Position = new Vector2(nx * _worldMapRect.Size.X - 5.0f, nz * _worldMapRect.Size.Y - 5.0f);
         }
 
@@ -266,7 +266,7 @@ namespace PrimevalWorld.Core
             _floraMgr?.BuildFlora(_worldGen);
             if (_worldMapRect != null)
             {
-                _worldMapRect.Texture = _worldGen.BuildWorldMapTexture(512);
+                _worldMapRect.Texture = _worldGen.BuildWorldMapTexture();
             }
         }
 
@@ -282,21 +282,20 @@ namespace PrimevalWorld.Core
                     case Key.M:
                         ToggleWorldMap();
                         break;
-                    case Key.Key1:
-                        _camera?.TeleportTo(new Vector3(880.0f, 145.0f, 1180.0f), new Vector3(780.0f, 40.0f, 650.0f));
+                    case Key.Key1: // NW Glacial Alpine Massif & Fjords
+                        _camera?.TeleportTo(new Vector3(1120.0f, 165.0f, 920.0f), new Vector3(960.0f, 45.0f, 320.0f));
                         break;
-                    case Key.Key2:
-                        _camera?.TeleportTo(new Vector3(_worldGen.OasisCenter.X + 180.0f, 72.0f, _worldGen.OasisCenter.Y + 240.0f),
-                            new Vector3(_worldGen.OasisCenter.X, 4.0f, _worldGen.OasisCenter.Y));
+                    case Key.Key2: // SW Terracotta Desert & Turquoise Lagoon
+                        _camera?.TeleportTo(new Vector3(920.0f, 110.0f, 1840.0f), new Vector3(880.0f, 16.0f, 1360.0f));
                         break;
-                    case Key.Key3:
-                        _camera?.TeleportTo(new Vector3(1780.0f, 88.0f, 2060.0f), new Vector3(2040.0f, 10.0f, 1620.0f));
+                    case Key.Key3: // East Primeval Forest, Crescent Bay & Delta
+                        _camera?.TeleportTo(new Vector3(2450.0f, 120.0f, 1880.0f), new Vector3(2560.0f, 12.0f, 1340.0f));
                         break;
-                    case Key.Key4:
-                        _camera?.TeleportTo(new Vector3(2240.0f, 95.0f, 1260.0f), new Vector3(2120.0f, 24.0f, 840.0f));
+                    case Key.Key4: // NE Autumn Steppes Plateau & Highland Lake
+                        _camera?.TeleportTo(new Vector3(2840.0f, 118.0f, 1020.0f), new Vector3(2680.0f, 22.0f, 580.0f));
                         break;
-                    case Key.Key5:
-                        _camera?.TeleportTo(new Vector3(2440.0f, 92.0f, 2820.0f), new Vector3(2660.0f, 10.0f, 2560.0f));
+                    case Key.Key5: // SE Sanctuary Archipelago
+                        _camera?.TeleportTo(new Vector3(3180.0f, 105.0f, 1980.0f), new Vector3(3480.0f, 8.0f, 1720.0f));
                         break;
                 }
             }
@@ -310,7 +309,7 @@ namespace PrimevalWorld.Core
                 TerrainSample s = _worldGen.SamplePoint(p.X, p.Z);
                 int floraCount = _floraMgr?.TotalInstanceCount ?? 0;
                 _telemetryLabel.Text =
-                    $"Primeval Reach (4 Lục địa | 3x3 km) | FPS: {Engine.GetFramesPerSecond():0} | Seed: {_worldGen.Seed} | Thực thể: {floraCount:N0}\n" +
+                    $"Primeval Reach (4 Lục địa | 3.8x2.0 km) | FPS: {Engine.GetFramesPerSecond():0} | Seed: {_worldGen.Seed} | Thực thể: {floraCount:N0}\n" +
                     $"Quần xã: {FormatBiomeName(s.Biome)} | X={p.X:0.0}m Y={p.Y:0.0}m Z={p.Z:0.0}m | Tốc độ: {_camera.CurrentSpeed:0} m/s";
             }
 
