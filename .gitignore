@@ -1,17 +1,15 @@
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.pytest_cache/
-.coverage
-.env
-.venv/
-env/
-venv/
+# Godot 4 + .NET / C#
+.godot/
+.mono/
+bin/
+obj/
+*.csproj.user
+*.sln.DotSettings.user
+.vs/
+export_presets.cfg
+*.translation
+
+# OS & Temp
 *.tmp
 *.log
-
-# Generated previews from non-canonical/diagnostic tools.
-debug_outputs/runtime_previews/
-debug_outputs/legacy_*
-debug_outputs/experimental_*
+.DS_Store

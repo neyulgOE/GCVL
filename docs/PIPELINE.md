@@ -1,57 +1,11 @@
-# GCVL world pipeline
+# Kiến trúc Pipeline Sinh Thế Giới — Godot 4 (.NET / C#)
 
-The current map is authored from the canonical atlas supplied for Primeval
-Reach.  There is one supported build path:
+Dự án sử dụng quy trình sinh thế giới **100% Procedural từ Seed** trong C# và kết xuất trực tiếp bằng GPU qua `Forward+` Vulkan:
 
-```text
-assets/sprites/primeval_reach_canonical_atlas.png
-        |
-        v
-tools/generate_primeval_world.py
-        |
-        +--> debug_outputs/primeval_world_data.npz + manifest.json
-        +--> stone_age_world_200x200.json (compatibility only)
-        +--> debug_outputs/primeval_world_texture.png
-        +--> debug_outputs/primeval_world_heightmap.png
-        +--> debug_outputs/primeval_world_vegetation_density.png
-        +--> debug_outputs/primeval_world_temperature.png
-        +--> assets/sprites/world_atlas.png
-        +--> assets/sprites/world_overview_macro.png
-        |
-        v
-tools/render_primeval_world_3d.py
-        |
-        +--> debug_outputs/primeval_world.obj/.mtl
-        +--> debug_outputs/primeval_world_3d_preview.png
-        |
-        v
-main.py -> src/core/game_3d.py
-```
-
-Run the complete export with:
-
-```bash
-python3 tools/run_canonical_pipeline.py
-```
-
-`main.py` uses the 3D runtime by default. The 2D renderer remains available
-only as a compatibility view:
-
-```bash
-GCVL_RENDERER=2d python3 main.py
-```
-
-## Files that are not canonical
-
-- `tools/run_full_primeval_reach_pipeline.py` and `tools/run_phase*.py` are
-  experimental procedural validation pipelines. They write only under
-  `debug_outputs/experimental_*` and must not replace the canonical atlas.
-- `tools/build_*.py` are historical procedural generators kept for reference.
-  They are not used by the game or the canonical build.
-- `_removed/`, `scratch/`, and the all-in-one asset bundle are archival or
-  development material, not runtime entry points.
-
-Do not run a historical generator as a map build command. If the canonical
-atlas changes, run `tools/run_canonical_pipeline.py` so the JSON, texture,
-heightmap, WorldData, OBJ, and preview stay synchronized. Runtime 3D reads
-`primeval_world_data.npz`; the 200x200 JSON is retained only for older tools.
+1. **`FastNoise.cs`**: Gradient Perlin-style 2D, fBm, Ridged multifractal và Domain Warping.
+2. **`WorldGenerator.cs`**: Tính toán trường độ cao liên tục `SamplePoint(x, z)` kết hợp rãnh sông uốn khúc `SampleRiverSpine(z)` và thềm biển.
+3. **`TerrainManager.cs` + `TerrainChunk.cs`**: Chia vùng thành các Chunk `128m × 128m` (`65 × 65` đỉnh), tính pháp tuyến bằng sai phân trung tâm trên trường liên tục nên không có đường nối giữa các chunk.
+4. **`WaterSurface.cs`**: Tạo mặt biển phẳng ở `SeaLevel = 0.0m` và dải lưới sông (`RiverRibbon`) chảy xuôi theo độ dốc thung lũng.
+5. **Shaders (`.gdshader`)**:
+   - `terrain_triplanar.gdshader`: Phân tầng vật liệu theo độ cao, độ dốc và `riverMask`/`moisture` kết hợp chi tiết triplanar không giãn trên vách đá đứng.
+   - `water_river_ocean.gdshader`: Hấp thụ ánh sáng theo độ sâu (`DEPTH_TEXTURE`), khúc xạ (`SCREEN_TEXTURE`), phản chiếu Fresnel và bọt trắng ven bờ.
