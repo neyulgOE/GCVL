@@ -23,6 +23,9 @@ namespace PrimevalWorld.WorldGen
         public readonly float CoastalMask;
         public readonly float Moisture;
         public readonly float ForestDensity;
+        public readonly float Temperature;
+        public readonly float SaltExposure;
+        public readonly float MegafaunaCorridor;
         public readonly BiomeId Biome;
 
         public TerrainSample(
@@ -32,6 +35,9 @@ namespace PrimevalWorld.WorldGen
             float coastalMask,
             float moisture,
             float forestDensity,
+            float temperature,
+            float saltExposure,
+            float megafaunaCorridor,
             BiomeId biome)
         {
             Height = height;
@@ -40,6 +46,9 @@ namespace PrimevalWorld.WorldGen
             CoastalMask = coastalMask;
             Moisture = moisture;
             ForestDensity = forestDensity;
+            Temperature = temperature;
+            SaltExposure = saltExposure;
+            MegafaunaCorridor = megafaunaCorridor;
             Biome = biome;
         }
     }
@@ -281,7 +290,16 @@ namespace PrimevalWorld.WorldGen
 
                     float altSuit = FastNoise.SmoothStep(1.2f, 3.5f, _heightGrid[idx])
                                   * (1.0f - FastNoise.SmoothStep(44.0f, 58.0f, _heightGrid[idx]));
-                    _forestGrid[idx] = Math.Clamp(MathF.Max(forestFeature[idx], riverProximity * 0.65f) * altSuit, 0.0f, 1.0f);
+                    float worldX = gx * CellSize;
+                    float worldZ = gz * CellSize;
+                    float groveNoise = FastNoise.Fbm2D(worldX * 0.0032f + 19.4f, worldZ * 0.0032f - 8.7f, Seed + 907, 4);
+                    float regionalGrove = _biomeGrid[idx] switch
+                    {
+                        BiomeId.AutumnSteppe => FastNoise.SmoothStep(0.42f, 0.65f, groveNoise) * 0.78f,
+                        BiomeId.GlacialAlpine => FastNoise.SmoothStep(0.34f, 0.62f, groveNoise) * 0.85f,
+                        _ => forestFeature[idx],
+                    };
+                    _forestGrid[idx] = Math.Clamp(MathF.Max(regionalGrove, riverProximity * 0.70f) * altSuit, 0.0f, 1.0f);
                 }
             }
         }
@@ -626,7 +644,7 @@ namespace PrimevalWorld.WorldGen
         {
             if (worldX < 0.0f || worldX > RegionWidthMeters || worldZ < 0.0f || worldZ > RegionDepthMeters)
             {
-                return new TerrainSample(-12.0f, 0.0f, SeaLevel, 1.0f, 1.0f, 0.0f, BiomeId.DeepOcean);
+                return new TerrainSample(-12.0f, 0.0f, SeaLevel, 1.0f, 1.0f, 0.0f, 0.35f, 1.0f, 0.0f, BiomeId.DeepOcean);
             }
 
             float gx = worldX / CellSize;
@@ -643,7 +661,22 @@ namespace PrimevalWorld.WorldGen
             int iz = Math.Clamp((int)MathF.Round(gz), 0, GridDepth - 1);
             BiomeId biome = _biomeGrid[iz * GridWidth + ix];
 
-            return new TerrainSample(height, riverMask, inlandWaterY, coastalMask, moisture, forest, biome);
+            // 1. TemperatureMap: cools northward (low Z) and with altitude (lapse rate)
+            float latNorm = worldZ / RegionDepthMeters; // 0 = cold North, 1 = warm South
+            float temp = Math.Clamp(0.32f + latNorm * 0.56f - MathF.Max(0.0f, height) / 95.0f * 0.68f
+                                  + _desertWeight[iz * GridWidth + ix] * 0.24f
+                                  - _glacialWeight[iz * GridWidth + ix] * 0.14f, 0.0f, 1.0f);
+
+            // 2. CoastSaltExposureMap: strong near sea level & ocean-facing low shores
+            float saltExposure = FastNoise.SmoothStep(4.2f, 0.2f, height) * (1.0f - riverMask * 0.75f);
+
+            // 3. MegafaunaCorridorMap: winding open savanna/steppe game trails across flat lowlands
+            float trailWave = FastNoise.GradientNoise2D(worldX * 0.0028f, worldZ * 0.0028f, Seed + 1231);
+            float megafaunaCorridor = (1.0f - FastNoise.SmoothStep(0.0f, 0.14f, MathF.Abs(trailWave)))
+                                    * FastNoise.SmoothStep(2.0f, 5.0f, height)
+                                    * (1.0f - FastNoise.SmoothStep(22.0f, 34.0f, height));
+
+            return new TerrainSample(height, riverMask, inlandWaterY, coastalMask, moisture, forest, temp, saltExposure, megafaunaCorridor, biome);
         }
 
         public float SampleHeight(float worldX, float worldZ) => SamplePoint(worldX, worldZ).Height;

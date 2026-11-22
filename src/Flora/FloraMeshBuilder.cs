@@ -5,197 +5,229 @@ using PrimevalWorld.WorldGen;
 namespace PrimevalWorld.Flora
 {
     /// <summary>
-    /// Crisp low-poly prehistoric ArrayMesh builders (~40-85 triangles per tree, ~18-30 per fern/grass).
-    /// Designed to render 45,000-65,000 MultiMesh instances at 80+ FPS while giving each
-    /// prehistoric biome its own unmistakable silhouette.
+    /// 9 distinct prehistoric procedural ArrayMesh silhouettes covering all 6 ecological layers:
+    /// 1. GiantSequoia (Emergent Layer 1)
+    /// 2. PrimevalBroadleaf (Main Canopy Layer 2 - wide billowing crown, width > trunk height!)
+    /// 3. AlpineConifer (Cold Canopy Layer 2 - snow-dusted drooping spruce tiers)
+    /// 4. KrummholzDwarfPine (Treeline Understory Layer 3 - wind-twisted low pine)
+    /// 5. AutumnDeciduous (Steppe Grove Layer 2 - cloud-crowned golden ginkgo / crimson maple)
+    /// 6. PrehistoricDesertTree (Desert Canopy Layer 2 - swollen baobab / flat umbrella dragon-blood)
+    /// 7. PalmAndTreeFern (Riparian & Sanctuary Understory Layer 3)
+    /// 8. EcotoneShrub & ReedGrass (Layer 4 Shrub + Layer 5 Herb/Ground)
+    /// 9. FallenLog & Boulder (Layer 6 Litter/Soil)
     /// </summary>
     public static class FloraMeshBuilder
     {
-        /// <summary>1. Giant Dawn Redwood / Ancient Emergent Canopy (~78 tris).</summary>
-        public static ArrayMesh CreateRedwoodMesh()
+        /// <summary>1. GiantSequoia / Dawn Redwood (Emergent Layer 1, ~24m tall, ~82 tris).</summary>
+        public static ArrayMesh CreateGiantSequoiaMesh()
         {
             var st = new SurfaceTool();
             st.Begin(Mesh.PrimitiveType.Triangles);
 
-            AddTaperedCylinder(st, Vector3.Zero, new Vector3(0.0f, 16.5f, 0.0f), 0.72f, 0.16f, 6,
-                new Color(0.24f, 0.13f, 0.09f, 0.0f), new Color(0.28f, 0.16f, 0.11f, 0.06f));
+            // Tall reddish-brown buttressed trunk
+            AddTaperedCylinder(st, Vector3.Zero, new Vector3(0.0f, 22.0f, 0.0f), 1.05f, 0.22f, 6,
+                new Color(0.28f, 0.14f, 0.09f, 0.0f), new Color(0.34f, 0.18f, 0.11f, 0.06f));
 
-            float[] tierHeights = { 7.5f, 11.2f, 14.5f, 16.8f };
-            float[] tierRadii = { 4.4f, 3.8f, 3.0f, 2.0f };
-            for (int t = 0; t < tierHeights.Length; t++)
+            float[] tierY = { 11.5f, 15.2f, 18.6f, 21.4f };
+            float[] tierR = { 6.2f, 5.2f, 4.0f, 2.7f };
+            for (int t = 0; t < tierY.Length; t++)
             {
-                AddJaggedPlate(st, new Vector3(0.0f, tierHeights[t], 0.0f), tierRadii[t], 2.2f, 6, t * 0.55f,
-                    new Color(0.04f, 0.12f, 0.05f, 0.08f),
-                    new Color(0.09f, 0.24f, 0.09f, 0.18f),
-                    new Color(0.13f, 0.30f, 0.12f, 0.22f));
+                AddJaggedPlate(st, new Vector3(0.0f, tierY[t], 0.0f), tierR[t], 2.8f, 6, t * 0.58f,
+                    new Color(0.05f, 0.14f, 0.05f, 0.08f),
+                    new Color(0.11f, 0.27f, 0.10f, 0.18f),
+                    new Color(0.16f, 0.34f, 0.13f, 0.22f));
             }
 
             st.GenerateNormals();
             return st.Commit();
         }
 
-        /// <summary>2. Primeval Broadleaf Canopy Tree (~76 tris).</summary>
-        public static ArrayMesh CreateBroadleafTreeMesh()
+        /// <summary>2. PrimevalBroadleaf (Canopy Layer 2 - wide billowing crown ~13m wide x 10m tall, ~88 tris).</summary>
+        public static ArrayMesh CreatePrimevalBroadleafMesh()
         {
             var st = new SurfaceTool();
             st.Begin(Mesh.PrimitiveType.Triangles);
 
-            var barkBot = new Color(0.20f, 0.14f, 0.09f, 0.0f);
-            var barkTop = new Color(0.26f, 0.19f, 0.13f, 0.04f);
-            AddTaperedCylinder(st, Vector3.Zero, new Vector3(0.0f, 4.8f, 0.0f), 0.45f, 0.24f, 5, barkBot, barkTop);
+            var barkBot = new Color(0.22f, 0.16f, 0.11f, 0.0f);
+            var barkTop = new Color(0.27f, 0.20f, 0.14f, 0.04f);
+            AddTaperedCylinder(st, Vector3.Zero, new Vector3(0.0f, 4.8f, 0.0f), 0.55f, 0.32f, 5, barkBot, barkTop);
 
-            Vector3[] crowns =
+            // Wide overlapping multi-cluster canopy (crown width > height for closed canopy!)
+            Vector3[] centers =
             {
                 new Vector3(0.0f, 7.6f, 0.0f),
-                new Vector3(1.8f, 6.2f, 1.0f),
-                new Vector3(-1.7f, 6.4f, 1.1f),
-                new Vector3(0.1f, 6.1f, -1.8f),
+                new Vector3(2.9f, 6.3f, 1.6f),
+                new Vector3(-2.7f, 6.5f, 1.8f),
+                new Vector3(0.3f, 6.2f, -3.0f),
             };
             Vector3[] radii =
             {
-                new Vector3(2.8f, 1.8f, 2.7f),
-                new Vector3(2.0f, 1.3f, 2.0f),
-                new Vector3(2.0f, 1.3f, 2.0f),
-                new Vector3(2.1f, 1.4f, 2.0f),
+                new Vector3(4.6f, 2.5f, 4.4f),
+                new Vector3(3.4f, 2.0f, 3.3f),
+                new Vector3(3.3f, 2.0f, 3.3f),
+                new Vector3(3.5f, 2.1f, 3.4f),
             };
 
-            for (int i = 0; i < crowns.Length; i++)
+            for (int i = 0; i < centers.Length; i++)
             {
-                AddLowPolyCrown(st, crowns[i], radii[i], 101 + i * 31,
-                    new Color(0.06f, 0.17f, 0.05f, 0.12f),
-                    new Color(0.14f, 0.31f, 0.09f, 0.26f));
+                AddLowPolyCrown(st, centers[i], radii[i], 101 + i * 31,
+                    new Color(0.07f, 0.19f, 0.06f, 0.12f),
+                    new Color(0.18f, 0.36f, 0.12f, 0.26f));
             }
 
             st.GenerateNormals();
             return st.Commit();
         }
 
-        /// <summary>3. Prehistoric Golden Ginkgo / Crimson Maple for Autumn Steppes (~72 tris).</summary>
-        public static ArrayMesh CreateAutumnTreeMesh(bool crimsonVariant)
+        /// <summary>3. AlpineConifer (Cold Canopy Layer 2 - snow-dusted drooping spruce, ~68 tris).</summary>
+        public static ArrayMesh CreateAlpineConiferMesh()
         {
             var st = new SurfaceTool();
             st.Begin(Mesh.PrimitiveType.Triangles);
 
-            AddTaperedCylinder(st, Vector3.Zero, new Vector3(0.1f, 4.6f, 0.0f), 0.38f, 0.18f, 5,
-                new Color(0.22f, 0.16f, 0.12f, 0.0f), new Color(0.28f, 0.21f, 0.16f, 0.05f));
-
-            Color darkCol = crimsonVariant ? new Color(0.45f, 0.12f, 0.04f, 0.14f) : new Color(0.55f, 0.34f, 0.05f, 0.14f);
-            Color litCol = crimsonVariant ? new Color(0.82f, 0.25f, 0.06f, 0.28f) : new Color(0.92f, 0.64f, 0.10f, 0.28f);
-
-            AddLowPolyCrown(st, new Vector3(0.0f, 7.2f, 0.0f), new Vector3(2.9f, 1.9f, 2.8f), 211, darkCol, litCol);
-            AddLowPolyCrown(st, new Vector3(1.6f, 5.8f, -1.1f), new Vector3(1.9f, 1.3f, 1.9f), 241, darkCol, litCol);
-            AddLowPolyCrown(st, new Vector3(-1.5f, 5.9f, 1.2f), new Vector3(1.9f, 1.3f, 1.9f), 271, darkCol, litCol);
-
-            st.GenerateNormals();
-            return st.Commit();
-        }
-
-        /// <summary>4. Glacial Alpine Spruce / Conifer (~66 tris).</summary>
-        public static ArrayMesh CreateConiferMesh()
-        {
-            var st = new SurfaceTool();
-            st.Begin(Mesh.PrimitiveType.Triangles);
-
-            AddTaperedCylinder(st, Vector3.Zero, new Vector3(0.0f, 9.2f, 0.0f), 0.32f, 0.07f, 5,
+            AddTaperedCylinder(st, Vector3.Zero, new Vector3(0.0f, 10.5f, 0.0f), 0.36f, 0.08f, 5,
                 new Color(0.18f, 0.13f, 0.10f, 0.0f), new Color(0.22f, 0.16f, 0.12f, 0.04f));
 
             const int tiers = 4;
             for (int t = 0; t < tiers; t++)
             {
                 float frac = t / (float)(tiers - 1);
-                float baseY = 2.0f + frac * 5.6f;
-                float radius = 2.5f * (1.0f - frac * 0.58f);
-                float height = 3.1f - frac * 0.9f;
+                float baseY = 2.2f + frac * 6.4f;
+                float radius = 3.1f * (1.0f - frac * 0.56f);
+                float height = 3.3f - frac * 0.9f;
                 float windW = 0.08f + frac * 0.18f;
 
+                // Cool blue-spruce green with frosty snow-dusted upper tips
                 AddJaggedPlate(st, new Vector3(0.0f, baseY, 0.0f), radius, height, 6, t * 0.52f,
-                    new Color(0.05f, 0.12f, 0.06f, windW * 0.5f),
-                    new Color(0.09f, 0.21f, 0.10f, windW),
-                    new Color(0.14f, 0.26f, 0.13f, windW * 1.1f));
+                    new Color(0.06f, 0.14f, 0.12f, windW * 0.5f),
+                    new Color(0.14f, 0.26f, 0.22f, windW),
+                    new Color(0.55f, 0.66f, 0.70f, windW * 1.1f));
             }
 
             st.GenerateNormals();
             return st.Commit();
         }
 
-        /// <summary>5. Swollen Baobab / Dragon Blood Umbrella Tree for Terracotta Desert (~68 tris).</summary>
-        public static ArrayMesh CreateDesertTreeMesh()
+        /// <summary>4. KrummholzDwarfPine (Treeline Layer 3 - low wind-twisted pine clinging to rock, ~44 tris).</summary>
+        public static ArrayMesh CreateKrummholzMesh()
         {
             var st = new SurfaceTool();
             st.Begin(Mesh.PrimitiveType.Triangles);
 
-            // Swollen bottle trunk
-            AddTaperedCylinder(st, Vector3.Zero, new Vector3(0.0f, 3.6f, 0.0f), 0.85f, 0.92f, 6,
-                new Color(0.38f, 0.26f, 0.18f, 0.0f), new Color(0.42f, 0.29f, 0.20f, 0.02f));
-            AddTaperedCylinder(st, new Vector3(0.0f, 3.5f, 0.0f), new Vector3(0.0f, 6.4f, 0.0f), 0.88f, 0.48f, 6,
-                new Color(0.42f, 0.29f, 0.20f, 0.02f), new Color(0.40f, 0.28f, 0.19f, 0.04f));
+            AddTaperedCylinder(st, Vector3.Zero, new Vector3(1.1f, 1.8f, 0.4f), 0.24f, 0.10f, 5,
+                new Color(0.20f, 0.15f, 0.11f, 0.0f), new Color(0.24f, 0.18f, 0.13f, 0.06f));
 
-            // Flat umbrella canopy
-            AddLowPolyCrown(st, new Vector3(0.0f, 7.6f, 0.0f), new Vector3(3.8f, 1.05f, 3.6f), 509,
-                new Color(0.16f, 0.24f, 0.10f, 0.10f),
-                new Color(0.28f, 0.38f, 0.15f, 0.22f));
-            AddLowPolyCrown(st, new Vector3(2.1f, 7.1f, 1.1f), new Vector3(2.0f, 0.85f, 2.0f), 523,
-                new Color(0.16f, 0.24f, 0.10f, 0.10f),
-                new Color(0.28f, 0.38f, 0.15f, 0.22f));
+            AddLowPolyCrown(st, new Vector3(1.3f, 2.0f, 0.5f), new Vector3(2.2f, 0.95f, 1.7f), 317,
+                new Color(0.07f, 0.16f, 0.11f, 0.08f),
+                new Color(0.18f, 0.29f, 0.22f, 0.18f));
+            AddLowPolyCrown(st, new Vector3(-0.4f, 1.4f, -0.3f), new Vector3(1.5f, 0.75f, 1.4f), 331,
+                new Color(0.07f, 0.16f, 0.11f, 0.08f),
+                new Color(0.18f, 0.29f, 0.22f, 0.18f));
 
             st.GenerateNormals();
             return st.Commit();
         }
 
-        /// <summary>6. Oasis Palm (~54 tris).</summary>
+        /// <summary>5. AutumnDeciduous (Autumn Steppes Layer 2 - cloud-like golden/crimson canopy, ~72 tris).</summary>
+        public static ArrayMesh CreateAutumnDeciduousMesh()
+        {
+            var st = new SurfaceTool();
+            st.Begin(Mesh.PrimitiveType.Triangles);
+
+            AddTaperedCylinder(st, Vector3.Zero, new Vector3(0.15f, 4.6f, 0.0f), 0.42f, 0.20f, 5,
+                new Color(0.24f, 0.17f, 0.12f, 0.0f), new Color(0.30f, 0.22f, 0.16f, 0.05f));
+
+            // Warm neutral-gold base so MultiMesh.SetInstanceColor can shift between gold, amber & crimson!
+            var dark = new Color(0.56f, 0.34f, 0.08f, 0.14f);
+            var lit = new Color(0.95f, 0.74f, 0.22f, 0.28f);
+
+            AddLowPolyCrown(st, new Vector3(0.0f, 7.2f, 0.0f), new Vector3(3.8f, 2.2f, 3.6f), 211, dark, lit);
+            AddLowPolyCrown(st, new Vector3(2.1f, 5.8f, -1.3f), new Vector3(2.5f, 1.6f, 2.4f), 241, dark, lit);
+            AddLowPolyCrown(st, new Vector3(-1.9f, 5.9f, 1.5f), new Vector3(2.5f, 1.6f, 2.4f), 271, dark, lit);
+
+            st.GenerateNormals();
+            return st.Commit();
+        }
+
+        /// <summary>6. PrehistoricDesertTree (Swollen Baobab / Dragon Blood umbrella tree, ~68 tris).</summary>
+        public static ArrayMesh CreateDesertUmbrellaTreeMesh()
+        {
+            var st = new SurfaceTool();
+            st.Begin(Mesh.PrimitiveType.Triangles);
+
+            AddTaperedCylinder(st, Vector3.Zero, new Vector3(0.0f, 3.8f, 0.0f), 0.92f, 0.98f, 6,
+                new Color(0.40f, 0.28f, 0.19f, 0.0f), new Color(0.44f, 0.31f, 0.21f, 0.02f));
+            AddTaperedCylinder(st, new Vector3(0.0f, 3.7f, 0.0f), new Vector3(0.0f, 6.8f, 0.0f), 0.94f, 0.50f, 6,
+                new Color(0.44f, 0.31f, 0.21f, 0.02f), new Color(0.42f, 0.30f, 0.20f, 0.04f));
+
+            AddLowPolyCrown(st, new Vector3(0.0f, 7.9f, 0.0f), new Vector3(4.6f, 1.15f, 4.4f), 509,
+                new Color(0.18f, 0.26f, 0.12f, 0.10f),
+                new Color(0.32f, 0.42f, 0.18f, 0.22f));
+            AddLowPolyCrown(st, new Vector3(2.4f, 7.3f, 1.3f), new Vector3(2.4f, 0.90f, 2.4f), 523,
+                new Color(0.18f, 0.26f, 0.12f, 0.10f),
+                new Color(0.32f, 0.42f, 0.18f, 0.22f));
+
+            st.GenerateNormals();
+            return st.Commit();
+        }
+
+        /// <summary>7a. Coastal & Oasis Palm (~54 tris).</summary>
         public static ArrayMesh CreatePalmMesh()
         {
             var st = new SurfaceTool();
             st.Begin(Mesh.PrimitiveType.Triangles);
 
             Vector3 p0 = Vector3.Zero;
-            Vector3 p1 = new Vector3(0.4f, 3.6f, 0.2f);
-            Vector3 p2 = new Vector3(1.1f, 7.2f, 0.4f);
-            AddTaperedCylinder(st, p0, p1, 0.30f, 0.22f, 5, new Color(0.36f, 0.26f, 0.18f, 0.0f), new Color(0.38f, 0.28f, 0.19f, 0.06f));
+            Vector3 p1 = new Vector3(0.45f, 3.8f, 0.25f);
+            Vector3 p2 = new Vector3(1.25f, 7.6f, 0.45f);
+            AddTaperedCylinder(st, p0, p1, 0.32f, 0.22f, 5, new Color(0.36f, 0.26f, 0.18f, 0.0f), new Color(0.38f, 0.28f, 0.19f, 0.06f));
             AddTaperedCylinder(st, p1, p2, 0.22f, 0.14f, 5, new Color(0.38f, 0.28f, 0.19f, 0.06f), new Color(0.34f, 0.25f, 0.16f, 0.16f));
 
             for (int f = 0; f < 6; f++)
             {
                 float angle = f * (MathF.PI * 2.0f / 6.0f);
-                AddArchingFrond(st, p2, angle, 2.9f, 0.9f, 0.45f,
-                    new Color(0.11f, 0.28f, 0.09f, 0.16f), new Color(0.22f, 0.44f, 0.14f, 0.55f));
+                AddArchingFrond(st, p2, angle, 3.2f, 1.0f, 0.48f,
+                    new Color(0.11f, 0.30f, 0.09f, 0.16f), new Color(0.24f, 0.48f, 0.15f, 0.55f));
             }
 
             st.GenerateNormals();
             return st.Commit();
         }
 
-        /// <summary>7. Ancient Tree Fern / Cycad (~28 tris).</summary>
-        public static ArrayMesh CreateFernMesh()
+        /// <summary>7b. Ancient Tree Fern / Cycad (Understory Layer 3, ~32 tris).</summary>
+        public static ArrayMesh CreateTreeFernMesh()
         {
             var st = new SurfaceTool();
             st.Begin(Mesh.PrimitiveType.Triangles);
 
-            for (int f = 0; f < 5; f++)
+            AddTaperedCylinder(st, Vector3.Zero, new Vector3(0.0f, 1.2f, 0.0f), 0.22f, 0.16f, 5,
+                new Color(0.22f, 0.16f, 0.11f, 0.0f), new Color(0.26f, 0.19f, 0.13f, 0.04f));
+
+            for (int f = 0; f < 6; f++)
             {
-                float angle = f * (MathF.PI * 2.0f / 5.0f) + (f % 2) * 0.25f;
-                AddArchingFrond(st, new Vector3(0.0f, 0.25f, 0.0f), angle, 1.65f, 0.95f, 0.40f,
-                    new Color(0.08f, 0.22f, 0.06f, 0.05f), new Color(0.18f, 0.38f, 0.11f, 0.65f));
+                float angle = f * (MathF.PI * 2.0f / 6.0f) + (f % 2) * 0.22f;
+                AddArchingFrond(st, new Vector3(0.0f, 1.15f, 0.0f), angle, 2.2f, 1.1f, 0.44f,
+                    new Color(0.09f, 0.24f, 0.07f, 0.05f), new Color(0.20f, 0.44f, 0.13f, 0.65f));
             }
 
             st.GenerateNormals();
             return st.Commit();
         }
 
-        /// <summary>8. Low Shrub Cluster (~24 tris).</summary>
+        /// <summary>8a. Ecotone Berry Shrub (Layer 4 Shrub, ~24 tris).</summary>
         public static ArrayMesh CreateShrubMesh()
         {
             var st = new SurfaceTool();
             st.Begin(Mesh.PrimitiveType.Triangles);
 
-            AddLowPolyCrown(st, new Vector3(0.0f, 0.58f, 0.0f), new Vector3(1.05f, 0.72f, 1.05f), 701,
-                new Color(0.08f, 0.19f, 0.06f, 0.10f), new Color(0.17f, 0.30f, 0.10f, 0.35f));
+            AddLowPolyCrown(st, new Vector3(0.0f, 0.72f, 0.0f), new Vector3(1.45f, 0.92f, 1.45f), 701,
+                new Color(0.10f, 0.22f, 0.07f, 0.10f), new Color(0.22f, 0.36f, 0.12f, 0.35f));
 
             st.GenerateNormals();
             return st.Commit();
         }
 
-        /// <summary>9. Tall Grass Clump: 6 crossed blades (~18 tris).</summary>
+        /// <summary>8b. Meadow Grass / Riparian Reed Clump (Layer 5 Herb/Ground, ~18 tris).</summary>
         public static ArrayMesh CreateGrassClumpMesh()
         {
             var st = new SurfaceTool();
@@ -205,13 +237,13 @@ namespace PrimevalWorld.Flora
             for (int b = 0; b < blades; b++)
             {
                 float angle = b * (MathF.PI * 2.0f / blades) + (b % 2) * 0.2f;
-                float rOff = (b % 2) * 0.14f;
+                float rOff = (b % 2) * 0.16f;
                 Vector3 basePos = new Vector3(MathF.Cos(angle) * rOff, 0.0f, MathF.Sin(angle) * rOff);
-                float h = 0.95f + (b % 3) * 0.25f;
-                float lean = 0.35f + (b % 2) * 0.18f;
+                float h = 1.15f + (b % 3) * 0.30f;
+                float lean = 0.38f + (b % 2) * 0.18f;
 
                 Vector3 dir = new Vector3(MathF.Cos(angle), 0.0f, MathF.Sin(angle));
-                Vector3 side = new Vector3(-dir.Z, 0.0f, dir.X) * 0.11f;
+                Vector3 side = new Vector3(-dir.Z, 0.0f, dir.X) * 0.12f;
 
                 Vector3 p0L = basePos - side;
                 Vector3 p0R = basePos + side;
@@ -219,9 +251,9 @@ namespace PrimevalWorld.Flora
                 Vector3 p1R = basePos + dir * (lean * 0.45f) + Vector3.Up * (h * 0.55f) + side * 0.55f;
                 Vector3 tip = basePos + dir * lean + Vector3.Up * h;
 
-                var cRoot = new Color(0.09f, 0.18f, 0.06f, 0.0f);
-                var cMid = new Color(0.18f, 0.28f, 0.09f, 0.45f);
-                var cTip = new Color(0.27f, 0.35f, 0.13f, 1.0f);
+                var cRoot = new Color(0.12f, 0.22f, 0.08f, 0.0f);
+                var cMid = new Color(0.24f, 0.34f, 0.12f, 0.45f);
+                var cTip = new Color(0.36f, 0.44f, 0.18f, 1.0f);
 
                 AddTriangle(st, p0L, p0R, p1R, cRoot, cRoot, cMid);
                 AddTriangle(st, p0L, p1R, p1L, cRoot, cMid, cMid);
@@ -232,14 +264,27 @@ namespace PrimevalWorld.Flora
             return st.Commit();
         }
 
-        /// <summary>10. Faceted Rock Boulder (~24 tris).</summary>
+        /// <summary>9a. Fallen Mossy Log (Layer 6 Litter/Soil, ~20 tris).</summary>
+        public static ArrayMesh CreateFallenLogMesh()
+        {
+            var st = new SurfaceTool();
+            st.Begin(Mesh.PrimitiveType.Triangles);
+
+            AddTaperedCylinder(st, new Vector3(-1.8f, 0.20f, 0.0f), new Vector3(1.8f, 0.24f, 0.15f), 0.34f, 0.26f, 5,
+                new Color(0.18f, 0.13f, 0.08f, 0.0f), new Color(0.14f, 0.24f, 0.09f, 0.0f));
+
+            st.GenerateNormals();
+            return st.Commit();
+        }
+
+        /// <summary>9b. Faceted Rock Boulder (Layer 6 Litter/Soil, ~24 tris).</summary>
         public static ArrayMesh CreateBoulderMesh()
         {
             var st = new SurfaceTool();
             st.Begin(Mesh.PrimitiveType.Triangles);
 
-            AddLowPolyCrown(st, new Vector3(0.0f, 0.48f, 0.0f), new Vector3(1.25f, 0.85f, 1.08f), 911,
-                new Color(0.17f, 0.16f, 0.15f, 0.0f), new Color(0.32f, 0.30f, 0.28f, 0.0f));
+            AddLowPolyCrown(st, new Vector3(0.0f, 0.48f, 0.0f), new Vector3(1.30f, 0.88f, 1.12f), 911,
+                new Color(0.18f, 0.17f, 0.16f, 0.0f), new Color(0.34f, 0.32f, 0.30f, 0.0f));
 
             st.GenerateNormals();
             return st.Commit();
@@ -296,8 +341,8 @@ namespace PrimevalWorld.Flora
 
                 float r0 = (i % 2 == 0) ? radius : radius * 0.55f;
                 float r1 = (next % 2 == 0) ? radius : radius * 0.55f;
-                float droop0 = (i % 2 == 0) ? -0.30f : 0.12f;
-                float droop1 = (next % 2 == 0) ? -0.30f : 0.12f;
+                float droop0 = (i % 2 == 0) ? -0.32f : 0.12f;
+                float droop1 = (next % 2 == 0) ? -0.32f : 0.12f;
 
                 Vector3 v0 = baseCenter + new Vector3(MathF.Cos(a0) * r0, droop0, MathF.Sin(a0) * r0);
                 Vector3 v1 = baseCenter + new Vector3(MathF.Cos(a1) * r1, droop1, MathF.Sin(a1) * r1);
