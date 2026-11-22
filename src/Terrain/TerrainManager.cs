@@ -9,7 +9,7 @@ namespace PrimevalWorld.Terrain
         private readonly List<TerrainChunk> _chunks = new();
         private ShaderMaterial? _terrainMaterial;
 
-        public void BuildTerrain(WorldGenerator generator)
+        public void BuildTerrain(WorldGenerator terrain, ClimateSimulator climate, SoilSimulator soil)
         {
             foreach (TerrainChunk chunk in _chunks)
             {
@@ -23,7 +23,7 @@ namespace PrimevalWorld.Terrain
                 _terrainMaterial = new ShaderMaterial { Shader = shader };
             }
 
-            _terrainMaterial.SetShaderParameter("biome_splat_tex", generator.BuildBiomeSplatTexture());
+            _terrainMaterial.SetShaderParameter("soil_splat_tex", soil.BuildSoilSplatTexture());
 
             for (int cz = 0; cz < WorldGenerator.ChunksZ; cz++)
             {
@@ -31,10 +31,15 @@ namespace PrimevalWorld.Terrain
                 {
                     var chunk = new TerrainChunk { Name = $"Chunk_{cx}_{cz}" };
                     AddChild(chunk);
-                    chunk.Build(generator, cx, cz, _terrainMaterial);
+                    chunk.Build(terrain, climate, soil, cx, cz, _terrainMaterial);
                     _chunks.Add(chunk);
                 }
             }
+        }
+
+        public void SetCanopyCoverageTexture(ImageTexture canopyTex)
+        {
+            _terrainMaterial?.SetShaderParameter("canopy_coverage_tex", canopyTex);
         }
     }
 }

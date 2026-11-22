@@ -7,15 +7,16 @@ using PrimevalWorld.WorldGen;
 namespace PrimevalWorld.Core
 {
     /// <summary>
-    /// Root scene controller for Primeval Reach (3x3 km Prehistoric Multi-Continent World):
-    /// - 4 Continents / 5 Biomes
-    /// - 45k-65k MultiMesh prehistoric flora & boulders
-    /// - [M] High-res 2D Topographic World Map Overlay (click to teleport)
-    /// - [1-5] Quick camera jump presets to each biome
+    /// Root scene controller wiring the 4-tier causal world pipeline:
+    /// Terrain & Flow -> Climate (Wind/Temp/Rain Shadow) -> Soil (6 Types) -> Niche Flora.
+    /// Includes live environmental HUD + 5-mode [M] World Map visualization overlays.
     /// </summary>
     public partial class MainController : Node3D
     {
-        private readonly WorldGenerator _worldGen = new WorldGenerator(2026);
+        private readonly WorldGenerator _terrainGen = new WorldGenerator(2026);
+        private readonly ClimateSimulator _climate = new ClimateSimulator();
+        private readonly SoilSimulator _soil = new SoilSimulator();
+
         private TerrainManager? _terrainMgr;
         private WaterSurface? _waterSurface;
         private FloraManager? _floraMgr;
@@ -25,6 +26,10 @@ namespace PrimevalWorld.Core
         private Control? _worldMapOverlay;
         private TextureRect? _worldMapRect;
         private Control? _cameraPin;
+        private Label? _mapLegendLabel;
+
+        private ImageTexture?[] _mapTextures = new ImageTexture?[5];
+        private int _mapMode = 0;
 
         public override void _Ready()
         {
@@ -45,7 +50,7 @@ namespace PrimevalWorld.Core
 
             BuildCompactHud();
             BuildWorldMapOverlay();
-            RegenerateWorld(_worldGen.Seed);
+            RegenerateWorld(_terrainGen.Seed);
         }
 
         private void SetupEnvironmentAndLighting()
@@ -74,7 +79,7 @@ namespace PrimevalWorld.Core
                 FogEnabled = true,
                 FogMode = Environment.FogModeEnum.Depth,
                 FogLightColor = horizonColor,
-                FogDensity = 0.00095f,
+                FogDensity = 0.0009f,
                 FogDepthBegin = 320.0f,
                 FogDepthEnd = 6800.0f,
                 FogAerialPerspective = 0.62f,
@@ -93,7 +98,7 @@ namespace PrimevalWorld.Core
                 ShadowEnabled = true,
                 ShadowBlur = 1.2f,
                 DirectionalShadowMode = DirectionalLight3D.ShadowMode.Parallel4Splits,
-                DirectionalShadowMaxDistance = 1200.0f,
+                DirectionalShadowMaxDistance = 750.0f,
             };
             sun.RotationDegrees = new Vector3(-27.0f, -128.0f, 0.0f);
             AddChild(sun);
@@ -107,7 +112,7 @@ namespace PrimevalWorld.Core
             var panel = new PanelContainer { Position = new Vector2(14, 14) };
             var style = new StyleBoxFlat
             {
-                BgColor = new Color(0.05f, 0.08f, 0.12f, 0.80f),
+                BgColor = new Color(0.05f, 0.08f, 0.12f, 0.82f),
                 BorderColor = new Color(0.28f, 0.42f, 0.56f, 0.90f),
                 BorderWidthLeft = 1,
                 BorderWidthTop = 1,
@@ -139,7 +144,7 @@ namespace PrimevalWorld.Core
             newSeedBtn.Pressed += () => RegenerateWorld((int)(GD.Randi() % 90000 + 1000));
             btnRow.AddChild(newSeedBtn);
 
-            var mapBtn = new Button { Text = "Bản đồ (M)" };
+            var mapBtn = new Button { Text = "Bản đồ & Lớp Khí hậu (M)" };
             mapBtn.Pressed += ToggleWorldMap;
             btnRow.AddChild(mapBtn);
 
@@ -149,7 +154,7 @@ namespace PrimevalWorld.Core
 
             var helpLabel = new Label
             {
-                Text = "WASD: Bay | Chuột phải: Xoay | Q/E: Lên/Xuống | Shift: Nhanh | 1-5: Nhảy tới 5 Quần xã | M: Bản đồ | G: Đổi Seed",
+                Text = "WASD: Bay | Chuột phải: Xoay | Q/E: Lên/Xuống | Shift: Nhanh | 1-5: Bay tới 5 Vùng | M: Bản đồ Khí hậu/Đất | G: Đổi Seed",
             };
             helpLabel.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
             helpLabel.OffsetLeft = 16;
@@ -166,22 +171,19 @@ namespace PrimevalWorld.Core
 
             var backdrop = new ColorRect
             {
-                Color = new Color(0.02f, 0.04f, 0.07f, 0.78f),
+                Color = new Color(0.02f, 0.04f, 0.07f, 0.80f),
                 Visible = false,
             };
             backdrop.SetAnchorsPreset(Control.LayoutPreset.FullRect);
             mapLayer.AddChild(backdrop);
             _worldMapOverlay = backdrop;
 
-            var centerBox = new PanelContainer
-            {
-                CustomMinimumSize = new Vector2(760, 470),
-            };
+            var centerBox = new PanelContainer { CustomMinimumSize = new Vector2(760, 505) };
             centerBox.SetAnchorsPreset(Control.LayoutPreset.Center);
             centerBox.OffsetLeft = -380;
             centerBox.OffsetRight = 380;
-            centerBox.OffsetTop = -235;
-            centerBox.OffsetBottom = 235;
+            centerBox.OffsetTop = -252;
+            centerBox.OffsetBottom = 252;
             backdrop.AddChild(centerBox);
 
             var vbox = new VBoxContainer();
@@ -189,11 +191,23 @@ namespace PrimevalWorld.Core
 
             var title = new Label
             {
-                Text = "BẢN ĐỒ THẾ GIỚI TIỀN SỬ PRIMEVAL REACH (Click vào bản đồ để bay tới | M để đóng)",
+                Text = "BẢN ĐỒ DỮ LIỆU NHÂN QUẢ PRIMEVAL REACH (Click vào bản đồ để bay tới | M để đóng)",
                 HorizontalAlignment = HorizontalAlignment.Center,
             };
             title.AddThemeFontSizeOverride("font_size", 13);
             vbox.AddChild(title);
+
+            // Mode switching buttons
+            var modeRow = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
+            vbox.AddChild(modeRow);
+            string[] modeNames = { "1. Địa hình & Rừng", "2. Nhiệt độ (°C)", "3. Độ ẩm & Mưa", "4. Loại Đất/Cát", "5. Sức Gió" };
+            for (int i = 0; i < modeNames.Length; i++)
+            {
+                int modeIdx = i;
+                var btn = new Button { Text = modeNames[i] };
+                btn.Pressed += () => SetMapMode(modeIdx);
+                modeRow.AddChild(btn);
+            }
 
             _worldMapRect = new TextureRect
             {
@@ -203,7 +217,6 @@ namespace PrimevalWorld.Core
             _worldMapRect.GuiInput += OnWorldMapClick;
             vbox.AddChild(_worldMapRect);
 
-            // Red pin indicating current camera XZ location
             var pin = new ColorRect
             {
                 Color = new Color(1.0f, 0.25f, 0.20f, 1.0f),
@@ -214,13 +227,33 @@ namespace PrimevalWorld.Core
             _worldMapRect.AddChild(pin);
             _cameraPin = pin;
 
-            var legend = new Label
+            _mapLegendLabel = new Label
             {
-                Text = "[1] Băng giá Tây-Bắc  |  [2] Đất đỏ & Ốc đảo Tây-Nam  |  [3] Đại ngàn Trung/Đông  |  [4] Thảo nguyên Thu Đông-Bắc  |  [5] Đảo Bảo tồn",
+                Text = "Đang xem: Địa hình chuẩn Blueprint",
                 HorizontalAlignment = HorizontalAlignment.Center,
             };
-            legend.AddThemeFontSizeOverride("font_size", 11);
-            vbox.AddChild(legend);
+            _mapLegendLabel.AddThemeFontSizeOverride("font_size", 11);
+            vbox.AddChild(_mapLegendLabel);
+        }
+
+        private void SetMapMode(int mode)
+        {
+            _mapMode = mode;
+            if (_worldMapRect != null && _mapTextures[mode] != null)
+            {
+                _worldMapRect.Texture = _mapTextures[mode];
+            }
+            if (_mapLegendLabel != null)
+            {
+                _mapLegendLabel.Text = mode switch
+                {
+                    0 => "Lớp 1: Bản đồ Thế giới chuẩn (Địa hình, Sông hồ & Quần xã)",
+                    1 => "Lớp 2: Nhiệt độ bề mặt (-15°C Xanh dương -> +15°C Vàng -> +38°C Đỏ)",
+                    2 => "Lớp 3: Độ ẩm đất & Bóng mưa địa hình (Khô Cam -> Ẩm Xanh dương)",
+                    3 => "Lớp 4: Thổ nhưỡng (Xanh đậm: Phù sa | Vàng: Thảo nguyên | Đỏ: Cát đỏ | Cát biển | Xám: Băng đá)",
+                    _ => "Lớp 5: Sức gió thịnh hành (Tối: Thung lũng khuất gió -> Vàng sáng: Đỉnh núi & Biển lộng gió)",
+                };
+            }
         }
 
         private void OnWorldMapClick(InputEvent @event)
@@ -233,7 +266,7 @@ namespace PrimevalWorld.Core
                 float nz = Mathf.Clamp(mb.Position.Y / size.Y, 0.0f, 1.0f);
                 float wx = nx * WorldGenerator.RegionWidthMeters;
                 float wz = nz * WorldGenerator.RegionDepthMeters;
-                float h = Mathf.Max(8.0f, _worldGen.SampleHeight(wx, wz));
+                float h = Mathf.Max(8.0f, _terrainGen.SampleHeight(wx, wz));
                 _camera.TeleportTo(new Vector3(wx, h + 45.0f, wz + 70.0f), new Vector3(wx, h, wz));
                 ToggleWorldMap();
             }
@@ -260,14 +293,25 @@ namespace PrimevalWorld.Core
 
         private void RegenerateWorld(int seed)
         {
-            _worldGen.SetSeed(seed);
-            _terrainMgr?.BuildTerrain(_worldGen);
-            _waterSurface?.BuildWater(_worldGen);
-            _floraMgr?.BuildFlora(_worldGen);
-            if (_worldMapRect != null)
+            _terrainGen.SetSeed(seed);
+            _climate.Simulate(_terrainGen);
+            _soil.Simulate(_terrainGen, _climate);
+
+            _terrainMgr?.BuildTerrain(_terrainGen, _climate, _soil);
+            _waterSurface?.BuildWater(_terrainGen);
+
+            if (_floraMgr != null)
             {
-                _worldMapRect.Texture = _worldGen.BuildWorldMapTexture();
+                ImageTexture canopyTex = _floraMgr.BuildFlora(_terrainGen, _climate, _soil);
+                _terrainMgr?.SetCanopyCoverageTexture(canopyTex);
             }
+
+            _mapTextures[0] = _terrainGen.BuildBlueprintTexture();
+            _mapTextures[1] = _climate.BuildTemperatureMapTexture();
+            _mapTextures[2] = _climate.BuildMoistureMapTexture();
+            _mapTextures[3] = _soil.BuildSoilMapTexture();
+            _mapTextures[4] = _climate.BuildWindMapTexture();
+            SetMapMode(_mapMode);
         }
 
         public override void _UnhandledInput(InputEvent @event)
@@ -282,20 +326,25 @@ namespace PrimevalWorld.Core
                     case Key.M:
                         ToggleWorldMap();
                         break;
-                    case Key.Key1: // NW Glacial Alpine Massif & Fjords
-                        _camera?.TeleportTo(new Vector3(1120.0f, 165.0f, 920.0f), new Vector3(960.0f, 45.0f, 320.0f));
+                    case Key.Key1:
+                        if (_worldMapOverlay?.Visible == true) SetMapMode(0);
+                        else _camera?.TeleportTo(new Vector3(1120.0f, 165.0f, 920.0f), new Vector3(960.0f, 45.0f, 320.0f));
                         break;
-                    case Key.Key2: // SW Terracotta Desert & Turquoise Lagoon
-                        _camera?.TeleportTo(new Vector3(920.0f, 110.0f, 1840.0f), new Vector3(880.0f, 16.0f, 1360.0f));
+                    case Key.Key2:
+                        if (_worldMapOverlay?.Visible == true) SetMapMode(1);
+                        else _camera?.TeleportTo(new Vector3(920.0f, 110.0f, 1840.0f), new Vector3(880.0f, 16.0f, 1360.0f));
                         break;
-                    case Key.Key3: // East Primeval Forest, Crescent Bay & Delta
-                        _camera?.TeleportTo(new Vector3(2450.0f, 120.0f, 1880.0f), new Vector3(2560.0f, 12.0f, 1340.0f));
+                    case Key.Key3:
+                        if (_worldMapOverlay?.Visible == true) SetMapMode(2);
+                        else _camera?.TeleportTo(new Vector3(2450.0f, 120.0f, 1880.0f), new Vector3(2560.0f, 12.0f, 1340.0f));
                         break;
-                    case Key.Key4: // NE Autumn Steppes Plateau & Highland Lake
-                        _camera?.TeleportTo(new Vector3(2840.0f, 118.0f, 1020.0f), new Vector3(2680.0f, 22.0f, 580.0f));
+                    case Key.Key4:
+                        if (_worldMapOverlay?.Visible == true) SetMapMode(3);
+                        else _camera?.TeleportTo(new Vector3(2840.0f, 118.0f, 1020.0f), new Vector3(2680.0f, 22.0f, 580.0f));
                         break;
-                    case Key.Key5: // SE Sanctuary Archipelago
-                        _camera?.TeleportTo(new Vector3(3180.0f, 105.0f, 1980.0f), new Vector3(3480.0f, 8.0f, 1720.0f));
+                    case Key.Key5:
+                        if (_worldMapOverlay?.Visible == true) SetMapMode(4);
+                        else _camera?.TeleportTo(new Vector3(3180.0f, 105.0f, 1980.0f), new Vector3(3480.0f, 8.0f, 1720.0f));
                         break;
                 }
             }
@@ -306,11 +355,13 @@ namespace PrimevalWorld.Core
             if (_telemetryLabel != null && _camera != null)
             {
                 Vector3 p = _camera.Position;
-                TerrainSample s = _worldGen.SamplePoint(p.X, p.Z);
+                ClimateSample cs = _climate.SampleClimate(p.X, p.Z);
+                SoilSample ss = _soil.SampleSoil(p.X, p.Z);
                 int floraCount = _floraMgr?.TotalInstanceCount ?? 0;
+
                 _telemetryLabel.Text =
-                    $"Primeval Reach (4 Lục địa | 3.8x2.0 km) | FPS: {Engine.GetFramesPerSecond():0} | Seed: {_worldGen.Seed} | Thực thể: {floraCount:N0}\n" +
-                    $"Quần xã: {FormatBiomeName(s.Biome)} | X={p.X:0.0}m Y={p.Y:0.0}m Z={p.Z:0.0}m | Tốc độ: {_camera.CurrentSpeed:0} m/s";
+                    $"Primeval Reach (4-Tier Causal World) | FPS: {Engine.GetFramesPerSecond():0} | Seed: {_terrainGen.Seed} | Thực thể: {floraCount:N0}\n" +
+                    $"Nhiệt độ: {cs.TemperatureC:0.0}°C | Độ ẩm: {cs.Moisture * 100.0f:0}% | Gió: {cs.WindSpeed:0.0} m/s | Đất: {FormatSoilName(ss.DominantSoil)} | Cao độ: {_terrainGen.SampleHeight(p.X, p.Z):0.0}m";
             }
 
             if (_worldMapOverlay != null && _worldMapOverlay.Visible)
@@ -319,15 +370,14 @@ namespace PrimevalWorld.Core
             }
         }
 
-        private static string FormatBiomeName(BiomeId biome) => biome switch
+        private static string FormatSoilName(SoilType soil) => soil switch
         {
-            BiomeId.GlacialAlpine => "Núi băng Tây-Bắc",
-            BiomeId.TerracottaDesert => "Hoang mạc Đất đỏ Tây-Nam",
-            BiomeId.PrimevalForest => "Đại ngàn Nguyên sinh",
-            BiomeId.AutumnSteppe => "Thảo nguyên Mùa thu Đông-Bắc",
-            BiomeId.SanctuaryIsland => "Đảo Bảo tồn Đông-Nam",
-            BiomeId.CoastalReef => "Thềm San hô Nông",
-            _ => "Đại dương Sâu",
+            SoilType.AlluvialLoam => "Đất phù sa/mùn ẩm",
+            SoilType.ForestBrownSoil => "Đất rừng nâu",
+            SoilType.SteppeLoess => "Đất thảo nguyên",
+            SoilType.AridRedSand => "Đất đỏ/Cát khô",
+            SoilType.CoastalSand => "Cát biển mặn",
+            _ => "Băng giá/Đá gốc",
         };
     }
 }

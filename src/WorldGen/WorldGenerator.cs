@@ -15,77 +15,33 @@ namespace PrimevalWorld.WorldGen
         SanctuaryIsland = 6,
     }
 
-    public readonly struct TerrainSample
-    {
-        public readonly float Height;
-        public readonly float RiverMask;
-        public readonly float InlandWaterY;
-        public readonly float CoastalMask;
-        public readonly float Moisture;
-        public readonly float ForestDensity;
-        public readonly float Temperature;
-        public readonly float SaltExposure;
-        public readonly float MegafaunaCorridor;
-        public readonly BiomeId Biome;
-
-        public TerrainSample(
-            float height,
-            float riverMask,
-            float inlandWaterY,
-            float coastalMask,
-            float moisture,
-            float forestDensity,
-            float temperature,
-            float saltExposure,
-            float megafaunaCorridor,
-            BiomeId biome)
-        {
-            Height = height;
-            RiverMask = riverMask;
-            InlandWaterY = inlandWaterY;
-            CoastalMask = coastalMask;
-            Moisture = moisture;
-            ForestDensity = forestDensity;
-            Temperature = temperature;
-            SaltExposure = saltExposure;
-            MegafaunaCorridor = megafaunaCorridor;
-            Biome = biome;
-        }
-    }
-
     /// <summary>
-    /// Macro Blueprint + Procedural 3D Detail World Generator (3840m x 2048m, 961x513).
-    /// Reads res://assets/maps/primeval_reach_canonical.jpg strictly as the macro layout
-    /// blueprint (exact 4 continents, fjords, bays, rivers, delta & 5 biomes),
-    /// smooths coastlines to eliminate pixel stairs, and adds high-resolution 3D Ridged Noise
-    /// + 70,000-droplet Particle Hydraulic Erosion.
+    /// Tier 1: Macro Blueprint + 3D Relief Terrain + Flow Accumulation (3840m x 2048m, 961x513).
+    /// Provides pure physical terrain, slope, aspect, river/lake hydrology, and D8 flow accumulation
+    /// to Tier 2 (ClimateSimulator) and Tier 3 (SoilSimulator).
     /// </summary>
     public sealed class WorldGenerator
     {
         public int Seed { get; private set; }
 
-        public const float RegionWidthMeters = 3840.0f;  // 15 * 256m
-        public const float RegionDepthMeters = 2048.0f;  // 8 * 256m
+        public const float RegionWidthMeters = 3840.0f;
+        public const float RegionDepthMeters = 2048.0f;
         public const float ChunkSizeMeters = 256.0f;
         public const int ChunksX = 15;
         public const int ChunksZ = 8;
-        public const int ChunkVerticesPerSide = 65;      // 4.0m vertex spacing
+        public const int ChunkVerticesPerSide = 65;
         public const float SeaLevel = 0.0f;
 
-        public const int GridWidth = 961;                // 15 * 64 + 1
-        public const int GridDepth = 513;                // 8 * 64 + 1
-        private const float CellSize = 4.0f;
+        public const int GridWidth = 961;
+        public const int GridDepth = 513;
+        public const float CellSize = 4.0f;
 
         private readonly float[] _heightGrid = new float[GridWidth * GridDepth];
         private readonly float[] _riverMaskGrid = new float[GridWidth * GridDepth];
         private readonly float[] _inlandWaterYGrid = new float[GridWidth * GridDepth];
         private readonly bool[] _hasInlandWater = new bool[GridWidth * GridDepth];
-        private readonly float[] _moistureGrid = new float[GridWidth * GridDepth];
-        private readonly float[] _forestGrid = new float[GridWidth * GridDepth];
-        private readonly float[] _autumnWeight = new float[GridWidth * GridDepth];
-        private readonly float[] _desertWeight = new float[GridWidth * GridDepth];
-        private readonly float[] _glacialWeight = new float[GridWidth * GridDepth];
-        private readonly BiomeId[] _biomeGrid = new BiomeId[GridWidth * GridDepth];
+        private readonly float[] _flowAccumGrid = new float[GridWidth * GridDepth];
+        private readonly float[] _coastalMaskGrid = new float[GridWidth * GridDepth];
 
         private Image? _blueprintCropped;
 
@@ -106,24 +62,19 @@ namespace PrimevalWorld.WorldGen
             }
 
             var raw = new Image();
-            Error err = raw.LoadJpgFromBuffer(bytes);
-            if (err != Error.Ok)
+            if (raw.LoadJpgFromBuffer(bytes) == Error.Ok)
             {
-                GD.PushError($"Failed to decode JPG blueprint: {err}");
-                return;
+                _blueprintCropped = raw.GetRegion(new Rect2I(21, 18, 982, 536));
             }
-
-            // Crop inner map inside vintage parchment border (x: 21..1003, y: 18..554)
-            _blueprintCropped = raw.GetRegion(new Rect2I(21, 18, 982, 536));
         }
 
         public void SetSeed(int newSeed)
         {
             Seed = newSeed;
-            GenerateFromBlueprint();
+            GenerateTerrainAndHydrology();
         }
 
-        private void GenerateFromBlueprint()
+        private void GenerateTerrainAndHydrology()
         {
             int count = GridWidth * GridDepth;
             float[] landMask = new float[count];
@@ -131,6 +82,9 @@ namespace PrimevalWorld.WorldGen
             float[] snowFeature = new float[count];
             float[] forestFeature = new float[count];
             float[] ridgeFeature = new float[count];
+            float[] nwWeight = new float[count];
+            float[] swWeight = new float[count];
+            float[] neWeight = new float[count];
 
             if (_blueprintCropped != null)
             {
@@ -160,43 +114,35 @@ namespace PrimevalWorld.WorldGen
                         landMask[idx] = isWater ? 0.0f : 1.0f;
                         rawWaterMask[idx] = isInlandWater ? 1.0f : 0.0f;
 
-                        // Regional Biome weights directly matching the canonical map layout
-                        _glacialWeight[idx] = (1.0f - FastNoise.SmoothStep(0.42f, 0.52f, nx))
-                                            * (1.0f - FastNoise.SmoothStep(0.42f, 0.52f, nz));
-                        _desertWeight[idx] = (1.0f - FastNoise.SmoothStep(0.40f, 0.50f, nx))
-                                           * FastNoise.SmoothStep(0.43f, 0.52f, nz);
-                        _autumnWeight[idx] = FastNoise.SmoothStep(0.50f, 0.58f, nx)
-                                           * (1.0f - FastNoise.SmoothStep(0.38f, 0.49f, nz));
+                        nwWeight[idx] = (1.0f - FastNoise.SmoothStep(0.42f, 0.52f, nx))
+                                      * (1.0f - FastNoise.SmoothStep(0.42f, 0.52f, nz));
+                        swWeight[idx] = (1.0f - FastNoise.SmoothStep(0.40f, 0.50f, nx))
+                                      * FastNoise.SmoothStep(0.43f, 0.52f, nz);
+                        neWeight[idx] = FastNoise.SmoothStep(0.50f, 0.58f, nx)
+                                      * (1.0f - FastNoise.SmoothStep(0.38f, 0.49f, nz));
 
-                        // Snow & alpine rock features in NW
                         bool isSnow = !isWater && brightness > 0.56f && sat < 0.20f && nx < 0.48f && nz < 0.46f;
                         snowFeature[idx] = isSnow ? 1.0f : 0.0f;
 
-                        // Dark rocky crater rim / mountain ridges
-                        bool isRidge = !isWater && ((_desertWeight[idx] > 0.5f && g > 0.35f && r < 0.72f) || isSnow);
+                        bool isRidge = !isWater && ((swWeight[idx] > 0.5f && g > 0.35f && r < 0.72f) || isSnow);
                         ridgeFeature[idx] = isRidge ? 1.0f : 0.0f;
 
-                        // Dense dark primeval forest groves directly from blueprint green canopy regions
                         bool isForestGreen = !isWater && (g > r + 0.02f) && (g > b + 0.04f) && (g < 0.42f);
                         forestFeature[idx] = isForestGreen ? 1.0f : 0.0f;
                     }
                 }
             }
 
-            // Smooth masks twice to remove all image pixel staircases
             SmoothGrid(landMask, 2);
             SmoothGrid(snowFeature, 3);
-            SmoothGrid(ridgeFeature, 3);
+            SmoothGrid(ridgeFeature, 4);
             SmoothGrid(forestFeature, 2);
             SmoothGrid(rawWaterMask, 1);
 
-            // Identify ocean-connected water vs inland rivers/highland lakes via BFS from (0, 0)
             bool[] isOceanConnected = FloodFillOcean(landMask);
+            float[] coastDist = ComputeCoastDistance(landMask);
 
-            // Compute distance from coast (in cells) for natural inland elevation rise
-            float[] coastDist = ComputeCoastDistance(landMask, isOceanConnected);
-
-            // Pass 1: Build 3D relief heightfield combining smooth blueprint + 3D Ridged Noise
+            // Pass 1: 3D Relief Heightfield (smoothed SW sandstone mesas & wind-carved sand dunes, sharp NW peaks)
             for (int gz = 0; gz < GridDepth; gz++)
             {
                 float worldZ = gz * CellSize;
@@ -210,29 +156,29 @@ namespace PrimevalWorld.WorldGen
                     float land = landMask[idx];
                     float dMeters = coastDist[idx] * CellSize;
 
-                    float fbm = FastNoise.Fbm2D(worldX * 0.0022f, worldZ * 0.0022f, Seed + 101, 5);
-                    float ridged = MathF.Pow(FastNoise.RidgedFbm2D(worldX * 0.0028f, worldZ * 0.0028f, Seed + 307, 6), 1.15f);
-                    float micro = (FastNoise.Fbm2D(worldX * 0.014f, worldZ * 0.014f, Seed + 173, 3) - 0.5f) * 2.2f;
+                    float fbm = FastNoise.Fbm2D(worldX * 0.0020f, worldZ * 0.0020f, Seed + 101, 5);
+                    float ridged = MathF.Pow(FastNoise.RidgedFbm2D(worldX * 0.0026f, worldZ * 0.0026f, Seed + 307, 6), 1.15f);
+                    float micro = (FastNoise.Fbm2D(worldX * 0.012f, worldZ * 0.012f, Seed + 173, 3) - 0.5f) * 2.0f;
 
-                    // Base coastal rise
                     float baseLandH = 2.8f + FastNoise.SmoothStep(0.0f, 110.0f, dMeters) * 18.0f + fbm * 10.0f + micro;
 
-                    // NW Glacial Alpine Massif peaks
-                    float nwLift = snowFeature[idx] * (38.0f + ridged * 76.0f);
+                    // NW Glacial Alpine Massif sharp peaks
+                    float nwLift = snowFeature[idx] * (36.0f + ridged * 76.0f);
 
-                    // SW Terracotta Crater Rim & Sand Dunes
-                    float swDunes = _desertWeight[idx] * FastNoise.RidgedFbm2D(worldX * 0.006f, worldZ * 0.0025f, Seed + 419, 3) * 9.0f;
-                    float swRim = _desertWeight[idx] * ridgeFeature[idx] * (18.0f + ridged * 32.0f);
+                    // SW Terracotta: gentle wind-carved sand dunes + weathered flat-topped sandstone mesas (NO jagged spikes!)
+                    float swDunes = swWeight[idx] * FastNoise.Fbm2D(worldX * 0.0055f, worldZ * 0.0022f, Seed + 419, 4) * 11.0f;
+                    float swMesaRaw = fbm * 20.0f + MathF.Pow(ridged, 1.8f) * 10.0f;
+                    float swMesa = MathF.Floor(swMesaRaw / 6.5f) * 6.5f + FastNoise.SmoothStep(0.2f, 0.8f, (swMesaRaw % 6.5f) / 6.5f) * 6.5f;
+                    float swRim = swWeight[idx] * ridgeFeature[idx] * (8.0f + swMesa);
 
                     // NE Autumn Steppes Plateau
-                    float nePlateau = _autumnWeight[idx] * (12.0f + fbm * 14.0f + ridged * 18.0f);
+                    float nePlateau = neWeight[idx] * (11.0f + fbm * 14.0f + MathF.Pow(ridged, 1.4f) * 14.0f);
 
                     // East Crescent Forest Ridge
-                    float eastRidge = (nx > 0.52f && nz > 0.45f) ? forestFeature[idx] * ridged * 16.0f : 0.0f;
+                    float eastRidge = (nx > 0.52f && nz > 0.45f) ? forestFeature[idx] * MathF.Pow(ridged, 1.3f) * 15.0f : 0.0f;
 
                     float totalLandH = baseLandH + nwLift + swDunes + swRim + nePlateau + eastRidge;
 
-                    // Shallow coral shelf (-3.2m .. 0m) transitioning to deep ocean (-13m)
                     float shelfT = FastNoise.SmoothStep(0.0f, 36.0f, -dMeters);
                     float oceanFloor = Mathf.Lerp(-2.8f, -13.0f, shelfT) + fbm * 1.8f;
 
@@ -241,66 +187,88 @@ namespace PrimevalWorld.WorldGen
                 }
             }
 
-            // Pass 2: 65,000-Droplet Hydraulic Erosion for sharp gullies & rocky ridges
-            ApplyHydraulicErosion(65000);
+            ApplyHydraulicErosion(60000);
 
-            // Pass 3: Carve inland rivers & highland lakes gently (NO deep black pits!) and set Biome/Flora grids
+            // Carve inland rivers & lakes gently
             for (int gz = 0; gz < GridDepth; gz++)
             {
                 for (int gx = 0; gx < GridWidth; gx++)
                 {
                     int idx = gz * GridWidth + gx;
-                    float h = _heightGrid[idx];
                     bool isInlandRiverOrLake = rawWaterMask[idx] > 0.38f && !isOceanConnected[idx];
-
                     _hasInlandWater[idx] = isInlandRiverOrLake;
                     _riverMaskGrid[idx] = rawWaterMask[idx];
 
                     if (isInlandRiverOrLake)
                     {
-                        // Sample local surrounding bank height so river/lake sits naturally in its valley
                         float bankH = SampleLocalBankHeight(gx, gz, rawWaterMask);
                         float waterSurfaceY = MathF.Max(0.2f, bankH - 0.8f);
                         _inlandWaterYGrid[idx] = waterSurfaceY;
-                        _heightGrid[idx] = waterSurfaceY - 2.0f; // Gentle 2m riverbed
+                        _heightGrid[idx] = waterSurfaceY - 2.0f;
                     }
                     else
                     {
                         _inlandWaterYGrid[idx] = SeaLevel;
                     }
 
-                    float riverProximity = rawWaterMask[idx];
-                    float coastal = FastNoise.SmoothStep(3.5f, -1.5f, _heightGrid[idx]);
-                    float moisture = Math.Clamp(
-                        0.42f + riverProximity * 0.50f + coastal * 0.18f
-                        - _desertWeight[idx] * 0.34f - (_heightGrid[idx] / 120.0f) * 0.25f,
-                        0.0f, 1.0f);
-                    _moistureGrid[idx] = moisture;
-
-                    float nx = gx / (float)(GridWidth - 1);
-                    float nz = gz / (float)(GridDepth - 1);
-
-                    if (_heightGrid[idx] < -3.6f) _biomeGrid[idx] = BiomeId.DeepOcean;
-                    else if (_heightGrid[idx] < 0.7f) _biomeGrid[idx] = BiomeId.CoastalReef;
-                    else if (nx > 0.80f && nz > 0.72f) _biomeGrid[idx] = BiomeId.SanctuaryIsland;
-                    else if (_glacialWeight[idx] > 0.45f) _biomeGrid[idx] = BiomeId.GlacialAlpine;
-                    else if (_desertWeight[idx] > 0.45f) _biomeGrid[idx] = BiomeId.TerracottaDesert;
-                    else if (_autumnWeight[idx] > 0.45f) _biomeGrid[idx] = BiomeId.AutumnSteppe;
-                    else _biomeGrid[idx] = BiomeId.PrimevalForest;
-
-                    float altSuit = FastNoise.SmoothStep(1.2f, 3.5f, _heightGrid[idx])
-                                  * (1.0f - FastNoise.SmoothStep(44.0f, 58.0f, _heightGrid[idx]));
-                    float worldX = gx * CellSize;
-                    float worldZ = gz * CellSize;
-                    float groveNoise = FastNoise.Fbm2D(worldX * 0.0032f + 19.4f, worldZ * 0.0032f - 8.7f, Seed + 907, 4);
-                    float regionalGrove = _biomeGrid[idx] switch
-                    {
-                        BiomeId.AutumnSteppe => FastNoise.SmoothStep(0.42f, 0.65f, groveNoise) * 0.78f,
-                        BiomeId.GlacialAlpine => FastNoise.SmoothStep(0.34f, 0.62f, groveNoise) * 0.85f,
-                        _ => forestFeature[idx],
-                    };
-                    _forestGrid[idx] = Math.Clamp(MathF.Max(regionalGrove, riverProximity * 0.70f) * altSuit, 0.0f, 1.0f);
+                    _coastalMaskGrid[idx] = FastNoise.SmoothStep(4.0f, -1.5f, _heightGrid[idx]);
                 }
+            }
+
+            // Compute D8 Flow Accumulation across the terrain
+            ComputeFlowAccumulation();
+        }
+
+        private void ComputeFlowAccumulation()
+        {
+            int count = GridWidth * GridDepth;
+            var order = new int[count];
+            for (int i = 0; i < count; i++)
+            {
+                order[i] = i;
+                _flowAccumGrid[i] = _heightGrid[i] > 0.2f ? 1.0f : 0.0f;
+            }
+
+            // Sort cells from highest to lowest elevation
+            Array.Sort(order, (a, b) => _heightGrid[b].CompareTo(_heightGrid[a]));
+
+            int[] dx = { -1, 0, 1, -1, 1, -1, 0, 1 };
+            int[] dz = { -1, -1, -1, 0, 0, 1, 1, 1 };
+            float[] dist = { 1.414f, 1.0f, 1.414f, 1.0f, 1.0f, 1.414f, 1.0f, 1.414f };
+
+            for (int k = 0; k < count; k++)
+            {
+                int idx = order[k];
+                float h = _heightGrid[idx];
+                if (h <= 0.1f) continue;
+
+                int x = idx % GridWidth;
+                int z = idx / GridWidth;
+                if (x == 0 || x == GridWidth - 1 || z == 0 || z == GridDepth - 1) continue;
+
+                float bestSlope = 0.0f;
+                int bestTarget = -1;
+                for (int d = 0; d < 8; d++)
+                {
+                    int nIdx = (z + dz[d]) * GridWidth + (x + dx[d]);
+                    float s = (h - _heightGrid[nIdx]) / dist[d];
+                    if (s > bestSlope)
+                    {
+                        bestSlope = s;
+                        bestTarget = nIdx;
+                    }
+                }
+
+                if (bestTarget >= 0)
+                {
+                    _flowAccumGrid[bestTarget] += _flowAccumGrid[idx];
+                }
+            }
+
+            // Normalize log-flow accumulation to [0..1]
+            for (int i = 0; i < count; i++)
+            {
+                _flowAccumGrid[i] = Math.Clamp(MathF.Log2(1.0f + _flowAccumGrid[i]) / 9.5f, 0.0f, 1.0f);
             }
         }
 
@@ -333,7 +301,6 @@ namespace PrimevalWorld.WorldGen
             bool[] ocean = new bool[count];
             var queue = new Queue<int>(16384);
 
-            // Seed flood-fill from all 4 outer borders
             for (int x = 0; x < GridWidth; x++)
             {
                 TryEnqueue(x, 0);
@@ -370,19 +337,15 @@ namespace PrimevalWorld.WorldGen
             return ocean;
         }
 
-        private static float[] ComputeCoastDistance(float[] landMask, bool[] isOcean)
+        private static float[] ComputeCoastDistance(float[] landMask)
         {
             int count = GridWidth * GridDepth;
             float[] dist = new float[count];
             const float inf = 9999.0f;
 
             for (int i = 0; i < count; i++)
-            {
-                bool isLand = landMask[i] >= 0.45f;
-                dist[i] = isLand ? inf : 0.0f;
-            }
+                dist[i] = landMask[i] >= 0.45f ? inf : 0.0f;
 
-            // Forward pass
             for (int z = 1; z < GridDepth; z++)
             {
                 for (int x = 1; x < GridWidth - 1; x++)
@@ -397,7 +360,6 @@ namespace PrimevalWorld.WorldGen
                 }
             }
 
-            // Backward pass
             for (int z = GridDepth - 2; z >= 0; z--)
             {
                 for (int x = GridWidth - 2; x >= 1; x--)
@@ -412,21 +374,17 @@ namespace PrimevalWorld.WorldGen
                 }
             }
 
-            // Negative distance for shallow coastal shelf outside land
             float[] oceanDist = new float[count];
             for (int i = 0; i < count; i++)
-            {
                 oceanDist[i] = landMask[i] >= 0.45f ? 0.0f : inf;
-            }
+
             for (int z = 1; z < GridDepth; z++)
             {
                 for (int x = 1; x < GridWidth - 1; x++)
                 {
                     int idx = z * GridWidth + x;
                     if (oceanDist[idx] == 0.0f) continue;
-                    float d = MathF.Min(oceanDist[idx], oceanDist[idx - 1] + 1.0f);
-                    d = MathF.Min(d, oceanDist[idx - GridWidth] + 1.0f);
-                    oceanDist[idx] = d;
+                    oceanDist[idx] = MathF.Min(oceanDist[idx], MathF.Min(oceanDist[idx - 1], oceanDist[idx - GridWidth]) + 1.0f);
                 }
             }
             for (int z = GridDepth - 2; z >= 0; z--)
@@ -435,16 +393,13 @@ namespace PrimevalWorld.WorldGen
                 {
                     int idx = z * GridWidth + x;
                     if (oceanDist[idx] == 0.0f) continue;
-                    float d = MathF.Min(oceanDist[idx], oceanDist[idx + 1] + 1.0f);
-                    d = MathF.Min(d, oceanDist[idx + GridWidth] + 1.0f);
-                    oceanDist[idx] = d;
+                    oceanDist[idx] = MathF.Min(oceanDist[idx], MathF.Min(oceanDist[idx + 1], oceanDist[idx + GridWidth]) + 1.0f);
                 }
             }
 
             for (int i = 0; i < count; i++)
             {
-                if (landMask[i] < 0.45f)
-                    dist[i] = -oceanDist[i];
+                if (landMask[i] < 0.45f) dist[i] = -oceanDist[i];
             }
 
             return dist;
@@ -477,15 +432,8 @@ namespace PrimevalWorld.WorldGen
             int y0 = Math.Clamp((int)fy, 0, h - 1);
             int x1 = Math.Min(w - 1, x0 + 1);
             int y1 = Math.Min(h - 1, y0 + 1);
-            float tx = fx - x0;
-            float ty = fy - y0;
-
-            Color c00 = img.GetPixel(x0, y0);
-            Color c10 = img.GetPixel(x1, y0);
-            Color c01 = img.GetPixel(x0, y1);
-            Color c11 = img.GetPixel(x1, y1);
-
-            return c00.Lerp(c10, tx).Lerp(c01.Lerp(c11, tx), ty);
+            return img.GetPixel(x0, y0).Lerp(img.GetPixel(x1, y0), fx - x0)
+                      .Lerp(img.GetPixel(x0, y1).Lerp(img.GetPixel(x1, y1), fx - x0), fy - y0);
         }
 
         private void ApplyHydraulicErosion(int numDroplets)
@@ -505,11 +453,7 @@ namespace PrimevalWorld.WorldGen
             {
                 float posX = (float)(rng.NextDouble() * (GridWidth - 4) + 2);
                 float posZ = (float)(rng.NextDouble() * (GridDepth - 4) + 2);
-                float dirX = 0.0f;
-                float dirZ = 0.0f;
-                float speed = 1.0f;
-                float water = 1.0f;
-                float sediment = 0.0f;
+                float dirX = 0.0f, dirZ = 0.0f, speed = 1.0f, water = 1.0f, sediment = 0.0f;
 
                 for (int step = 0; step < maxLifetime; step++)
                 {
@@ -521,10 +465,8 @@ namespace PrimevalWorld.WorldGen
                     float cellOffsetZ = posZ - nodeZ;
 
                     int idx00 = nodeZ * GridWidth + nodeX;
-                    float h00 = _heightGrid[idx00];
-                    float h10 = _heightGrid[idx00 + 1];
-                    float h01 = _heightGrid[idx00 + GridWidth];
-                    float h11 = _heightGrid[idx00 + GridWidth + 1];
+                    float h00 = _heightGrid[idx00], h10 = _heightGrid[idx00 + 1];
+                    float h01 = _heightGrid[idx00 + GridWidth], h11 = _heightGrid[idx00 + GridWidth + 1];
 
                     float oldH = (h00 * (1 - cellOffsetX) + h10 * cellOffsetX) * (1 - cellOffsetZ)
                                + (h01 * (1 - cellOffsetX) + h11 * cellOffsetX) * cellOffsetZ;
@@ -554,8 +496,7 @@ namespace PrimevalWorld.WorldGen
 
                     int newX = (int)posX;
                     int newZ = (int)posZ;
-                    float u = posX - newX;
-                    float v = posZ - newZ;
+                    float u = posX - newX, v = posZ - newZ;
                     int nIdx = newZ * GridWidth + newX;
                     float newH = (_heightGrid[nIdx] * (1 - u) + _heightGrid[nIdx + 1] * u) * (1 - v)
                                + (_heightGrid[nIdx + GridWidth] * (1 - u) + _heightGrid[nIdx + GridWidth + 1] * u) * v;
@@ -565,11 +506,8 @@ namespace PrimevalWorld.WorldGen
 
                     if (sediment > capacity || deltaH > 0.0f)
                     {
-                        float amountToDeposit = deltaH > 0.0f
-                            ? MathF.Min(deltaH, sediment)
-                            : (sediment - capacity) * depositSpeed;
+                        float amountToDeposit = deltaH > 0.0f ? MathF.Min(deltaH, sediment) : (sediment - capacity) * depositSpeed;
                         sediment -= amountToDeposit;
-
                         _heightGrid[idx00] += amountToDeposit * (1 - cellOffsetX) * (1 - cellOffsetZ);
                         _heightGrid[idx00 + 1] += amountToDeposit * cellOffsetX * (1 - cellOffsetZ);
                         _heightGrid[idx00 + GridWidth] += amountToDeposit * (1 - cellOffsetX) * cellOffsetZ;
@@ -580,25 +518,20 @@ namespace PrimevalWorld.WorldGen
                         float amountToErode = MathF.Min((capacity - sediment) * erodeSpeed, -deltaH);
                         float totalWeight = 0.0f;
                         for (int bz = -brushRadius; bz <= brushRadius; bz++)
-                        {
                             for (int bx = -brushRadius; bx <= brushRadius; bx++)
                             {
-                                int tx = nodeX + bx;
-                                int tz = nodeZ + bz;
+                                int tx = nodeX + bx, tz = nodeZ + bz;
                                 if (tx < 0 || tx >= GridWidth || tz < 0 || tz >= GridDepth) continue;
                                 float dist = MathF.Sqrt(bx * bx + bz * bz);
                                 if (dist < brushRadius) totalWeight += brushRadius - dist;
                             }
-                        }
 
                         if (totalWeight > 1e-5f)
                         {
                             for (int bz = -brushRadius; bz <= brushRadius; bz++)
-                            {
                                 for (int bx = -brushRadius; bx <= brushRadius; bx++)
                                 {
-                                    int tx = nodeX + bx;
-                                    int tz = nodeZ + bz;
+                                    int tx = nodeX + bx, tz = nodeZ + bz;
                                     if (tx < 0 || tx >= GridWidth || tz < 0 || tz >= GridDepth) continue;
                                     float dist = MathF.Sqrt(bx * bx + bz * bz);
                                     if (dist < brushRadius)
@@ -609,7 +542,6 @@ namespace PrimevalWorld.WorldGen
                                         sediment += deltaSediment;
                                     }
                                 }
-                            }
                         }
                     }
 
@@ -623,63 +555,46 @@ namespace PrimevalWorld.WorldGen
         {
             float cx = Math.Clamp(gx, 0.0f, GridWidth - 1.001f);
             float cz = Math.Clamp(gz, 0.0f, GridDepth - 1.001f);
-            int x0 = (int)cx;
-            int z0 = (int)cz;
-            float tx = cx - x0;
-            float tz = cz - z0;
-
+            int x0 = (int)cx, z0 = (int)cz;
+            float tx = cx - x0, tz = cz - z0;
             int idx = z0 * GridWidth + x0;
-            float v00 = grid[idx];
-            float v10 = grid[idx + 1];
-            float v01 = grid[idx + GridWidth];
-            float v11 = grid[idx + GridWidth + 1];
-
-            return (v00 * (1 - tx) + v10 * tx) * (1 - tz) + (v01 * (1 - tx) + v11 * tx) * tz;
+            return (grid[idx] * (1 - tx) + grid[idx + 1] * tx) * (1 - tz)
+                 + (grid[idx + GridWidth] * (1 - tx) + grid[idx + GridWidth + 1] * tx) * tz;
         }
 
         public bool HasInlandWaterAtCell(int gx, int gz) => _hasInlandWater[gz * GridWidth + gx];
         public float GetInlandWaterYAtCell(int gx, int gz) => _inlandWaterYGrid[gz * GridWidth + gx];
+        public float GetHeightAtCell(int gx, int gz) => _heightGrid[gz * GridWidth + gx];
+        public float GetRiverMaskAtCell(int gx, int gz) => _riverMaskGrid[gz * GridWidth + gx];
+        public float GetFlowAccumAtCell(int gx, int gz) => _flowAccumGrid[gz * GridWidth + gx];
 
-        public TerrainSample SamplePoint(float worldX, float worldZ)
+        public float SampleHeight(float worldX, float worldZ)
         {
             if (worldX < 0.0f || worldX > RegionWidthMeters || worldZ < 0.0f || worldZ > RegionDepthMeters)
-            {
-                return new TerrainSample(-12.0f, 0.0f, SeaLevel, 1.0f, 1.0f, 0.0f, 0.35f, 1.0f, 0.0f, BiomeId.DeepOcean);
-            }
-
-            float gx = worldX / CellSize;
-            float gz = worldZ / CellSize;
-
-            float height = SampleBilinear(_heightGrid, gx, gz);
-            float riverMask = SampleBilinear(_riverMaskGrid, gx, gz);
-            float inlandWaterY = SampleBilinear(_inlandWaterYGrid, gx, gz);
-            float moisture = SampleBilinear(_moistureGrid, gx, gz);
-            float forest = SampleBilinear(_forestGrid, gx, gz);
-            float coastalMask = FastNoise.SmoothStep(3.5f, -1.5f, height);
-
-            int ix = Math.Clamp((int)MathF.Round(gx), 0, GridWidth - 1);
-            int iz = Math.Clamp((int)MathF.Round(gz), 0, GridDepth - 1);
-            BiomeId biome = _biomeGrid[iz * GridWidth + ix];
-
-            // 1. TemperatureMap: cools northward (low Z) and with altitude (lapse rate)
-            float latNorm = worldZ / RegionDepthMeters; // 0 = cold North, 1 = warm South
-            float temp = Math.Clamp(0.32f + latNorm * 0.56f - MathF.Max(0.0f, height) / 95.0f * 0.68f
-                                  + _desertWeight[iz * GridWidth + ix] * 0.24f
-                                  - _glacialWeight[iz * GridWidth + ix] * 0.14f, 0.0f, 1.0f);
-
-            // 2. CoastSaltExposureMap: strong near sea level & ocean-facing low shores
-            float saltExposure = FastNoise.SmoothStep(4.2f, 0.2f, height) * (1.0f - riverMask * 0.75f);
-
-            // 3. MegafaunaCorridorMap: winding open savanna/steppe game trails across flat lowlands
-            float trailWave = FastNoise.GradientNoise2D(worldX * 0.0028f, worldZ * 0.0028f, Seed + 1231);
-            float megafaunaCorridor = (1.0f - FastNoise.SmoothStep(0.0f, 0.14f, MathF.Abs(trailWave)))
-                                    * FastNoise.SmoothStep(2.0f, 5.0f, height)
-                                    * (1.0f - FastNoise.SmoothStep(22.0f, 34.0f, height));
-
-            return new TerrainSample(height, riverMask, inlandWaterY, coastalMask, moisture, forest, temp, saltExposure, megafaunaCorridor, biome);
+                return -12.0f;
+            return SampleBilinear(_heightGrid, worldX / CellSize, worldZ / CellSize);
         }
 
-        public float SampleHeight(float worldX, float worldZ) => SamplePoint(worldX, worldZ).Height;
+        public float SampleRiverMask(float worldX, float worldZ)
+        {
+            if (worldX < 0.0f || worldX > RegionWidthMeters || worldZ < 0.0f || worldZ > RegionDepthMeters)
+                return 0.0f;
+            return SampleBilinear(_riverMaskGrid, worldX / CellSize, worldZ / CellSize);
+        }
+
+        public float SampleFlowAccum(float worldX, float worldZ)
+        {
+            if (worldX < 0.0f || worldX > RegionWidthMeters || worldZ < 0.0f || worldZ > RegionDepthMeters)
+                return 0.0f;
+            return SampleBilinear(_flowAccumGrid, worldX / CellSize, worldZ / CellSize);
+        }
+
+        public float SampleCoastalMask(float worldX, float worldZ)
+        {
+            if (worldX < 0.0f || worldX > RegionWidthMeters || worldZ < 0.0f || worldZ > RegionDepthMeters)
+                return 1.0f;
+            return SampleBilinear(_coastalMaskGrid, worldX / CellSize, worldZ / CellSize);
+        }
 
         public Vector3 SampleNormal(float worldX, float worldZ, float eps = 2.5f)
         {
@@ -690,29 +605,11 @@ namespace PrimevalWorld.WorldGen
             return new Vector3(hL - hR, 2.0f * eps, hD - hU).Normalized();
         }
 
-        public ImageTexture BuildBiomeSplatTexture()
-        {
-            byte[] data = new byte[GridWidth * GridDepth * 4];
-            for (int i = 0; i < GridWidth * GridDepth; i++)
-            {
-                int o = i * 4;
-                data[o + 0] = (byte)(Math.Clamp(_autumnWeight[i], 0.0f, 1.0f) * 255.0f);
-                data[o + 1] = (byte)(Math.Clamp(_desertWeight[i], 0.0f, 1.0f) * 255.0f);
-                data[o + 2] = (byte)(Math.Clamp(_glacialWeight[i], 0.0f, 1.0f) * 255.0f);
-                data[o + 3] = (byte)(Math.Clamp(_forestGrid[i], 0.0f, 1.0f) * 255.0f);
-            }
-
-            Image img = Image.CreateFromData(GridWidth, GridDepth, false, Image.Format.Rgba8, data);
-            return ImageTexture.CreateFromImage(img);
-        }
-
-        public ImageTexture BuildWorldMapTexture()
+        public ImageTexture BuildBlueprintTexture()
         {
             if (_blueprintCropped != null)
-            {
                 return ImageTexture.CreateFromImage(_blueprintCropped);
-            }
-            return BuildBiomeSplatTexture();
+            return ImageTexture.CreateFromImage(Image.CreateEmpty(64, 64, false, Image.Format.Rgb8));
         }
     }
 }

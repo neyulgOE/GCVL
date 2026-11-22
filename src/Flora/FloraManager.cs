@@ -18,13 +18,10 @@ namespace PrimevalWorld.Flora
     }
 
     /// <summary>
-    /// 2-Phase Hierarchical Ecological MultiMesh Engine aligned with docs/VEGETATION.md
-    /// and docs/Thuc_vat_dong_vat_he_sinh_thai_game_thoi_ky_do_da.docx:
-    /// - 6 Ordered Layers: emergent, canopy, understory, shrub, herb_ground, litter_soil
-    /// - 5 Environmental Fields: Temperature, Moisture/Riparian, Slope, SaltExposure, MegafaunaCorridor
-    /// - Phase 1: Old-growth Core + Self-Thinning -> bakes CanopyShadeMap
-    /// - Phase 2: Mantle, Ecotone Skirt, Shaded Understory, Riparian Palms/Ferns, Litter Logs
-    /// - UseColors = true per-instance tinting, shadows ONLY on Emergent/Canopy, tiered VisibilityRangeEnd
+    /// Tier 4: Causal Ecological Niche MultiMesh Engine.
+    /// Places 20,000-26,000 Emergent/Canopy trees + Understory + Shrubs + Grass + Litter
+    /// purely by scoring FloraNicheProfiles against ClimateSimulator & SoilSimulator fields.
+    /// Zero hardcoded biome_id if/else chains!
     /// </summary>
     public partial class FloraManager : Node3D
     {
@@ -46,9 +43,76 @@ namespace PrimevalWorld.Flora
         private Mesh? _fallenLogMesh;
         private Mesh? _boulderMesh;
 
+        private readonly FloraNicheProfile[] _canopyNiches =
+        {
+            // 0. Giant Sequoia: warm-temperate, high moisture, deep alluvial/forest soil, sheltered from extreme wind
+            new FloraNicheProfile
+            {
+                Id = FloraSpeciesId.GiantSequoia,
+                IdealTempC = 17.5f, TempTolerance = 8.5f,
+                IdealMoisture = 0.78f, MoistureTolerance = 0.25f,
+                MaxWindSpeed = 14.5f, MaxSlope = 0.09f, MinSoilDepth = 0.45f, SalinityTolerance = 0.25f,
+                SoilAffinities = new[] { 1.0f, 0.85f, 0.10f, 0.02f, 0.05f, 0.01f }
+            },
+            // 1. Primeval Broadleaf: mild-warm, moist alluvial & brown forest soil
+            new FloraNicheProfile
+            {
+                Id = FloraSpeciesId.PrimevalBroadleaf,
+                IdealTempC = 18.0f, TempTolerance = 9.5f,
+                IdealMoisture = 0.66f, MoistureTolerance = 0.30f,
+                MaxWindSpeed = 16.5f, MaxSlope = 0.11f, MinSoilDepth = 0.30f, SalinityTolerance = 0.35f,
+                SoilAffinities = new[] { 0.95f, 1.0f, 0.25f, 0.04f, 0.10f, 0.02f }
+            },
+            // 2. Autumn Ginkgo: cool-temperate, moderate moisture, thrives in SteppeLoess & ForestBrown
+            new FloraNicheProfile
+            {
+                Id = FloraSpeciesId.AutumnGinkgo,
+                IdealTempC = 11.5f, TempTolerance = 7.0f,
+                IdealMoisture = 0.46f, MoistureTolerance = 0.26f,
+                MaxWindSpeed = 18.0f, MaxSlope = 0.115f, MinSoilDepth = 0.26f, SalinityTolerance = 0.25f,
+                SoilAffinities = new[] { 0.45f, 0.75f, 1.0f, 0.10f, 0.05f, 0.05f }
+            },
+            // 3. Autumn Maple: slightly more moisture-loving companion on SteppeLoess / ForestBrown
+            new FloraNicheProfile
+            {
+                Id = FloraSpeciesId.AutumnMaple,
+                IdealTempC = 12.5f, TempTolerance = 6.5f,
+                IdealMoisture = 0.54f, MoistureTolerance = 0.24f,
+                MaxWindSpeed = 17.0f, MaxSlope = 0.11f, MinSoilDepth = 0.28f, SalinityTolerance = 0.20f,
+                SoilAffinities = new[] { 0.60f, 0.85f, 0.95f, 0.05f, 0.05f, 0.05f }
+            },
+            // 4. Alpine Conifer: cold-tolerant, handles thin permafrost/rock soil & brisk mountain wind
+            new FloraNicheProfile
+            {
+                Id = FloraSpeciesId.AlpineConifer,
+                IdealTempC = 2.0f, TempTolerance = 8.5f,
+                IdealMoisture = 0.55f, MoistureTolerance = 0.32f,
+                MaxWindSpeed = 21.0f, MaxSlope = 0.135f, MinSoilDepth = 0.14f, SalinityTolerance = 0.30f,
+                SoilAffinities = new[] { 0.30f, 0.65f, 0.65f, 0.02f, 0.05f, 0.95f }
+            },
+            // 5. Desert Baobab / Dragon Blood: hot, semi-arid red sand & rocky wadis
+            new FloraNicheProfile
+            {
+                Id = FloraSpeciesId.DesertBaobab,
+                IdealTempC = 27.0f, TempTolerance = 8.0f,
+                IdealMoisture = 0.22f, MoistureTolerance = 0.22f,
+                MaxWindSpeed = 19.5f, MaxSlope = 0.12f, MinSoilDepth = 0.15f, SalinityTolerance = 0.35f,
+                SoilAffinities = new[] { 0.15f, 0.20f, 0.35f, 1.0f, 0.20f, 0.10f }
+            },
+            // 6. Oasis & Coastal Palm: warm, tolerates high coastal salinity OR wet desert oases!
+            new FloraNicheProfile
+            {
+                Id = FloraSpeciesId.OasisPalm,
+                IdealTempC = 23.0f, TempTolerance = 7.5f,
+                IdealMoisture = 0.72f, MoistureTolerance = 0.28f,
+                MaxWindSpeed = 18.5f, MaxSlope = 0.10f, MinSoilDepth = 0.15f, SalinityTolerance = 1.0f,
+                SoilAffinities = new[] { 0.85f, 0.35f, 0.10f, 0.45f, 1.0f, 0.02f }
+            },
+        };
+
         public int TotalInstanceCount { get; private set; }
 
-        public void BuildFlora(WorldGenerator generator)
+        public ImageTexture BuildFlora(WorldGenerator terrain, ClimateSimulator climate, SoilSimulator soil)
         {
             foreach (MultiMeshInstance3D layer in _layers)
             {
@@ -57,32 +121,34 @@ namespace PrimevalWorld.Flora
             _layers.Clear();
             TotalInstanceCount = 0;
 
-            EnsureAssets();
+            EnsureAssets(climate);
 
-            // 6 Ordered Ecological Layers
-            var sequoias = new List<FloraInstanceData>(2200);       // L1: emergent
-            var broadleafs = new List<FloraInstanceData>(7500);     // L2: canopy (Primeval / Sanctuary)
-            var autumns = new List<FloraInstanceData>(4200);        // L2: canopy (Autumn Ginkgo / Maple)
-            var conifers = new List<FloraInstanceData>(3800);       // L2: canopy (Glacial Alpine)
-            var desertTrees = new List<FloraInstanceData>(1200);    // L2: canopy (Baobab / Dragon Blood)
+            var sequoias = new List<FloraInstanceData>(4000);
+            var broadleafs = new List<FloraInstanceData>(12000);
+            var ginkgos = new List<FloraInstanceData>(4500);
+            var maples = new List<FloraInstanceData>(4000);
+            var conifers = new List<FloraInstanceData>(5500);
+            var desertTrees = new List<FloraInstanceData>(2500);
+            var palms = new List<FloraInstanceData>(3500);
 
-            var krummholz = new List<FloraInstanceData>(1200);      // L3: understory treeline
-            var palms = new List<FloraInstanceData>(2200);          // L3: understory riparian/coastal
-            var ferns = new List<FloraInstanceData>(8500);          // L3: understory shade/riparian
+            var krummholz = new List<FloraInstanceData>(1800);
+            var ferns = new List<FloraInstanceData>(6500);
+            var shrubs = new List<FloraInstanceData>(5500);
+            var grasses = new List<FloraInstanceData>(13000);
+            var fallenLogs = new List<FloraInstanceData>(1600);
+            var boulders = new List<FloraInstanceData>(2400);
 
-            var shrubs = new List<FloraInstanceData>(9000);         // L4: shrub (ecotone skirt)
-            var grasses = new List<FloraInstanceData>(24000);       // L5: herb_ground (meadow/reeds)
-            var fallenLogs = new List<FloraInstanceData>(1600);     // L6: litter_soil
-            var boulders = new List<FloraInstanceData>(2600);       // L6: litter_soil
+            var rng = new Random(terrain.Seed + 4242);
 
-            var rng = new Random(generator.Seed + 4242);
-
-            // Spatial Canopy Shade & Self-Thinning Grid (6m cells across 3840m x 2048m)
-            const float shadeCell = 6.0f;
+            const float shadeCell = 8.0f;
             int shadeW = (int)(WorldGenerator.RegionWidthMeters / shadeCell) + 1;
             int shadeD = (int)(WorldGenerator.RegionDepthMeters / shadeCell) + 1;
             float[] canopyShade = new float[shadeW * shadeD];
-            bool[] treeOccupied = new bool[shadeW * shadeD];
+
+            const float occCell = 4.0f;
+            int occW = (int)(WorldGenerator.RegionWidthMeters / occCell) + 1;
+            int occD = (int)(WorldGenerator.RegionDepthMeters / occCell) + 1;
+            bool[] treeOccupied = new bool[occW * occD];
 
             void AddShade(float wx, float wz, float radiusMeters, float strength)
             {
@@ -109,127 +175,130 @@ namespace PrimevalWorld.Flora
             }
 
             // ==================================================================
-            // PHASE 1: Old-Growth Core & Canopy Trees (Self-Thinning + Nucleation)
+            // PHASE 1: Ecological Niche Canopy Placement (Target: 20,000-26,000 trees!)
             // ==================================================================
-            const float treeStep = 10.0f;
-            for (float z = 60.0f; z < WorldGenerator.RegionDepthMeters - 60.0f; z += treeStep)
+            const float treeStep = 6.2f;
+            float[] scores = new float[_canopyNiches.Length];
+
+            for (float z = 48.0f; z < WorldGenerator.RegionDepthMeters - 48.0f; z += treeStep)
             {
-                for (float x = 60.0f; x < WorldGenerator.RegionWidthMeters - 60.0f; x += treeStep)
+                for (float x = 48.0f; x < WorldGenerator.RegionWidthMeters - 48.0f; x += treeStep)
                 {
-                    float wx = x + (float)(rng.NextDouble() - 0.5) * treeStep * 0.88f;
-                    float wz = z + (float)(rng.NextDouble() - 0.5) * treeStep * 0.88f;
+                    float wx = x + (float)(rng.NextDouble() - 0.5) * treeStep * 0.90f;
+                    float wz = z + (float)(rng.NextDouble() - 0.5) * treeStep * 0.90f;
 
-                    TerrainSample s = generator.SamplePoint(wx, wz);
-                    Vector3 normal = generator.SampleNormal(wx, wz);
+                    float h = terrain.SampleHeight(wx, wz);
+                    float riverMask = terrain.SampleRiverMask(wx, wz);
+                    if (h < 1.1f || riverMask > 0.52f) continue;
+
+                    Vector3 normal = terrain.SampleNormal(wx, wz);
                     float slope = 1.0f - Math.Clamp(normal.Y, 0.0f, 1.0f);
+                    ClimateSample cs = climate.SampleClimate(wx, wz);
+                    SoilSample ss = soil.SampleSoil(wx, wz);
 
-                    // Skip underwater, salt-spray zone, steep cliffs (>27 deg), and open megafauna corridors
-                    if (s.Height < 1.5f || s.SaltExposure > 0.72f || slope > 0.11f || s.RiverMask > 0.50f)
-                        continue;
+                    // Score every canopy species against physical climate & soil
+                    float totalScore = 0.0f;
+                    float maxScore = 0.0f;
+                    for (int i = 0; i < _canopyNiches.Length; i++)
+                    {
+                        float sc = _canopyNiches[i].EvaluateSuitability(cs, ss, slope);
+                        scores[i] = sc;
+                        totalScore += sc;
+                        if (sc > maxScore) maxScore = sc;
+                    }
 
-                    if (s.MegafaunaCorridor > 0.58f && s.RiverMask < 0.20f)
+                    // Natural grove clumping + open wind-swept meadows/dunes
+                    float groveNoise = FastNoise.Fbm2D(wx * 0.0026f + 13.7f, wz * 0.0026f - 5.2f, terrain.Seed + 907, 4);
+                    float densityGate = maxScore * (0.62f + groveNoise * 0.65f);
+                    if (densityGate < 0.08f || rng.NextDouble() > Math.Clamp(densityGate * 1.65f, 0.08f, 0.96f))
+                    {
+                        // Cold windy treeline check for Krummholz dwarf pines
+                        if (cs.TemperatureC > -5.5f && cs.TemperatureC < 1.5f && slope < 0.14f && ss.SoilDepth > 0.08f && rng.NextDouble() < 0.25)
+                        {
+                            float kSc = 0.75f + (float)rng.NextDouble() * 0.55f;
+                            krummholz.Add(new FloraInstanceData(
+                                MakeTreeTransform(wx, h - 0.10f, wz, (float)rng.NextDouble() * MathF.Tau, kSc, 0, 0, normal, 0.35f),
+                                new Color(0.84f, 0.94f, 0.96f)));
+                        }
                         continue;
+                    }
 
-                    // Self-thinning occupancy check
-                    int ox = Math.Clamp((int)(wx / shadeCell), 0, shadeW - 1);
-                    int oz = Math.Clamp((int)(wz / shadeCell), 0, shadeD - 1);
-                    if (treeOccupied[oz * shadeW + ox])
-                        continue;
+                    int ox = Math.Clamp((int)(wx / occCell), 0, occW - 1);
+                    int oz = Math.Clamp((int)(wz / occCell), 0, occD - 1);
+                    if (treeOccupied[oz * occW + ox]) continue;
+                    treeOccupied[oz * occW + ox] = true;
+
+                    // Weighted random selection among suitable species -> natural mixed transition zones!
+                    float pick = (float)rng.NextDouble() * totalScore;
+                    float accum = 0.0f;
+                    int chosenIdx = 0;
+                    for (int i = 0; i < _canopyNiches.Length; i++)
+                    {
+                        accum += scores[i];
+                        if (pick <= accum)
+                        {
+                            chosenIdx = i;
+                            break;
+                        }
+                    }
 
                     float yaw = (float)rng.NextDouble() * MathF.Tau;
                     float tiltX = (float)(rng.NextDouble() - 0.5) * 0.12f;
                     float tiltZ = (float)(rng.NextDouble() - 0.5) * 0.12f;
 
-                    switch (s.Biome)
+                    switch (_canopyNiches[chosenIdx].Id)
                     {
-                        case BiomeId.PrimevalForest:
-                        case BiomeId.SanctuaryIsland:
+                        case FloraSpeciesId.GiantSequoia:
                         {
-                            float densityReq = s.Biome == BiomeId.SanctuaryIsland ? 0.20f : 0.30f;
-                            if (s.ForestDensity < densityReq && rng.NextDouble() > 0.04) continue;
-
-                            treeOccupied[oz * shadeW + ox] = true;
-
-                            // Layer 1 Emergent Giant Sequoia in deep core & Sanctuary Island
-                            if ((s.ForestDensity > 0.62f || s.Biome == BiomeId.SanctuaryIsland) && rng.NextDouble() < 0.24)
-                            {
-                                float sc = 0.85f + (float)rng.NextDouble() * 0.50f;
-                                Color tint = VaryGreenTint(rng, 0.88f, 1.10f);
-                                sequoias.Add(new FloraInstanceData(MakeTreeTransform(wx, s.Height - 0.25f, wz, yaw, sc, tiltX, tiltZ, normal, 0.05f), tint));
-                                AddShade(wx, wz, 18.0f, 0.85f);
-                            }
-                            else
-                            {
-                                // Layer 2 Wide Primeval Broadleaf (non-uniform crown stretch for organic closure)
-                                float sc = 0.78f + (float)rng.NextDouble() * 0.62f;
-                                Color tint = VaryGreenTint(rng, 0.78f, 1.18f);
-                                broadleafs.Add(new FloraInstanceData(MakeTreeTransform(wx, s.Height - 0.25f, wz, yaw, sc, tiltX, tiltZ, normal, 0.08f), tint));
-                                AddShade(wx, wz, 14.0f, 0.75f);
-                            }
+                            float sc = 0.85f + (float)rng.NextDouble() * 0.50f;
+                            sequoias.Add(new FloraInstanceData(MakeTreeTransform(wx, h - 0.25f, wz, yaw, sc, tiltX, tiltZ, normal, 0.05f), VaryGreenTint(rng, 0.86f, 1.12f)));
+                            AddShade(wx, wz, 18.0f, 0.85f);
                             break;
                         }
-
-                        case BiomeId.AutumnSteppe:
+                        case FloraSpeciesId.PrimevalBroadleaf:
                         {
-                            // Open savanna (70% open) -> groves along streams & sheltered hills
-                            if (s.ForestDensity < 0.36f && s.RiverMask < 0.12f && rng.NextDouble() > 0.03) continue;
-                            treeOccupied[oz * shadeW + ox] = true;
-
-                            float sc = 0.72f + (float)rng.NextDouble() * 0.65f;
-                            // Shift instance tint between bright golden Ginkgo, burnt orange, & crimson Maple!
-                            float rRoll = (float)rng.NextDouble();
-                            Color tint = rRoll < 0.45f
-                                ? new Color(1.05f, 0.95f, 0.65f)   // Golden Ginkgo
-                                : (rRoll < 0.80f
-                                    ? new Color(1.05f, 0.62f, 0.32f) // Burnt Amber
-                                    : new Color(0.95f, 0.34f, 0.22f)); // Crimson Maple
-                            autumns.Add(new FloraInstanceData(MakeTreeTransform(wx, s.Height - 0.20f, wz, yaw, sc, tiltX, tiltZ, normal, 0.08f), tint));
-                            AddShade(wx, wz, 12.0f, 0.65f);
+                            float sc = 0.78f + (float)rng.NextDouble() * 0.62f;
+                            broadleafs.Add(new FloraInstanceData(MakeTreeTransform(wx, h - 0.25f, wz, yaw, sc, tiltX, tiltZ, normal, 0.08f), VaryGreenTint(rng, 0.76f, 1.18f)));
+                            AddShade(wx, wz, 14.0f, 0.75f);
                             break;
                         }
-
-                        case BiomeId.GlacialAlpine:
+                        case FloraSpeciesId.AutumnGinkgo:
                         {
-                            // Treeline limit controlled by TemperatureMap & altitude
-                            if (s.Temperature < 0.18f || s.Height > 46.0f) continue;
-                            if (s.ForestDensity < 0.26f && rng.NextDouble() > 0.08) continue;
-                            treeOccupied[oz * shadeW + ox] = true;
-
-                            if (s.Height > 36.0f || s.Temperature < 0.26f)
-                            {
-                                // Treeline Krummholz dwarf wind-twisted pine
-                                float sc = 0.75f + (float)rng.NextDouble() * 0.55f;
-                                Color tint = new Color(0.85f, 0.95f, 0.98f);
-                                krummholz.Add(new FloraInstanceData(MakeTreeTransform(wx, s.Height - 0.12f, wz, yaw, sc, tiltX * 1.5f, tiltZ * 1.5f, normal, 0.35f), tint));
-                            }
-                            else
-                            {
-                                float sc = 0.78f + (float)rng.NextDouble() * 0.62f;
-                                Color tint = new Color(0.80f + (float)rng.NextDouble() * 0.25f, 0.92f + (float)rng.NextDouble() * 0.18f, 0.95f);
-                                conifers.Add(new FloraInstanceData(MakeTreeTransform(wx, s.Height - 0.20f, wz, yaw, sc, tiltX, tiltZ, normal, 0.06f), tint));
-                                AddShade(wx, wz, 10.0f, 0.60f);
-                            }
+                            float sc = 0.74f + (float)rng.NextDouble() * 0.60f;
+                            ginkgos.Add(new FloraInstanceData(MakeTreeTransform(wx, h - 0.20f, wz, yaw, sc, tiltX, tiltZ, normal, 0.08f),
+                                new Color(1.04f, 0.92f + (float)rng.NextDouble() * 0.12f, 0.58f)));
+                            AddShade(wx, wz, 12.0f, 0.62f);
                             break;
                         }
-
-                        case BiomeId.TerracottaDesert:
+                        case FloraSpeciesId.AutumnMaple:
                         {
-                            // Oasis palms ring the wet oasis; Baobab / Dragon Blood on rocky terraces
-                            if (s.Moisture > 0.52f)
-                            {
-                                treeOccupied[oz * shadeW + ox] = true;
-                                float sc = 0.85f + (float)rng.NextDouble() * 0.55f;
-                                palms.Add(new FloraInstanceData(MakeTreeTransform(wx, s.Height - 0.15f, wz, yaw, sc, tiltX, tiltZ, normal, 0.12f), new Color(0.95f, 1.02f, 0.88f)));
-                                AddShade(wx, wz, 9.0f, 0.50f);
-                            }
-                            else if (s.Height > 12.0f && s.Height < 38.0f && rng.NextDouble() < 0.14)
-                            {
-                                treeOccupied[oz * shadeW + ox] = true;
-                                float sc = 0.82f + (float)rng.NextDouble() * 0.60f;
-                                Color tint = new Color(0.92f + (float)rng.NextDouble() * 0.16f, 0.88f, 0.76f);
-                                desertTrees.Add(new FloraInstanceData(MakeTreeTransform(wx, s.Height - 0.20f, wz, yaw, sc, tiltX, tiltZ, normal, 0.08f), tint));
-                                AddShade(wx, wz, 10.0f, 0.45f);
-                            }
+                            float sc = 0.74f + (float)rng.NextDouble() * 0.60f;
+                            Color tint = rng.NextDouble() < 0.5 ? new Color(1.05f, 0.60f, 0.30f) : new Color(0.96f, 0.32f, 0.20f);
+                            maples.Add(new FloraInstanceData(MakeTreeTransform(wx, h - 0.20f, wz, yaw, sc, tiltX, tiltZ, normal, 0.08f), tint));
+                            AddShade(wx, wz, 12.0f, 0.62f);
+                            break;
+                        }
+                        case FloraSpeciesId.AlpineConifer:
+                        {
+                            float sc = 0.75f + (float)rng.NextDouble() * 0.62f;
+                            conifers.Add(new FloraInstanceData(MakeTreeTransform(wx, h - 0.20f, wz, yaw, sc, tiltX, tiltZ, normal, 0.06f),
+                                new Color(0.80f + (float)rng.NextDouble() * 0.24f, 0.92f + (float)rng.NextDouble() * 0.16f, 0.96f)));
+                            AddShade(wx, wz, 10.0f, 0.58f);
+                            break;
+                        }
+                        case FloraSpeciesId.DesertBaobab:
+                        {
+                            float sc = 0.80f + (float)rng.NextDouble() * 0.65f;
+                            desertTrees.Add(new FloraInstanceData(MakeTreeTransform(wx, h - 0.20f, wz, yaw, sc, tiltX, tiltZ, normal, 0.08f),
+                                new Color(0.92f + (float)rng.NextDouble() * 0.16f, 0.88f, 0.74f)));
+                            AddShade(wx, wz, 10.0f, 0.45f);
+                            break;
+                        }
+                        case FloraSpeciesId.OasisPalm:
+                        {
+                            float sc = 0.82f + (float)rng.NextDouble() * 0.55f;
+                            palms.Add(new FloraInstanceData(MakeTreeTransform(wx, h - 0.15f, wz, yaw, sc, tiltX, tiltZ, normal, 0.14f), VaryGreenTint(rng, 0.88f, 1.12f)));
+                            AddShade(wx, wz, 9.0f, 0.48f);
                             break;
                         }
                     }
@@ -237,33 +306,36 @@ namespace PrimevalWorld.Flora
             }
 
             // ==================================================================
-            // PHASE 2: Mantle, Ecotone Skirt, Shaded Understory, Ground & Litter
+            // PHASE 2: Understory, Ecotone Shrubs, Balanced Grass (12k) & Litter
             // ==================================================================
-            const float groundStep = 5.5f;
-            for (float z = 64.0f; z < WorldGenerator.RegionDepthMeters - 64.0f; z += groundStep)
+            const float groundStep = 6.0f;
+            for (float z = 56.0f; z < WorldGenerator.RegionDepthMeters - 56.0f; z += groundStep)
             {
-                for (float x = 64.0f; x < WorldGenerator.RegionWidthMeters - 64.0f; x += groundStep)
+                for (float x = 56.0f; x < WorldGenerator.RegionWidthMeters - 56.0f; x += groundStep)
                 {
                     float wx = x + (float)(rng.NextDouble() - 0.5) * groundStep * 0.90f;
                     float wz = z + (float)(rng.NextDouble() - 0.5) * groundStep * 0.90f;
 
-                    TerrainSample s = generator.SamplePoint(wx, wz);
-                    Vector3 normal = generator.SampleNormal(wx, wz);
+                    float h = terrain.SampleHeight(wx, wz);
+                    float riverMask = terrain.SampleRiverMask(wx, wz);
+                    Vector3 normal = terrain.SampleNormal(wx, wz);
                     float slope = 1.0f - Math.Clamp(normal.Y, 0.0f, 1.0f);
+                    ClimateSample cs = climate.SampleClimate(wx, wz);
+                    SoilSample ss = soil.SampleSoil(wx, wz);
 
-                    // Layer 6 Boulders: riverbanks, cliff bases, rocky shores
-                    if ((s.RiverMask > 0.16f && s.RiverMask < 0.68f && rng.NextDouble() < 0.12)
-                        || (slope > 0.08f && slope < 0.26f && s.Height > 1.2f && s.Height < 75.0f && rng.NextDouble() < 0.08)
-                        || (s.Height > -0.3f && s.Height < 2.2f && s.CoastalMask > 0.30f && rng.NextDouble() < 0.06))
+                    // Boulders where soil is thin / rocky slopes / riverbanks
+                    if ((riverMask > 0.16f && riverMask < 0.68f && rng.NextDouble() < 0.10)
+                        || (ss.SoilDepth < 0.32f && slope > 0.07f && h > 1.0f && rng.NextDouble() < 0.07)
+                        || (ss.CoastalSalinity > 0.45f && h > -0.2f && rng.NextDouble() < 0.06))
                     {
-                        float bSc = 0.75f + (float)rng.NextDouble() * 1.55f;
-                        Color bTint = s.Biome == BiomeId.TerracottaDesert
-                            ? new Color(1.22f, 0.82f, 0.62f)
+                        float bSc = 0.75f + (float)rng.NextDouble() * 1.50f;
+                        Color bTint = ss.WAridRed > 0.45f
+                            ? new Color(1.20f, 0.80f, 0.60f)
                             : new Color(0.88f + (float)rng.NextDouble() * 0.22f, 0.90f, 0.92f);
-                        boulders.Add(new FloraInstanceData(MakeTreeTransform(wx, s.Height - 0.18f, wz, (float)rng.NextDouble() * MathF.Tau, bSc, 0, 0, normal, 0.35f), bTint));
+                        boulders.Add(new FloraInstanceData(MakeTreeTransform(wx, h - 0.18f, wz, (float)rng.NextDouble() * MathF.Tau, bSc, 0, 0, normal, 0.35f), bTint));
                     }
 
-                    if (s.Height < 1.1f || s.Height > 46.0f || slope > 0.135f || s.RiverMask > 0.56f)
+                    if (h < 1.0f || cs.TemperatureC < -1.0f || slope > 0.14f || riverMask > 0.56f)
                         continue;
 
                     int sx = Math.Clamp((int)(wx / shadeCell), 0, shadeW - 1);
@@ -271,81 +343,74 @@ namespace PrimevalWorld.Flora
                     float shade = canopyShade[sz * shadeW + sx];
                     float yaw = (float)rng.NextDouble() * MathF.Tau;
 
-                    // Coastal Salt-Spray Palms around Sanctuary Island & sheltered Tropical Bays
-                    if ((s.Biome == BiomeId.SanctuaryIsland || s.Biome == BiomeId.PrimevalForest)
-                        && s.SaltExposure > 0.35f && s.Height > 1.2f && s.Height < 6.5f && rng.NextDouble() < 0.24)
+                    // Shaded moist core or riparian: Tree Ferns & Fallen Logs
+                    if ((shade > 0.42f || riverMask > 0.14f) && cs.TemperatureC > 7.0f && cs.Moisture > 0.40f)
                     {
-                        palms.Add(new FloraInstanceData(MakeTreeTransform(wx, s.Height - 0.15f, wz, yaw, 0.82f + (float)rng.NextDouble() * 0.50f, 0, 0, normal, 0.15f), VaryGreenTint(rng, 0.85f, 1.10f)));
-                        continue;
-                    }
-
-                    // Riparian Gallery & Shaded Core (shade > 0.42 or near water): Layer 3 Tree Ferns & Layer 6 Fallen Logs
-                    if ((shade > 0.42f || s.RiverMask > 0.12f) && s.Biome != BiomeId.GlacialAlpine && s.Height < 30.0f)
-                    {
-                        if (rng.NextDouble() < 0.32)
+                        if (rng.NextDouble() < 0.26)
                         {
-                            ferns.Add(new FloraInstanceData(MakeTreeTransform(wx, s.Height - 0.05f, wz, yaw, 0.80f + (float)rng.NextDouble() * 0.75f, 0, 0, normal, 0.22f), VaryGreenTint(rng, 0.78f, 1.15f)));
+                            ferns.Add(new FloraInstanceData(MakeTreeTransform(wx, h - 0.05f, wz, yaw, 0.80f + (float)rng.NextDouble() * 0.70f, 0, 0, normal, 0.22f), VaryGreenTint(rng, 0.78f, 1.15f)));
                             continue;
                         }
-                        if (shade > 0.55f && rng.NextDouble() < 0.08 && fallenLogs.Count < 1550)
+                        if (shade > 0.58f && rng.NextDouble() < 0.07 && fallenLogs.Count < 1550)
                         {
-                            fallenLogs.Add(new FloraInstanceData(MakeTreeTransform(wx, s.Height - 0.04f, wz, yaw, 0.85f + (float)rng.NextDouble() * 0.65f, 0, 0, normal, 0.45f), new Color(0.95f, 0.92f, 0.85f)));
+                            fallenLogs.Add(new FloraInstanceData(MakeTreeTransform(wx, h - 0.04f, wz, yaw, 0.85f + (float)rng.NextDouble() * 0.65f, 0, 0, normal, 0.45f), new Color(0.95f, 0.92f, 0.85f)));
                             continue;
                         }
                     }
 
-                    // Ecotone Skirt (0.12 < shade <= 0.45): Shrubs bridging forest to meadow
-                    if (shade > 0.10f && shade <= 0.48f && rng.NextDouble() < 0.32)
+                    // Ecotone Skirt Shrubs (0.10 < shade <= 0.46)
+                    if (shade > 0.10f && shade <= 0.46f && ss.SoilDepth > 0.18f && rng.NextDouble() < 0.28)
                     {
-                        Color shTint = s.Biome == BiomeId.AutumnSteppe
-                            ? new Color(1.15f, 0.78f, 0.35f)
-                            : (s.Biome == BiomeId.TerracottaDesert ? new Color(0.85f, 0.82f, 0.62f) : VaryGreenTint(rng, 0.80f, 1.15f));
-                        shrubs.Add(new FloraInstanceData(MakeTreeTransform(wx, s.Height - 0.08f, wz, yaw, 0.75f + (float)rng.NextDouble() * 0.65f, 0, 0, normal, 0.20f), shTint));
+                        Color shTint = ss.WSteppeLoess > 0.40f
+                            ? new Color(1.15f, 0.76f, 0.34f)
+                            : (ss.WAridRed > 0.40f ? new Color(0.86f, 0.82f, 0.58f) : VaryGreenTint(rng, 0.80f, 1.15f));
+                        shrubs.Add(new FloraInstanceData(MakeTreeTransform(wx, h - 0.08f, wz, yaw, 0.75f + (float)rng.NextDouble() * 0.65f, 0, 0, normal, 0.20f), shTint));
                         continue;
                     }
 
-                    // Layer 5 Herb / Grass / Reeds (meadows, riverbanks, autumn steppes)
-                    if (s.Biome == BiomeId.TerracottaDesert && s.Moisture < 0.48f && rng.NextDouble() > 0.06)
-                        continue;
-
-                    if (grasses.Count < 28000 && s.Height < 38.0f && rng.NextDouble() < 0.56)
+                    // Balanced Grass & Reeds (capped at 12,500 so budget goes to L1+L2 Trees!)
+                    if (grasses.Count < 12500 && cs.Moisture > 0.24f && ss.SoilDepth > 0.20f && rng.NextDouble() < 0.22)
                     {
-                        Color gTint = s.Biome switch
-                        {
-                            BiomeId.AutumnSteppe => new Color(1.18f, 0.82f, 0.34f), // Golden steppe grass
-                            BiomeId.GlacialAlpine => new Color(0.75f, 0.85f, 0.70f),
-                            BiomeId.TerracottaDesert => new Color(0.95f, 0.85f, 0.55f),
-                            _ => VaryGreenTint(rng, 0.82f, 1.16f),
-                        };
-                        grasses.Add(new FloraInstanceData(MakeTreeTransform(wx, s.Height - 0.05f, wz, yaw, 0.85f + (float)rng.NextDouble() * 0.75f, 0, 0, normal, 0.30f), gTint));
+                        Color gTint = ss.WSteppeLoess > 0.40f
+                            ? new Color(1.18f, 0.82f, 0.34f)
+                            : (ss.WAridRed > 0.40f ? new Color(0.98f, 0.85f, 0.52f) : VaryGreenTint(rng, 0.82f, 1.16f));
+                        grasses.Add(new FloraInstanceData(MakeTreeTransform(wx, h - 0.05f, wz, yaw, 0.85f + (float)rng.NextDouble() * 0.75f, 0, 0, normal, 0.30f), gTint));
                     }
                 }
             }
 
-            // Build MultiMeshInstance3D Layers (Shadows ONLY on L1 Emergent & L2 Canopy!)
+            // Build MultiMesh Layers (Shadows on L1 + L2 within DirectionalShadowMaxDistance)
             CreateMultiMeshLayer("L1_Emergent_Sequoias", _sequoiaMesh!, _foliageMat!, sequoias, true, 0.0f);
             CreateMultiMeshLayer("L2_Canopy_Broadleaf", _broadleafMesh!, _foliageMat!, broadleafs, true, 2200.0f);
-            CreateMultiMeshLayer("L2_Canopy_Autumn", _autumnMesh!, _foliageMat!, autumns, true, 2200.0f);
+            CreateMultiMeshLayer("L2_Canopy_Ginkgo", _autumnMesh!, _foliageMat!, ginkgos, true, 2200.0f);
+            CreateMultiMeshLayer("L2_Canopy_Maple", _autumnMesh!, _foliageMat!, maples, true, 2200.0f);
             CreateMultiMeshLayer("L2_Canopy_Conifer", _coniferMesh!, _foliageMat!, conifers, true, 2200.0f);
-            CreateMultiMeshLayer("L2_Canopy_Desert", _desertTreeMesh!, _foliageMat!, desertTrees, true, 2000.0f);
+            CreateMultiMeshLayer("L2_Canopy_Baobab", _desertTreeMesh!, _foliageMat!, desertTrees, true, 2000.0f);
+            CreateMultiMeshLayer("L2_Canopy_Palm", _palmMesh!, _foliageMat!, palms, true, 1600.0f);
 
             CreateMultiMeshLayer("L3_Understory_Krummholz", _krummholzMesh!, _foliageMat!, krummholz, false, 500.0f);
-            CreateMultiMeshLayer("L3_Understory_Palms", _palmMesh!, _foliageMat!, palms, false, 950.0f);
-            CreateMultiMeshLayer("L3_Understory_TreeFerns", _fernMesh!, _foliageMat!, ferns, false, 400.0f);
+            CreateMultiMeshLayer("L3_Understory_TreeFerns", _fernMesh!, _foliageMat!, ferns, false, 380.0f);
+            CreateMultiMeshLayer("L4_Shrub_Ecotone", _shrubMesh!, _foliageMat!, shrubs, false, 320.0f);
+            CreateMultiMeshLayer("L5_Herb_GrassReeds", _grassMesh!, _grassMat!, grasses, false, 210.0f);
+            CreateMultiMeshLayer("L6_Litter_FallenLogs", _fallenLogMesh!, _boulderMat!, fallenLogs, false, 220.0f);
+            CreateMultiMeshLayer("L6_Litter_Boulders", _boulderMesh!, _boulderMat!, boulders, false, 600.0f);
 
-            CreateMultiMeshLayer("L4_Shrub_Ecotone", _shrubMesh!, _foliageMat!, shrubs, false, 340.0f);
-            CreateMultiMeshLayer("L5_Herb_GrassReeds", _grassMesh!, _grassMat!, grasses, false, 240.0f);
-            CreateMultiMeshLayer("L6_Litter_FallenLogs", _fallenLogMesh!, _boulderMat!, fallenLogs, false, 240.0f);
-            CreateMultiMeshLayer("L6_Litter_Boulders", _boulderMesh!, _boulderMat!, boulders, false, 650.0f);
+            int totalTrees = sequoias.Count + broadleafs.Count + ginkgos.Count + maples.Count + conifers.Count + desertTrees.Count + palms.Count;
+            GD.Print($"[PrimevalNiche] Total={TotalInstanceCount:N0} | Trees(L1+L2)={totalTrees:N0} " +
+                     $"(Sequoia={sequoias.Count}, Broadleaf={broadleafs.Count}, Ginkgo={ginkgos.Count}, Maple={maples.Count}, " +
+                     $"Conifer={conifers.Count}, Baobab={desertTrees.Count}, Palm={palms.Count}) | " +
+                     $"L3_Understory={krummholz.Count + ferns.Count} | L4_Shrub={shrubs.Count} | L5_Herb={grasses.Count} | L6_Litter={fallenLogs.Count + boulders.Count}");
 
-            GD.Print($"[PrimevalFlora] 6-Layer Ecological Census (Total: {TotalInstanceCount:N0}): " +
-                     $"L1_Emergent={sequoias.Count} | L2_Canopy={broadleafs.Count + autumns.Count + conifers.Count + desertTrees.Count} " +
-                     $"(Broadleaf={broadleafs.Count}, Autumn={autumns.Count}, Conifer={conifers.Count}, Desert={desertTrees.Count}) | " +
-                     $"L3_Understory={krummholz.Count + palms.Count + ferns.Count} | L4_Shrub={shrubs.Count} | " +
-                     $"L5_Herb={grasses.Count} | L6_Litter={fallenLogs.Count + boulders.Count}");
+            // Bake CanopyCoverageMap for terrain_triplanar.gdshader
+            byte[] covData = new byte[shadeW * shadeD];
+            for (int i = 0; i < shadeW * shadeD; i++)
+                covData[i] = (byte)(Math.Clamp(canopyShade[i], 0.0f, 1.0f) * 255.0f);
+
+            Image covImg = Image.CreateFromData(shadeW, shadeD, false, Image.Format.L8, covData);
+            return ImageTexture.CreateFromImage(covImg);
         }
 
-        private void EnsureAssets()
+        private void EnsureAssets(ClimateSimulator climate)
         {
             if (_foliageMat == null)
             {
@@ -359,8 +424,8 @@ namespace PrimevalWorld.Flora
                 _grassMat.SetShaderParameter("wind_speed", 2.0f);
                 _grassMat.SetShaderParameter("wind_strength", 0.22f);
                 _grassMat.SetShaderParameter("enable_distance_fade", true);
-                _grassMat.SetShaderParameter("fade_start", 160.0f);
-                _grassMat.SetShaderParameter("fade_end", 235.0f);
+                _grassMat.SetShaderParameter("fade_start", 140.0f);
+                _grassMat.SetShaderParameter("fade_end", 205.0f);
 
                 _boulderMat = new StandardMaterial3D
                 {
@@ -368,6 +433,9 @@ namespace PrimevalWorld.Flora
                     Roughness = 0.85f,
                 };
             }
+
+            _foliageMat.SetShaderParameter("wind_dir", climate.GlobalPrevailingWind);
+            _grassMat!.SetShaderParameter("wind_dir", climate.GlobalPrevailingWind);
 
             _sequoiaMesh ??= LoadGlbOrFallback("sequoia", FloraMeshBuilder.CreateGiantSequoiaMesh);
             _broadleafMesh ??= LoadGlbOrFallback("broadleaf", FloraMeshBuilder.CreatePrimevalBroadleafMesh);

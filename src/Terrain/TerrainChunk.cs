@@ -5,7 +5,13 @@ namespace PrimevalWorld.Terrain
 {
     public partial class TerrainChunk : MeshInstance3D
     {
-        public void Build(WorldGenerator generator, int chunkX, int chunkZ, Material material)
+        public void Build(
+            WorldGenerator terrain,
+            ClimateSimulator climate,
+            SoilSimulator soil,
+            int chunkX,
+            int chunkZ,
+            Material material)
         {
             float chunkSize = WorldGenerator.ChunkSizeMeters;
             int vertsPerSide = WorldGenerator.ChunkVerticesPerSide;
@@ -24,18 +30,23 @@ namespace PrimevalWorld.Terrain
                 for (int gx = 0; gx < vertsPerSide; gx++)
                 {
                     float worldX = originX + gx * step;
-                    TerrainSample sample = generator.SamplePoint(worldX, worldZ);
+                    float h = terrain.SampleHeight(worldX, worldZ);
+                    float riverMask = terrain.SampleRiverMask(worldX, worldZ);
+                    ClimateSample cs = climate.SampleClimate(worldX, worldZ);
+                    SoilSample ss = soil.SampleSoil(worldX, worldZ);
 
-                    float hL = generator.SampleHeight(worldX - normalEps, worldZ);
-                    float hR = generator.SampleHeight(worldX + normalEps, worldZ);
-                    float hD = generator.SampleHeight(worldX, worldZ - normalEps);
-                    float hU = generator.SampleHeight(worldX, worldZ + normalEps);
+                    float hL = terrain.SampleHeight(worldX - normalEps, worldZ);
+                    float hR = terrain.SampleHeight(worldX + normalEps, worldZ);
+                    float hD = terrain.SampleHeight(worldX, worldZ - normalEps);
+                    float hU = terrain.SampleHeight(worldX, worldZ + normalEps);
                     Vector3 normal = new Vector3(hL - hR, 2.0f * normalEps, hD - hU).Normalized();
+
+                    float tempNorm = Mathf.Clamp((cs.TemperatureC + 15.0f) / 53.0f, 0.0f, 1.0f);
 
                     st.SetNormal(normal);
                     st.SetUV(new Vector2(worldX / WorldGenerator.RegionWidthMeters, worldZ / WorldGenerator.RegionDepthMeters));
-                    st.SetColor(new Color(sample.RiverMask, sample.Moisture, sample.CoastalMask, sample.ForestDensity));
-                    st.AddVertex(new Vector3(gx * step, sample.Height, gz * step));
+                    st.SetColor(new Color(riverMask, cs.Moisture, tempNorm, ss.SoilDepth));
+                    st.AddVertex(new Vector3(gx * step, h, gz * step));
                 }
             }
 
