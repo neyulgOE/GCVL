@@ -14,6 +14,9 @@ namespace PrimevalWorld.Terrain
         private readonly ArrayMesh[] _lodMeshes = new ArrayMesh[4];
         private int _currentLod = -1;
         public Vector3 CenterWorld { get; private set; }
+        public float MinH { get; private set; }
+        public float MaxH { get; private set; }
+        public bool IsCoastline { get; private set; }
         public int CurrentLod => _currentLod;
 
         private static readonly int[][] SharedLodIndices = BuildAllSharedLodIndices();
@@ -21,11 +24,11 @@ namespace PrimevalWorld.Terrain
         private static int[][] BuildAllSharedLodIndices()
         {
             var result = new int[4][];
-            int[] steps = { 1, 2, 4, 8 };
+            int[] steps = { 1, 2, 4, 4 };
             for (int lod = 0; lod < 4; lod++)
             {
                 int step = steps[lod];
-                int n = WorldPhysicsConfig.CellsPerChunk / step + 1; // 33, 17, 9, 5
+                int n = WorldPhysicsConfig.CellsPerChunk / step + 1; // 33, 17, 9, 9 (no 4x4)
                 var indices = new List<int>((n - 1) * (n - 1) * 6 + n * 4 * 6);
 
                 // Main surface grid
@@ -97,7 +100,9 @@ namespace PrimevalWorld.Terrain
                 originZ + WorldPhysicsConfig.ChunkSize * 0.5f
             );
 
-            int[] steps = { 1, 2, 4, 8 };
+            int[] steps = { 1, 2, 4, 4 };
+            float minH = float.MaxValue;
+            float maxH = float.MinValue;
             for (int lod = 0; lod < 4; lod++)
             {
                 int step = steps[lod];
@@ -120,8 +125,14 @@ namespace PrimevalWorld.Terrain
                         float localX = lx * step * cell;
                         float worldX = originX + localX;
                         int gIdx = gz * WorldPhysicsConfig.VertW + gx;
+                        float h = erosion.HeightMap[gIdx];
+                        if (lod == 0)
+                        {
+                            if (h < minH) minH = h;
+                            if (h > maxH) maxH = h;
+                        }
 
-                        verts[vIdx] = new Vector3(localX, erosion.HeightMap[gIdx], localZ);
+                        verts[vIdx] = new Vector3(localX, h, localZ);
                         normals[vIdx] = erosion.NormalMap[gIdx];
                         uvs[vIdx] = new Vector2(worldX / WorldPhysicsConfig.WorldWidth, worldZ / WorldPhysicsConfig.WorldDepth);
                         vIdx++;
@@ -160,10 +171,14 @@ namespace PrimevalWorld.Terrain
                 _lodMeshes[lod] = mesh;
             }
 
+            MinH = minH;
+            MaxH = maxH;
+            IsCoastline = minH < 2.5f && maxH > -2.5f;
+
             MaterialOverride = material;
             Position = new Vector3(originX, 0.0f, originZ);
             CastShadow = ShadowCastingSetting.On;
-            SetLod(2);
+            SetLod(IsCoastline ? 1 : 2);
         }
 
         public void SetLod(int lod)

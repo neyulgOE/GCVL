@@ -42,6 +42,21 @@ namespace PrimevalWorld.WorldGen
             // 2. Kinetic Hydraulic Droplet Erosion (90,000 droplets)
             ApplyHydraulicErosion(bedrock, seed, numDroplets: 90000);
 
+            // Prevent erosion from sinking canonical coastal plains below sea level
+            Parallel.For(0, count, i =>
+            {
+                if (tectonic.LandMask[i] > 0.60f && tectonic.RawWaterMask[i] < 0.25f)
+                {
+                    float minFloor = tectonic.CoastDistMeters[i] > 95.0f ? 6.5f : 0.9f;
+                    if (HeightMap[i] < minFloor)
+                    {
+                        float lift = minFloor - HeightMap[i];
+                        SedimentMap[i] += lift;
+                        HeightMap[i] = minFloor;
+                    }
+                }
+            });
+
             // 3. Aeolian Wind Dune Ripples in dry SW desert sediment
             ApplyAeolianDunes(tectonic, seed);
 

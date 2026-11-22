@@ -60,12 +60,20 @@ namespace PrimevalWorld.Terrain
             for (int i = 0; i < _chunks.Count; i++)
             {
                 TerrainChunk c = _chunks[i];
-                float dist = cameraPos.DistanceTo(c.CenterWorld);
+                float dx = cameraPos.X - c.CenterWorld.X;
+                float dz = cameraPos.Z - c.CenterWorld.Z;
+                float dy = (cameraPos.Y - c.CenterWorld.Y) * 0.25f;
+                float dist = System.MathF.Sqrt(dx * dx + dz * dz + dy * dy);
+
                 int lod = dist < WorldPhysicsConfig.Lod0Dist ? 0
                         : (dist < WorldPhysicsConfig.Lod1Dist ? 1
                         : (dist < WorldPhysicsConfig.Lod2Dist ? 2 : 3));
+
+                if (c.IsCoastline && lod > 1)
+                    lod = 1;
+
                 c.SetLod(lod);
-                tris += lod switch { 0 => 2048, 1 => 512, 2 => 128, _ => 32 };
+                tris += lod switch { 0 => 2048, 1 => 512, _ => 128 };
             }
             ActiveTriangleEstimate = tris;
         }

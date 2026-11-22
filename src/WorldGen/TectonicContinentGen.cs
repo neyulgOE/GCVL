@@ -151,8 +151,10 @@ namespace PrimevalWorld.WorldGen
                     float ridged = MathF.Pow(FastNoise.RidgedFbm2D(worldX * 0.0011f, worldZ * 0.0011f, seed + 307, 6), 1.15f);
                     float micro = (FastNoise.Fbm2D(worldX * 0.005f, worldZ * 0.005f, seed + 173, 3) - 0.5f) * 4.0f;
 
-                    // Broad lowland plains (8-55m) rising smoothly from beaches
-                    float baseLandH = 5.0f + FastNoise.SmoothStep(0.0f, 340.0f, dMeters) * 34.0f + fbm * 24.0f + micro;
+                    // Gentle coastal beach ramp (0.6..7.0m) rising to broad lowland plains (10..55m)
+                    float beachRamp = FastNoise.SmoothStep(0.0f, 95.0f, dMeters);
+                    float inlandRamp = FastNoise.SmoothStep(70.0f, 360.0f, dMeters);
+                    float baseLandH = 0.8f + beachRamp * 7.5f + beachRamp * (inlandRamp * 32.0f + fbm * 22.0f) + micro * 0.5f;
 
                     // NW Glacial Alpine peaks up to ~440-460m
                     float nwLift = snowFeature[idx] * (125.0f + ridged * 285.0f);
@@ -169,11 +171,11 @@ namespace PrimevalWorld.WorldGen
 
                     float totalBedrock = baseLandH + nwLift + swRim + nePlateau + eastRidge;
 
-                    // Shallow coral shelf (-8m..0m) -> Deep ocean (-65m)
-                    float shelfT = FastNoise.SmoothStep(0.0f, 160.0f, -dMeters);
-                    float oceanFloor = Mathf.Lerp(-6.5f, WorldPhysicsConfig.MaxOceanDepth, shelfT) + fbm * 4.0f;
+                    // Shallow coral shelf (-2.4m..0m) -> Deep ocean (-65m)
+                    float shelfT = FastNoise.SmoothStep(0.0f, 180.0f, -dMeters);
+                    float oceanFloor = Mathf.Lerp(-2.4f, WorldPhysicsConfig.MaxOceanDepth, shelfT) + fbm * 3.0f;
 
-                    float landBlend = FastNoise.SmoothStep(0.28f, 0.62f, land);
+                    float landBlend = FastNoise.SmoothStep(0.24f, 0.56f, land);
                     BedrockHeight[idx] = oceanFloor * (1.0f - landBlend) + totalBedrock * landBlend;
 
                     // Initial loose sediment cover (thick sand in SW desert, moderate loam in valleys, thin on peaks)

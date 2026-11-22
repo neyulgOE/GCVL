@@ -28,7 +28,8 @@ namespace PrimevalWorld.Camera
 
         public void ResetToScenicOverlook()
         {
-            TeleportTo(new Vector3(4800.0f, 1350.0f, 7100.0f), new Vector3(4800.0f, 40.0f, 2600.0f));
+            // North (-Z: NW Glacial & NE Autumn) at top of screen; South (+Z: SW Desert & SE Sanctuary) at bottom
+            TeleportTo(new Vector3(4800.0f, 2400.0f, 6500.0f), new Vector3(4800.0f, 40.0f, 2650.0f));
         }
 
         public void TeleportTo(Vector3 pos, Vector3 lookTarget)

@@ -360,7 +360,7 @@ namespace PrimevalWorld.Core
             // Report comprehensive Stage 1+2 statistics
             int totalLand = System.Math.Max(1, _soil.TotalLandCells);
             GD.Print($"[World9.6x5.4km] Seed={seed} | PhysicsGen={physicsMs:0.0}ms | Temp=[{_climate.MinTempC:0.0}°C..{_climate.MaxTempC:0.0}°C] | MeanPrecip={_climate.MeanPrecip * 100f:0.0}% | " +
-                     $"Chunks={_terrainMgr?.ChunkCount ?? 0} | Soil%: " +
+                     $"Chunks={_terrainMgr?.ChunkCount ?? 0} | ActiveTris={_terrainMgr?.ActiveTriangleEstimate ?? 0} | Soil%: " +
                      $"Alluvial={_soil.LandSoilCounts[0] * 100f / totalLand:0.0}%, " +
                      $"ForestBrown={_soil.LandSoilCounts[1] * 100f / totalLand:0.0}%, " +
                      $"SteppeLoess={_soil.LandSoilCounts[2] * 100f / totalLand:0.0}%, " +

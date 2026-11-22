@@ -27,9 +27,9 @@ namespace PrimevalWorld.Core
         public const float ChunkSize = CellsPerChunk * CellSize; // 300.0m
 
         // LOD Distance Thresholds (meters)
-        public const float Lod0Dist = 750.0f;
-        public const float Lod1Dist = 1800.0f;
-        public const float Lod2Dist = 3800.0f;
+        public const float Lod0Dist = 1400.0f;
+        public const float Lod1Dist = 3200.0f;
+        public const float Lod2Dist = 6500.0f;
         public const float SkirtDepth = 24.0f;
 
         // Elevation & Ocean Constants (meters)

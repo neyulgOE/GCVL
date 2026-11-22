@@ -98,31 +98,54 @@ namespace PrimevalWorld.WorldGen
                     if (h <= 0.1f) depth = 0.2f;
                     SoilDepthMap[idx] = depth;
 
-                    float sal = FastNoise.SmoothStep(10.0f, 0.4f, h) * (1.0f - riverMask * 0.85f) * FastNoise.SmoothStep(4.0f, 14.0f, wind);
+                    float sal = FastNoise.SmoothStep(8.0f, 0.2f, h)
+                              * (1.0f - riverMask * 0.75f)
+                              * FastNoise.SmoothStep(115.0f, 15.0f, tectonic.CoastDistMeters[idx]);
                     CoastalSalinityMap[idx] = Math.Clamp(sal, 0.0f, 1.0f);
 
-                    float wCoastal = sal * 1.45f;
-                    float wPerma = MathF.Max(
-                        FastNoise.SmoothStep(1.5f, -4.0f, temp),
-                        MathF.Max(FastNoise.SmoothStep(28.0f, 40.0f, slopeDeg), FastNoise.SmoothStep(0.20f, 0.05f, depth))
-                    );
-                    float wAlluvial = FastNoise.SmoothStep(0.42f, 0.82f, moist)
-                                    * (0.35f + flow * 0.65f + riverMask * 0.75f)
-                                    * (1.0f - wCoastal * 0.7f)
-                                    * (1.0f - wPerma * 0.85f);
-                    float wArid = (FastNoise.SmoothStep(18.0f, 29.0f, temp) * (1.0f - FastNoise.SmoothStep(0.24f, 0.56f, moist))
-                                + tectonic.SwDesertWeight[idx] * (1.0f - FastNoise.SmoothStep(0.45f, 0.75f, moist)) * 0.85f)
-                                * (1.0f - wCoastal * 0.6f) * (1.0f - wPerma * 0.7f);
-                    float wSteppe = FastNoise.SmoothStep(4.0f, 18.0f, temp)
-                                  * (1.0f - FastNoise.SmoothStep(20.0f, 28.0f, temp))
-                                  * (1.0f - FastNoise.SmoothStep(0.42f, 0.72f, moist))
-                                  * (0.4f + FastNoise.SmoothStep(7.0f, 16.0f, wind) * 0.6f)
-                                  * (1.0f - wPerma * 0.75f) * (1.0f - wArid * 0.6f);
-                    float wForest = FastNoise.SmoothStep(5.0f, 24.0f, temp)
-                                  * FastNoise.SmoothStep(0.32f, 0.70f, moist)
-                                  * (1.0f - wPerma * 0.8f) * (1.0f - wCoastal * 0.7f) * (1.0f - wArid * 0.85f);
+                    // Coastal Sand on gentle beaches 0..10m within 140m of shoreline
+                    float wCoastal = FastNoise.SmoothStep(10.5f, 0.2f, h)
+                                   * FastNoise.SmoothStep(-1.5f, 0.05f, h)
+                                   * FastNoise.SmoothStep(150.0f, 10.0f, tectonic.CoastDistMeters[idx])
+                                   * (1.0f - riverMask * 0.70f)
+                                   * (1.0f - FastNoise.SmoothStep(20.0f, 36.0f, slopeDeg))
+                                   * 2.40f;
 
-                    float sum = wAlluvial + wForest + wSteppe + wArid + wCoastal + wPerma + 1e-5f;
+                    float wPerma = MathF.Max(
+                        FastNoise.SmoothStep(1.2f, -4.5f, temp),
+                        MathF.Max(FastNoise.SmoothStep(29.0f, 42.0f, slopeDeg), FastNoise.SmoothStep(0.17f, 0.04f, depth))
+                    );
+
+                    // Alluvial Loam along rivers, deltas, and very moist low floodplains
+                    float wAlluvial = (FastNoise.SmoothStep(0.58f, 0.88f, moist) * FastNoise.SmoothStep(28.0f, 4.0f, h) * 0.45f
+                                    + flow * 0.85f + riverMask * 1.15f)
+                                    * (1.0f - wCoastal * 0.65f)
+                                    * (1.0f - wPerma * 0.85f);
+
+                    // Arid Red Sand focused in hot rain-shadow SW desert
+                    float wArid = (FastNoise.SmoothStep(19.5f, 29.0f, temp) * (1.0f - FastNoise.SmoothStep(0.20f, 0.48f, moist))
+                                + tectonic.SwDesertWeight[idx] * (1.0f - FastNoise.SmoothStep(0.38f, 0.68f, moist)) * 0.95f)
+                                * (1.0f - wCoastal * 0.70f) * (1.0f - wPerma * 0.75f);
+
+                    // Steppe Loess concentrated on cool, windy NE plateaus
+                    float wSteppe = FastNoise.SmoothStep(4.0f, 11.5f, temp)
+                                  * (1.0f - FastNoise.SmoothStep(14.5f, 20.5f, temp))
+                                  * (1.0f - FastNoise.SmoothStep(0.26f, 0.48f, moist))
+                                  * (0.20f + FastNoise.SmoothStep(8.0f, 16.0f, wind) * 0.40f + tectonic.NeAutumnWeight[idx] * 1.10f)
+                                  * (1.0f - wPerma * 0.75f) * (1.0f - wArid * 0.80f) * (1.0f - wCoastal * 0.70f);
+
+                    // Forest Brown Soil dominant across humid temperate/tropical East & SE plains
+                    float wForest = FastNoise.SmoothStep(4.0f, 26.0f, temp)
+                                  * FastNoise.SmoothStep(0.22f, 0.56f, moist)
+                                  * (0.95f + tectonic.ForestFeature[idx] * 0.75f)
+                                  * (1.0f - wPerma * 0.85f) * (1.0f - wCoastal * 0.75f) * (1.0f - wArid * 0.85f) * (1.0f - wSteppe * 0.55f);
+
+                    float sum = wAlluvial + wForest + wSteppe + wArid + wCoastal + wPerma;
+                    if (sum < 1e-5f)
+                    {
+                        wForest = 1.0f;
+                        sum = 1.0f;
+                    }
                     WAlluvial[idx] = wAlluvial / sum;
                     WForestBrown[idx] = wForest / sum;
                     WSteppeLoess[idx] = wSteppe / sum;
