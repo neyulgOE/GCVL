@@ -7,10 +7,11 @@ uniform sampler2D screen_tex : hint_screen_texture, repeat_disable, filter_linea
 uniform vec2 flow_speed = vec2(0.025, 0.12);
 uniform vec4 shallow_color : source_color = vec4(0.12, 0.66, 0.70, 0.76);
 uniform vec4 deep_color : source_color = vec4(0.04, 0.22, 0.38, 0.94);
-uniform vec3 foam_color : source_color = vec3(0.86, 0.92, 0.96);
+uniform vec3 foam_color : source_color = vec3(0.88, 0.94, 0.98);
 uniform float wave_strength = 0.14;
 
 varying vec3 v_world_pos;
+varying float v_velocity;
 
 float hash21(vec2 p) {
 	p = fract(p * vec2(127.1, 311.7));
@@ -31,18 +32,19 @@ float noise2(vec2 p) {
 
 void vertex() {
 	vec3 wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	v_velocity = COLOR.r;
 	float cam_dist = length(CAMERA_POSITION_WORLD - wp);
-	float vert_fade = 1.0 - smoothstep(260.0, 950.0, cam_dist);
+	float vert_fade = 1.0 - smoothstep(350.0, 1400.0, cam_dist);
 
-	float w1 = sin(wp.x * 0.19 + TIME * 1.4) * cos(wp.z * 0.16 + TIME * 1.1);
-	float w2 = noise2(wp.xz * 0.10 + flow_speed * TIME * 2.5) - 0.5;
-	VERTEX.y += (w1 * 0.04 + w2 * 0.06) * vert_fade;
+	float w1 = sin(wp.x * 0.14 + TIME * 1.4) * cos(wp.z * 0.12 + TIME * 1.1);
+	float w2 = noise2(wp.xz * 0.08 + flow_speed * TIME * 2.5) - 0.5;
+	VERTEX.y += (w1 * 0.05 + w2 * 0.08) * vert_fade;
 	v_world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 }
 
 void fragment() {
 	float cam_dist = length(CAMERA_POSITION_WORLD - v_world_pos);
-	float ripple_fade = 1.0 - smoothstep(130.0, 680.0, cam_dist);
+	float ripple_fade = 1.0 - smoothstep(220.0, 1200.0, cam_dist);
 
 	float depth_raw = texture(depth_tex, SCREEN_UV).r;
 	vec3 ndc = vec3(SCREEN_UV * 2.0 - 1.0, depth_raw);
@@ -52,8 +54,9 @@ void fragment() {
 	float surface_depth = -VERTEX.z;
 	float water_depth = max(0.0, scene_depth - surface_depth);
 
-	vec2 uv1 = v_world_pos.xz * 0.16 + flow_speed * TIME * 2.0;
-	vec2 uv2 = v_world_pos.xz * 0.31 - flow_speed.yx * TIME * 1.4;
+	float speed_mult = 1.0 + v_velocity * 2.2;
+	vec2 uv1 = v_world_pos.xz * 0.14 + flow_speed * TIME * 2.0 * speed_mult;
+	vec2 uv2 = v_world_pos.xz * 0.27 - flow_speed.yx * TIME * 1.4 * speed_mult;
 	float n1 = noise2(uv1);
 	float n2 = noise2(uv2);
 	float ripple = (n1 + n2) * 0.5;
@@ -64,26 +67,25 @@ void fragment() {
 	vec3 ripple_normal = normalize(vec3(-nx * wave_strength * 7.0 * ripple_fade, 1.0, -nz * wave_strength * 7.0 * ripple_fade));
 	NORMAL = normalize(mix(NORMAL, (VIEW_MATRIX * vec4(ripple_normal, 0.0)).xyz, 0.72));
 
-	// Depth-based water absorption with guaranteed minimum luminous turquoise floor (never pitch-black!)
-	float depth_t = 1.0 - exp(-water_depth * 0.34);
+	float depth_t = 1.0 - exp(-water_depth * 0.28);
 	vec3 refracted = texture(screen_tex, SCREEN_UV + vec2(nx, nz) * 0.012 * ripple_fade).rgb;
 	vec4 water_col = mix(shallow_color, deep_color, depth_t);
 	vec3 body_col = mix(refracted * mix(vec3(0.88, 0.98, 0.96), vec3(0.45, 0.68, 0.78), depth_t), water_col.rgb, water_col.a);
-	body_col = max(body_col, water_col.rgb * 0.75);
+	body_col = max(body_col, water_col.rgb * 0.78);
 
-	// Schlick Fresnel sky reflection
 	float fresnel = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 4.0);
 	vec3 sky_reflect = vec3(0.56, 0.70, 0.82);
-	vec3 final_col = mix(body_col, sky_reflect, clamp(fresnel * 0.76, 0.0, 0.84));
+	vec3 final_col = mix(body_col, sky_reflect, clamp(fresnel * 0.78, 0.0, 0.85));
 
-	// Subtle shoreline / riverbank white foam
-	float foam_band = (1.0 - smoothstep(0.05, 0.75, water_depth)) * ripple_fade;
-	float foam_noise = smoothstep(0.48, 0.78, ripple + foam_band * 0.38);
-	float foam = foam_band * foam_noise;
-	final_col = mix(final_col, foam_color, clamp(foam * 0.78, 0.0, 1.0));
+	// Shoreline foam + fast-flowing rapids whitewater foam
+	float foam_band = (1.0 - smoothstep(0.06, 0.95, water_depth)) * ripple_fade;
+	float rapids_foam = smoothstep(0.32, 0.78, v_velocity) * ripple_fade * 0.65;
+	float foam_noise = smoothstep(0.46, 0.76, ripple + max(foam_band, rapids_foam) * 0.42);
+	float foam = max(foam_band, rapids_foam) * foam_noise;
+	final_col = mix(final_col, foam_color, clamp(foam * 0.82, 0.0, 1.0));
 
 	ALBEDO = final_col;
 	ROUGHNESS = mix(0.05, 0.34, foam);
 	SPECULAR = 0.85;
-	ALPHA = clamp(smoothstep(0.0, 0.14, water_depth) * mix(0.76, 0.98, depth_t) + foam * 0.45, 0.25, 0.98);
+	ALPHA = clamp(smoothstep(0.0, 0.16, water_depth) * mix(0.76, 0.98, depth_t) + foam * 0.45, 0.25, 0.98);
 }

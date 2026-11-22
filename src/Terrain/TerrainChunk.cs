@@ -1,78 +1,176 @@
+using System.Collections.Generic;
 using Godot;
+using PrimevalWorld.Core;
 using PrimevalWorld.WorldGen;
 
 namespace PrimevalWorld.Terrain
 {
+    /// <summary>
+    /// 4-Level LOD TerrainChunk (300m x 300m = 32x32 cells) with continuous world normals
+    /// and a 24m perimeter Skirt Mesh to prevent seams between adjacent LOD levels.
+    /// </summary>
     public partial class TerrainChunk : MeshInstance3D
     {
-        public void Build(
-            WorldGenerator terrain,
-            ClimateSimulator climate,
-            SoilSimulator soil,
-            int chunkX,
-            int chunkZ,
-            Material material)
+        private readonly ArrayMesh[] _lodMeshes = new ArrayMesh[4];
+        private int _currentLod = -1;
+        public Vector3 CenterWorld { get; private set; }
+        public int CurrentLod => _currentLod;
+
+        private static readonly int[][] SharedLodIndices = BuildAllSharedLodIndices();
+
+        private static int[][] BuildAllSharedLodIndices()
         {
-            float chunkSize = WorldGenerator.ChunkSizeMeters;
-            int vertsPerSide = WorldGenerator.ChunkVerticesPerSide;
-            float step = chunkSize / (vertsPerSide - 1);
-            float originX = chunkX * chunkSize;
-            float originZ = chunkZ * chunkSize;
-
-            const float normalEps = 2.0f;
-
-            var st = new SurfaceTool();
-            st.Begin(Mesh.PrimitiveType.Triangles);
-
-            for (int gz = 0; gz < vertsPerSide; gz++)
+            var result = new int[4][];
+            int[] steps = { 1, 2, 4, 8 };
+            for (int lod = 0; lod < 4; lod++)
             {
-                float worldZ = originZ + gz * step;
-                for (int gx = 0; gx < vertsPerSide; gx++)
+                int step = steps[lod];
+                int n = WorldPhysicsConfig.CellsPerChunk / step + 1; // 33, 17, 9, 5
+                var indices = new List<int>((n - 1) * (n - 1) * 6 + n * 4 * 6);
+
+                // Main surface grid
+                for (int gz = 0; gz < n - 1; gz++)
                 {
-                    float worldX = originX + gx * step;
-                    float h = terrain.SampleHeight(worldX, worldZ);
-                    float riverMask = terrain.SampleRiverMask(worldX, worldZ);
-                    ClimateSample cs = climate.SampleClimate(worldX, worldZ);
-                    SoilSample ss = soil.SampleSoil(worldX, worldZ);
-
-                    float hL = terrain.SampleHeight(worldX - normalEps, worldZ);
-                    float hR = terrain.SampleHeight(worldX + normalEps, worldZ);
-                    float hD = terrain.SampleHeight(worldX, worldZ - normalEps);
-                    float hU = terrain.SampleHeight(worldX, worldZ + normalEps);
-                    Vector3 normal = new Vector3(hL - hR, 2.0f * normalEps, hD - hU).Normalized();
-
-                    float tempNorm = Mathf.Clamp((cs.TemperatureC + 15.0f) / 53.0f, 0.0f, 1.0f);
-
-                    st.SetNormal(normal);
-                    st.SetUV(new Vector2(worldX / WorldGenerator.RegionWidthMeters, worldZ / WorldGenerator.RegionDepthMeters));
-                    st.SetColor(new Color(riverMask, cs.Moisture, tempNorm, ss.SoilDepth));
-                    st.AddVertex(new Vector3(gx * step, h, gz * step));
+                    for (int gx = 0; gx < n - 1; gx++)
+                    {
+                        int i0 = gz * n + gx;
+                        int i1 = i0 + 1;
+                        int i2 = i0 + n;
+                        int i3 = i2 + 1;
+                        indices.Add(i0); indices.Add(i1); indices.Add(i2);
+                        indices.Add(i1); indices.Add(i3); indices.Add(i2);
+                    }
                 }
+
+                // 4 Edge Skirts (base surface edge vertices followed by n*4 skirt-bottom vertices)
+                int skirtBase = n * n;
+                // North edge (gz=0, gx=0..n-1)
+                for (int i = 0; i < n - 1; i++)
+                {
+                    int t0 = i, t1 = i + 1, b0 = skirtBase + i, b1 = skirtBase + i + 1;
+                    indices.Add(t0); indices.Add(b0); indices.Add(t1);
+                    indices.Add(t1); indices.Add(b0); indices.Add(b1);
+                }
+                // South edge (gz=n-1)
+                int sOff = skirtBase + n;
+                int sTop = (n - 1) * n;
+                for (int i = 0; i < n - 1; i++)
+                {
+                    int t0 = sTop + i, t1 = sTop + i + 1, b0 = sOff + i, b1 = sOff + i + 1;
+                    indices.Add(t0); indices.Add(t1); indices.Add(b0);
+                    indices.Add(t1); indices.Add(b1); indices.Add(b0);
+                }
+                // West edge (gx=0)
+                int wOff = skirtBase + 2 * n;
+                for (int i = 0; i < n - 1; i++)
+                {
+                    int t0 = i * n, t1 = (i + 1) * n, b0 = wOff + i, b1 = wOff + i + 1;
+                    indices.Add(t0); indices.Add(t1); indices.Add(b0);
+                    indices.Add(t1); indices.Add(b1); indices.Add(b0);
+                }
+                // East edge (gx=n-1)
+                int eOff = skirtBase + 3 * n;
+                for (int i = 0; i < n - 1; i++)
+                {
+                    int t0 = i * n + (n - 1), t1 = (i + 1) * n + (n - 1), b0 = eOff + i, b1 = eOff + i + 1;
+                    indices.Add(t0); indices.Add(b0); indices.Add(t1);
+                    indices.Add(t1); indices.Add(b0); indices.Add(b1);
+                }
+
+                result[lod] = indices.ToArray();
+            }
+            return result;
+        }
+
+        public void Build(ErosionPhysics erosion, int chunkX, int chunkZ, Material material)
+        {
+            int cellsPerChunk = WorldPhysicsConfig.CellsPerChunk; // 32
+            float cell = WorldPhysicsConfig.CellSize;            // 9.375m
+            int startGx = chunkX * cellsPerChunk;
+            int startGz = chunkZ * cellsPerChunk;
+            float originX = startGx * cell;
+            float originZ = startGz * cell;
+
+            CenterWorld = new Vector3(
+                originX + WorldPhysicsConfig.ChunkSize * 0.5f,
+                erosion.HeightMap[(startGz + cellsPerChunk / 2) * WorldPhysicsConfig.VertW + (startGx + cellsPerChunk / 2)],
+                originZ + WorldPhysicsConfig.ChunkSize * 0.5f
+            );
+
+            int[] steps = { 1, 2, 4, 8 };
+            for (int lod = 0; lod < 4; lod++)
+            {
+                int step = steps[lod];
+                int n = cellsPerChunk / step + 1;
+                int totalVerts = n * n + 4 * n;
+
+                var verts = new Vector3[totalVerts];
+                var normals = new Vector3[totalVerts];
+                var uvs = new Vector2[totalVerts];
+
+                int vIdx = 0;
+                for (int lz = 0; lz < n; lz++)
+                {
+                    int gz = startGz + lz * step;
+                    float localZ = lz * step * cell;
+                    float worldZ = originZ + localZ;
+                    for (int lx = 0; lx < n; lx++)
+                    {
+                        int gx = startGx + lx * step;
+                        float localX = lx * step * cell;
+                        float worldX = originX + localX;
+                        int gIdx = gz * WorldPhysicsConfig.VertW + gx;
+
+                        verts[vIdx] = new Vector3(localX, erosion.HeightMap[gIdx], localZ);
+                        normals[vIdx] = erosion.NormalMap[gIdx];
+                        uvs[vIdx] = new Vector2(worldX / WorldPhysicsConfig.WorldWidth, worldZ / WorldPhysicsConfig.WorldDepth);
+                        vIdx++;
+                    }
+                }
+
+                // Copy 4 perimeter skirts dropped by SkirtDepth
+                float drop = WorldPhysicsConfig.SkirtDepth;
+                // North
+                for (int i = 0; i < n; i++) CopySkirt(i, vIdx++);
+                // South
+                int sTop = (n - 1) * n;
+                for (int i = 0; i < n; i++) CopySkirt(sTop + i, vIdx++);
+                // West
+                for (int i = 0; i < n; i++) CopySkirt(i * n, vIdx++);
+                // East
+                for (int i = 0; i < n; i++) CopySkirt(i * n + (n - 1), vIdx++);
+
+                void CopySkirt(int src, int dst)
+                {
+                    Vector3 p = verts[src];
+                    verts[dst] = new Vector3(p.X, p.Y - drop, p.Z);
+                    normals[dst] = normals[src];
+                    uvs[dst] = uvs[src];
+                }
+
+                var arrays = new Godot.Collections.Array();
+                arrays.Resize((int)Mesh.ArrayType.Max);
+                arrays[(int)Mesh.ArrayType.Vertex] = verts;
+                arrays[(int)Mesh.ArrayType.Normal] = normals;
+                arrays[(int)Mesh.ArrayType.TexUV] = uvs;
+                arrays[(int)Mesh.ArrayType.Index] = SharedLodIndices[lod];
+
+                var mesh = new ArrayMesh();
+                mesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);
+                _lodMeshes[lod] = mesh;
             }
 
-            for (int gz = 0; gz < vertsPerSide - 1; gz++)
-            {
-                for (int gx = 0; gx < vertsPerSide - 1; gx++)
-                {
-                    int i0 = gz * vertsPerSide + gx;
-                    int i1 = i0 + 1;
-                    int i2 = i0 + vertsPerSide;
-                    int i3 = i2 + 1;
-
-                    st.AddIndex(i0);
-                    st.AddIndex(i1);
-                    st.AddIndex(i2);
-
-                    st.AddIndex(i1);
-                    st.AddIndex(i3);
-                    st.AddIndex(i2);
-                }
-            }
-
-            Mesh = st.Commit();
             MaterialOverride = material;
             Position = new Vector3(originX, 0.0f, originZ);
             CastShadow = ShadowCastingSetting.On;
+            SetLod(2);
+        }
+
+        public void SetLod(int lod)
+        {
+            if (lod == _currentLod) return;
+            _currentLod = lod;
+            Mesh = _lodMeshes[lod];
         }
     }
 }

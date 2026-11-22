@@ -1,16 +1,16 @@
 using Godot;
-using PrimevalWorld.WorldGen;
+using PrimevalWorld.Core;
 
 namespace PrimevalWorld.Camera
 {
     /// <summary>
-    /// Smooth spectator Free Camera for the 3072m x 3072m multi-continent world:
-    /// WASD move, Q/E down/up, Shift boost, Right-mouse drag look, Scroll wheel adjusts fly speed.
+    /// Smooth spectator Free Camera for the 9.6 x 5.4 km world:
+    /// Far = 16,000m, max speed up to 1,000 m/s (Shift + Scroll wheel).
     /// </summary>
     public partial class SpectatorCamera : Camera3D
     {
-        [Export] public float BaseSpeed = 85.0f;
-        [Export] public float BoostMultiplier = 3.0f;
+        [Export] public float BaseSpeed = 160.0f;
+        [Export] public float BoostMultiplier = 3.2f;
         [Export] public float LookSensitivity = 0.0045f;
 
         private float _yaw;
@@ -19,18 +19,16 @@ namespace PrimevalWorld.Camera
         private Vector3 _velocity = Vector3.Zero;
 
         public float CurrentSpeed => BaseSpeed;
-        public float Yaw => _yaw;
 
         public override void _Ready()
         {
-            Far = 8500.0f;
+            Far = WorldPhysicsConfig.CameraFar;
             ResetToScenicOverlook();
         }
 
         public void ResetToScenicOverlook()
         {
-            // High panoramic overlook showing the full 3840m x 2048m 4-continent Primeval Reach world
-            TeleportTo(new Vector3(1920.0f, 520.0f, 2680.0f), new Vector3(1920.0f, 12.0f, 960.0f));
+            TeleportTo(new Vector3(4800.0f, 1350.0f, 7100.0f), new Vector3(4800.0f, 40.0f, 2600.0f));
         }
 
         public void TeleportTo(Vector3 pos, Vector3 lookTarget)
@@ -54,11 +52,11 @@ namespace PrimevalWorld.Camera
                 }
                 else if (mb.Pressed && mb.ButtonIndex == MouseButton.WheelUp)
                 {
-                    BaseSpeed = Mathf.Clamp(BaseSpeed * 1.15f, 12.0f, 450.0f);
+                    BaseSpeed = Mathf.Clamp(BaseSpeed * 1.18f, 15.0f, WorldPhysicsConfig.MaxFlySpeed);
                 }
                 else if (mb.Pressed && mb.ButtonIndex == MouseButton.WheelDown)
                 {
-                    BaseSpeed = Mathf.Clamp(BaseSpeed / 1.15f, 12.0f, 450.0f);
+                    BaseSpeed = Mathf.Clamp(BaseSpeed / 1.18f, 15.0f, WorldPhysicsConfig.MaxFlySpeed);
                 }
             }
             else if (@event is InputEventMouseMotion mm && _rotating)
@@ -104,16 +102,19 @@ namespace PrimevalWorld.Camera
             if (Input.IsKeyPressed(Key.E) || Input.IsKeyPressed(Key.Space)) inputDir += Vector3.Up;
             if (Input.IsKeyPressed(Key.Q) || Input.IsKeyPressed(Key.C)) inputDir -= Vector3.Up;
 
-            float targetSpeed = BaseSpeed * (Input.IsKeyPressed(Key.Shift) ? BoostMultiplier : 1.0f);
+            float targetSpeed = Mathf.Min(
+                WorldPhysicsConfig.MaxFlySpeed,
+                BaseSpeed * (Input.IsKeyPressed(Key.Shift) ? BoostMultiplier : 1.0f)
+            );
             Vector3 targetVel = inputDir.LengthSquared() > 0.001f ? inputDir.Normalized() * targetSpeed : Vector3.Zero;
 
             _velocity = _velocity.Lerp(targetVel, 1.0f - Mathf.Exp(-10.0f * dt));
             Position += _velocity * dt;
 
             Position = new Vector3(
-                Mathf.Clamp(Position.X, -800.0f, WorldGenerator.RegionWidthMeters + 800.0f),
-                Mathf.Clamp(Position.Y, 1.5f, 1400.0f),
-                Mathf.Clamp(Position.Z, -800.0f, WorldGenerator.RegionDepthMeters + 800.0f)
+                Mathf.Clamp(Position.X, -2500.0f, WorldPhysicsConfig.WorldWidth + 2500.0f),
+                Mathf.Clamp(Position.Y, 1.5f, 3500.0f),
+                Mathf.Clamp(Position.Z, -2500.0f, WorldPhysicsConfig.WorldDepth + 2500.0f)
             );
         }
     }

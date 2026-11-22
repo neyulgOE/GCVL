@@ -1,12 +1,12 @@
 using Godot;
+using PrimevalWorld.Core;
 using PrimevalWorld.WorldGen;
 
 namespace PrimevalWorld.Terrain
 {
     /// <summary>
-    /// Builds the 16km x 16km Horizon Ocean Plane at SeaLevel (0.0m)
-    /// plus an Inland Water Mesh covering all blueprint rivers, deltas, and highland lakes
-    /// at their exact local bank-derived surface elevations.
+    /// Builds the 48km x 48km Horizon Ocean Plane plus sloped Inland Rivers & Lakes
+    /// carrying WaterVelocity & WaterDepth in vertex Color for dynamic whitewater foam.
     /// </summary>
     public partial class WaterSurface : Node3D
     {
@@ -15,7 +15,7 @@ namespace PrimevalWorld.Terrain
         private ShaderMaterial? _oceanMaterial;
         private ShaderMaterial? _riverMaterial;
 
-        public void BuildWater(WorldGenerator generator)
+        public void BuildWater(HydrologySolver hydrology)
         {
             if (_oceanMaterial == null)
             {
@@ -26,13 +26,13 @@ namespace PrimevalWorld.Terrain
                 _oceanMaterial.SetShaderParameter("deep_color", new Color(0.03f, 0.16f, 0.30f, 0.96f));
 
                 _riverMaterial = new ShaderMaterial { Shader = waterShader };
-                _riverMaterial.SetShaderParameter("flow_speed", new Vector2(0.05f, 0.24f));
+                _riverMaterial.SetShaderParameter("flow_speed", new Vector2(0.05f, 0.28f));
                 _riverMaterial.SetShaderParameter("shallow_color", new Color(0.14f, 0.68f, 0.70f, 0.72f));
                 _riverMaterial.SetShaderParameter("deep_color", new Color(0.06f, 0.34f, 0.48f, 0.88f));
             }
 
             BuildHorizonOceanPlane();
-            BuildInlandWaterMesh(generator);
+            BuildInlandWaterMesh(hydrology);
         }
 
         private void BuildHorizonOceanPlane()
@@ -49,20 +49,20 @@ namespace PrimevalWorld.Terrain
 
             var plane = new PlaneMesh
             {
-                Size = new Vector2(16384.0f, 16384.0f),
-                SubdivideWidth = 96,
-                SubdivideDepth = 96,
+                Size = new Vector2(WorldPhysicsConfig.HorizonOceanSize, WorldPhysicsConfig.HorizonOceanSize),
+                SubdivideWidth = 128,
+                SubdivideDepth = 128,
             };
             _oceanMesh.Mesh = plane;
             _oceanMesh.MaterialOverride = _oceanMaterial;
             _oceanMesh.Position = new Vector3(
-                WorldGenerator.RegionWidthMeters * 0.5f,
-                WorldGenerator.SeaLevel,
-                WorldGenerator.RegionDepthMeters * 0.5f
+                WorldPhysicsConfig.WorldWidth * 0.5f,
+                WorldPhysicsConfig.SeaLevel,
+                WorldPhysicsConfig.WorldDepth * 0.5f
             );
         }
 
-        private void BuildInlandWaterMesh(WorldGenerator generator)
+        private void BuildInlandWaterMesh(HydrologySolver hydrology)
         {
             _inlandWaterMesh?.QueueFree();
             _inlandWaterMesh = new MeshInstance3D
@@ -72,54 +72,60 @@ namespace PrimevalWorld.Terrain
             };
             AddChild(_inlandWaterMesh);
 
-            const int step = 2; // 8m water grid resolution matching rivers & lakes cleanly
-            const float cellMeters = 4.0f * step;
+            const int step = 2; // 18.75m water grid
+            const float cellMeters = WorldPhysicsConfig.CellSize * step;
+            int w = WorldPhysicsConfig.VertW;
+            int h = WorldPhysicsConfig.VertH;
 
             var st = new SurfaceTool();
             st.Begin(Mesh.PrimitiveType.Triangles);
 
             bool hasAny = false;
-            for (int gz = 0; gz < WorldGenerator.GridDepth - step; gz += step)
+            for (int gz = 0; gz < h - step; gz += step)
             {
-                for (int gx = 0; gx < WorldGenerator.GridWidth - step; gx += step)
+                for (int gx = 0; gx < w - step; gx += step)
                 {
-                    bool w00 = generator.HasInlandWaterAtCell(gx, gz);
-                    bool w10 = generator.HasInlandWaterAtCell(gx + step, gz);
-                    bool w01 = generator.HasInlandWaterAtCell(gx, gz + step);
-                    bool w11 = generator.HasInlandWaterAtCell(gx + step, gz + step);
+                    int i00 = gz * w + gx;
+                    int i10 = gz * w + (gx + step);
+                    int i01 = (gz + step) * w + gx;
+                    int i11 = (gz + step) * w + (gx + step);
 
+                    bool w00 = hydrology.HasInlandWater[i00];
+                    bool w10 = hydrology.HasInlandWater[i10];
+                    bool w01 = hydrology.HasInlandWater[i01];
+                    bool w11 = hydrology.HasInlandWater[i11];
                     if (!w00 && !w10 && !w01 && !w11) continue;
                     hasAny = true;
 
-                    float y00 = generator.GetInlandWaterYAtCell(gx, gz);
-                    float y10 = generator.GetInlandWaterYAtCell(gx + step, gz);
-                    float y01 = generator.GetInlandWaterYAtCell(gx, gz + step);
-                    float y11 = generator.GetInlandWaterYAtCell(gx + step, gz + step);
-
-                    // Use local average water Y for edges bordering dry banks
                     float avgY = 0.0f;
                     int cnt = 0;
-                    if (w00) { avgY += y00; cnt++; }
-                    if (w10) { avgY += y10; cnt++; }
-                    if (w01) { avgY += y01; cnt++; }
-                    if (w11) { avgY += y11; cnt++; }
+                    if (w00) { avgY += hydrology.InlandWaterY[i00]; cnt++; }
+                    if (w10) { avgY += hydrology.InlandWaterY[i10]; cnt++; }
+                    if (w01) { avgY += hydrology.InlandWaterY[i01]; cnt++; }
+                    if (w11) { avgY += hydrology.InlandWaterY[i11]; cnt++; }
                     avgY /= cnt;
 
-                    float x0 = gx * 4.0f;
-                    float z0 = gz * 4.0f;
-                    Vector3 v00 = new Vector3(x0, w00 ? y00 : avgY, z0);
-                    Vector3 v10 = new Vector3(x0 + cellMeters, w10 ? y10 : avgY, z0);
-                    Vector3 v01 = new Vector3(x0, w01 ? y01 : avgY, z0 + cellMeters);
-                    Vector3 v11 = new Vector3(x0 + cellMeters, w11 ? y11 : avgY, z0 + cellMeters);
+                    float x0 = gx * WorldPhysicsConfig.CellSize;
+                    float z0 = gz * WorldPhysicsConfig.CellSize;
+
+                    Vector3 v00 = new Vector3(x0, w00 ? hydrology.InlandWaterY[i00] : avgY, z0);
+                    Vector3 v10 = new Vector3(x0 + cellMeters, w10 ? hydrology.InlandWaterY[i10] : avgY, z0);
+                    Vector3 v01 = new Vector3(x0, w01 ? hydrology.InlandWaterY[i01] : avgY, z0 + cellMeters);
+                    Vector3 v11 = new Vector3(x0 + cellMeters, w11 ? hydrology.InlandWaterY[i11] : avgY, z0 + cellMeters);
+
+                    Color c00 = new Color(Mathf.Clamp(hydrology.WaterVelocityMap[i00] / 5.5f, 0, 1), Mathf.Clamp(hydrology.WaterDepthMap[i00] / 6.5f, 0, 1), 0, 1);
+                    Color c10 = new Color(Mathf.Clamp(hydrology.WaterVelocityMap[i10] / 5.5f, 0, 1), Mathf.Clamp(hydrology.WaterDepthMap[i10] / 6.5f, 0, 1), 0, 1);
+                    Color c01 = new Color(Mathf.Clamp(hydrology.WaterVelocityMap[i01] / 5.5f, 0, 1), Mathf.Clamp(hydrology.WaterDepthMap[i01] / 6.5f, 0, 1), 0, 1);
+                    Color c11 = new Color(Mathf.Clamp(hydrology.WaterVelocityMap[i11] / 5.5f, 0, 1), Mathf.Clamp(hydrology.WaterDepthMap[i11] / 6.5f, 0, 1), 0, 1);
 
                     st.SetNormal(Vector3.Up);
-                    st.SetUV(new Vector2(0.0f, 0.0f)); st.AddVertex(v00);
-                    st.SetUV(new Vector2(1.0f, 0.0f)); st.AddVertex(v10);
-                    st.SetUV(new Vector2(0.0f, 1.0f)); st.AddVertex(v01);
+                    st.SetColor(c00); st.SetUV(new Vector2(0, 0)); st.AddVertex(v00);
+                    st.SetColor(c10); st.SetUV(new Vector2(1, 0)); st.AddVertex(v10);
+                    st.SetColor(c01); st.SetUV(new Vector2(0, 1)); st.AddVertex(v01);
 
-                    st.SetUV(new Vector2(1.0f, 0.0f)); st.AddVertex(v10);
-                    st.SetUV(new Vector2(1.0f, 1.0f)); st.AddVertex(v11);
-                    st.SetUV(new Vector2(0.0f, 1.0f)); st.AddVertex(v01);
+                    st.SetColor(c10); st.SetUV(new Vector2(1, 0)); st.AddVertex(v10);
+                    st.SetColor(c11); st.SetUV(new Vector2(1, 1)); st.AddVertex(v11);
+                    st.SetColor(c01); st.SetUV(new Vector2(0, 1)); st.AddVertex(v01);
                 }
             }
 
