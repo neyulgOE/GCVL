@@ -1,20 +1,20 @@
 using Godot;
 using PrimevalWorld.Camera;
+using PrimevalWorld.Flora;
 using PrimevalWorld.Terrain;
 using PrimevalWorld.WorldGen;
 
 namespace PrimevalWorld.Core
 {
     /// <summary>
-    /// Root scene controller for Stage 1 Vertical Slice (1x1 km).
-    /// Sets up ProceduralSky, raking-angle DirectionalLight3D soft shadows, ACES tonemapping,
-    /// horizon-blending Depth Fog, SSAO, Terrain/Water generation, and compact HUD.
+    /// Root scene controller for Stage 2 (2x2 km Island + Sloped River + MultiMesh Flora).
     /// </summary>
     public partial class MainController : Node3D
     {
         private readonly WorldGenerator _worldGen = new WorldGenerator(2026);
         private TerrainManager? _terrainMgr;
         private WaterSurface? _waterSurface;
+        private FloraManager? _floraMgr;
         private SpectatorCamera? _camera;
         private Label? _telemetryLabel;
 
@@ -27,6 +27,9 @@ namespace PrimevalWorld.Core
 
             _waterSurface = new WaterSurface { Name = "WaterSurface" };
             AddChild(_waterSurface);
+
+            _floraMgr = new FloraManager { Name = "FloraManager" };
+            AddChild(_floraMgr);
 
             _camera = new SpectatorCamera { Name = "SpectatorCamera" };
             AddChild(_camera);
@@ -62,13 +65,13 @@ namespace PrimevalWorld.Core
                 FogEnabled = true,
                 FogMode = Environment.FogModeEnum.Depth,
                 FogLightColor = horizonColor,
-                FogDensity = 0.0014f,
-                FogDepthBegin = 220.0f,
-                FogDepthEnd = 4200.0f,
-                FogAerialPerspective = 0.62f,
+                FogDensity = 0.0012f,
+                FogDepthBegin = 260.0f,
+                FogDepthEnd = 5200.0f,
+                FogAerialPerspective = 0.65f,
                 SsaoEnabled = true,
                 SsaoRadius = 2.6f,
-                SsaoIntensity = 2.2f,
+                SsaoIntensity = 2.1f,
             };
 
             var worldEnv = new WorldEnvironment
@@ -86,9 +89,8 @@ namespace PrimevalWorld.Core
                 ShadowEnabled = true,
                 ShadowBlur = 1.2f,
                 DirectionalShadowMode = DirectionalLight3D.ShadowMode.Parallel4Splits,
-                DirectionalShadowMaxDistance = 850.0f,
+                DirectionalShadowMaxDistance = 1100.0f,
             };
-            // Low raking sun (~26 deg elevation) for strong ridge & gully shadow relief
             sun.RotationDegrees = new Vector3(-26.0f, -128.0f, 0.0f);
             AddChild(sun);
         }
@@ -167,6 +169,7 @@ namespace PrimevalWorld.Core
             _worldGen.SetSeed(seed);
             _terrainMgr?.BuildTerrain(_worldGen);
             _waterSurface?.BuildWater(_worldGen);
+            _floraMgr?.BuildFlora(_worldGen);
         }
 
         public override void _UnhandledInput(InputEvent @event)
@@ -182,8 +185,9 @@ namespace PrimevalWorld.Core
             if (_telemetryLabel != null && _camera != null)
             {
                 Vector3 p = _camera.Position;
+                int floraCount = _floraMgr?.TotalInstanceCount ?? 0;
                 _telemetryLabel.Text =
-                    $"Primeval Reach (Chặng 1: 1x1 km) | FPS: {Engine.GetFramesPerSecond():0} | Seed: {_worldGen.Seed}\n" +
+                    $"Primeval Reach (Chặng 2: 2x2 km) | FPS: {Engine.GetFramesPerSecond():0} | Seed: {_worldGen.Seed} | Thực vật/Đá: {floraCount:N0}\n" +
                     $"Vị trí: X={p.X:0.0}m  Y={p.Y:0.0}m  Z={p.Z:0.0}m | Tốc độ: {_camera.CurrentSpeed:0} m/s";
             }
         }

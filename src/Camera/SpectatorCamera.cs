@@ -26,9 +26,9 @@ namespace PrimevalWorld.Camera
 
         public void ResetToScenicOverlook()
         {
-            // Scenic overlook looking across the meandering river valley toward the northern alpine peaks
-            Position = new Vector3(310.0f, 78.0f, 820.0f);
-            LookAt(new Vector3(540.0f, 18.0f, 320.0f), Vector3.Up);
+            // Scenic overlook across the 2x2 km valley: source lake, meandering river, forest groves & snow peaks
+            Position = new Vector3(1220.0f, 125.0f, 1660.0f);
+            LookAt(new Vector3(840.0f, 24.0f, 780.0f), Vector3.Up);
             Vector3 rot = Rotation;
             _pitch = rot.X;
             _yaw = rot.Y;
@@ -102,11 +102,11 @@ namespace PrimevalWorld.Camera
             _velocity = _velocity.Lerp(targetVel, 1.0f - Mathf.Exp(-10.0f * dt));
             Position += _velocity * dt;
 
-            // Keep camera slightly above minimum ocean floor
+            // Keep camera within expansive 2x2 km + coastal margin bounds
             Position = new Vector3(
-                Mathf.Clamp(Position.X, -150.0f, 1174.0f),
-                Mathf.Clamp(Position.Y, 1.5f, 450.0f),
-                Mathf.Clamp(Position.Z, -150.0f, 1174.0f)
+                Mathf.Clamp(Position.X, -450.0f, 2498.0f),
+                Mathf.Clamp(Position.Y, 1.5f, 750.0f),
+                Mathf.Clamp(Position.Z, -450.0f, 2498.0f)
             );
         }
     }

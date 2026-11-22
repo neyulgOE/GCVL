@@ -87,6 +87,7 @@ void fragment() {
 	float slope = 1.0 - clamp(wn.y, 0.0, 1.0);
 	float river_mask = v_masks.r;
 	float moisture = v_masks.g;
+	float forest_density = v_masks.a;
 
 	vec3 tri_blend = pow(abs(wn), vec3(4.0));
 	tri_blend /= max(dot(tri_blend, vec3(1.0)), 0.0001);
@@ -109,10 +110,12 @@ void fragment() {
 	vec3 rock_slate = vec3(0.25, 0.24, 0.22);
 	vec3 snow_lit = vec3(0.84, 0.88, 0.93);
 
-	// 1. Grass / moss / dry earth blend
+	// 1. Grass / moss / dry earth / darkened woodland humus under forest groves
+	vec3 woodland_humus = vec3(0.075, 0.135, 0.055);
 	vec3 meadow = mix(grass_olive, grass_moss, clamp(moisture * 0.85 + macro_var * 0.25, 0.0, 1.0));
-	meadow = mix(meadow, grass_dry, smoothstep(0.55, 0.88, dry_patch) * 0.55);
-	meadow = mix(meadow, soil_earth, smoothstep(0.72, 0.96, dry_patch) * 0.38);
+	meadow = mix(meadow, grass_dry, smoothstep(0.55, 0.88, dry_patch) * 0.50);
+	meadow = mix(meadow, soil_earth, smoothstep(0.72, 0.96, dry_patch) * 0.35);
+	meadow = mix(meadow, woodland_humus, smoothstep(0.32, 0.82, forest_density) * 0.72);
 	meadow *= (0.78 + 0.42 * micro_detail);
 
 	// 2. Coastal seabed -> wet sand -> dry beach -> meadow

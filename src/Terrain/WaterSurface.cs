@@ -1,17 +1,21 @@
+using System.Collections.Generic;
 using Godot;
 using PrimevalWorld.WorldGen;
 
 namespace PrimevalWorld.Terrain
 {
     /// <summary>
-    /// Builds an expansive 16km x 16km Horizon Ocean Plane that merges seamlessly into
-    /// atmospheric fog (eliminating floating square borders) plus a variable-width
-    /// sloped RiverRibbon mesh following the carved river valley.
+    /// Builds:
+    /// - 16km x 16km Horizon Ocean Plane at SeaLevel (0.0m)
+    /// - Highland Source Lake surface at the mountain foothills (+17.5m)
+    /// - Sloped River Ribbon & Tributary Ribbon meshes following river splines downhill to the bay
     /// </summary>
     public partial class WaterSurface : Node3D
     {
         private MeshInstance3D? _oceanMesh;
+        private MeshInstance3D? _lakeMesh;
         private MeshInstance3D? _riverMesh;
+        private MeshInstance3D? _tributaryMesh;
         private ShaderMaterial? _oceanMaterial;
         private ShaderMaterial? _riverMaterial;
 
@@ -26,13 +30,15 @@ namespace PrimevalWorld.Terrain
                 _oceanMaterial.SetShaderParameter("deep_color", new Color(0.02f, 0.11f, 0.22f, 0.98f));
 
                 _riverMaterial = new ShaderMaterial { Shader = waterShader };
-                _riverMaterial.SetShaderParameter("flow_speed", new Vector2(0.0f, 0.26f));
-                _riverMaterial.SetShaderParameter("shallow_color", new Color(0.09f, 0.44f, 0.48f, 0.82f));
+                _riverMaterial.SetShaderParameter("flow_speed", new Vector2(0.0f, 0.28f));
+                _riverMaterial.SetShaderParameter("shallow_color", new Color(0.09f, 0.45f, 0.48f, 0.84f));
                 _riverMaterial.SetShaderParameter("deep_color", new Color(0.03f, 0.20f, 0.30f, 0.94f));
             }
 
             BuildHorizonOceanPlane();
-            BuildRiverRibbon(generator);
+            BuildSourceLake(generator);
+            BuildSplineRibbon(ref _riverMesh, "MainRiverRibbon", generator.MainRiverNodes, _riverMaterial!);
+            BuildSplineRibbon(ref _tributaryMesh, "TributaryRibbon", generator.TributaryNodes, _riverMaterial!);
         }
 
         private void BuildHorizonOceanPlane()
@@ -47,7 +53,6 @@ namespace PrimevalWorld.Terrain
                 AddChild(_oceanMesh);
             }
 
-            // 16km x 16km ocean plane extends well beyond fog horizon
             var plane = new PlaneMesh
             {
                 Size = new Vector2(16384.0f, 16384.0f),
@@ -63,48 +68,80 @@ namespace PrimevalWorld.Terrain
             );
         }
 
-        private void BuildRiverRibbon(WorldGenerator generator)
+        private void BuildSourceLake(WorldGenerator generator)
         {
-            _riverMesh?.QueueFree();
-            _riverMesh = new MeshInstance3D
+            _lakeMesh?.QueueFree();
+            _lakeMesh = new MeshInstance3D
             {
-                Name = "RiverRibbon",
+                Name = "SourceLakeSurface",
                 CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
             };
-            AddChild(_riverMesh);
+            AddChild(_lakeMesh);
 
-            const int zSteps = 180;
-            const int xSteps = 9;
-            float minZ = WorldGenerator.RegionSizeMeters * 0.06f;
-            float maxZ = WorldGenerator.RegionSizeMeters * 0.84f;
-            float dz = (maxZ - minZ) / zSteps;
+            float radius = generator.SourceLakeRadius * 1.45f;
+            var disc = new CylinderMesh
+            {
+                TopRadius = radius,
+                BottomRadius = radius,
+                Height = 0.08f,
+                RadialSegments = 48,
+                Rings = 4,
+            };
+            _lakeMesh.Mesh = disc;
+            _lakeMesh.MaterialOverride = _riverMaterial;
+            _lakeMesh.Position = generator.SourceLakeCenter;
+        }
 
+        private void BuildSplineRibbon(ref MeshInstance3D? target, string nodeName, List<RiverNode> nodes, Material material)
+        {
+            target?.QueueFree();
+            target = new MeshInstance3D
+            {
+                Name = nodeName,
+                CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+            };
+            AddChild(target);
+
+            if (nodes.Count < 2) return;
+
+            const int xSteps = 7;
             var st = new SurfaceTool();
             st.Begin(Mesh.PrimitiveType.Triangles);
 
-            for (int iz = 0; iz <= zSteps; iz++)
+            float cumulativeDist = 0.0f;
+            for (int i = 0; i < nodes.Count; i++)
             {
-                float z = minZ + iz * dz;
-                var (centerX, waterY, halfW, _) = generator.SampleRiverSpine(z);
-                float ribbonHalfW = halfW * 1.42f;
-                float vCoord = z * 0.045f;
+                RiverNode node = nodes[i];
+                if (i > 0)
+                {
+                    cumulativeDist += (node.Position - nodes[i - 1].Position).Length();
+                }
+
+                // Right-hand perpendicular vector in XZ plane
+                Vector2 perp = new Vector2(-node.Tangent.Y, node.Tangent.X);
+                float ribbonHalfW = node.HalfWidth * 1.65f;
+                float vCoord = cumulativeDist * 0.04f;
 
                 for (int ix = 0; ix < xSteps; ix++)
                 {
                     float u = ix / (float)(xSteps - 1);
-                    float x = centerX + (u - 0.5f) * 2.0f * ribbonHalfW;
-
+                    float offset = (u - 0.5f) * 2.0f * ribbonHalfW;
+                    Vector3 vert = new Vector3(
+                        node.Position.X + perp.X * offset,
+                        node.Position.Y,
+                        node.Position.Z + perp.Y * offset
+                    );
                     st.SetNormal(Vector3.Up);
                     st.SetUV(new Vector2(u, vCoord));
-                    st.AddVertex(new Vector3(x, waterY, z));
+                    st.AddVertex(vert);
                 }
             }
 
-            for (int iz = 0; iz < zSteps; iz++)
+            for (int i = 0; i < nodes.Count - 1; i++)
             {
                 for (int ix = 0; ix < xSteps - 1; ix++)
                 {
-                    int i0 = iz * xSteps + ix;
+                    int i0 = i * xSteps + ix;
                     int i1 = i0 + 1;
                     int i2 = i0 + xSteps;
                     int i3 = i2 + 1;
@@ -119,8 +156,8 @@ namespace PrimevalWorld.Terrain
                 }
             }
 
-            _riverMesh.Mesh = st.Commit();
-            _riverMesh.MaterialOverride = _riverMaterial;
+            target.Mesh = st.Commit();
+            target.MaterialOverride = material;
         }
     }
 }

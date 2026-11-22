@@ -40,7 +40,7 @@ namespace PrimevalWorld.Terrain
 
                     st.SetNormal(normal);
                     st.SetUV(new Vector2(worldX / WorldGenerator.RegionSizeMeters, worldZ / WorldGenerator.RegionSizeMeters));
-                    st.SetColor(new Color(sample.RiverMask, sample.Moisture, sample.CoastalMask, 1.0f));
+                    st.SetColor(new Color(sample.RiverMask, sample.Moisture, sample.CoastalMask, sample.ForestDensity));
                     st.AddVertex(new Vector3(gx * step, sample.Height, gz * step));
                 }
             }
