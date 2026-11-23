@@ -20,6 +20,7 @@ namespace PrimevalWorld.Flora
             public ImageTexture BarkRoughTex { get; set; } = null!;
             public ImageTexture BarkPaleTex { get; set; } = null!;
             public Dictionary<string, float> TransparentPercent { get; } = new();
+            public Dictionary<string, int> BorderOpaquePixels { get; } = new();
         }
 
         private static BotanicalTextures? _cached;
@@ -30,43 +31,65 @@ namespace PrimevalWorld.Flora
 
             const string dir = "assets/textures/flora";
             DirAccess.MakeDirRecursiveAbsolute(ProjectSettings.GlobalizePath($"res://{dir}"));
+            DirAccess.MakeDirRecursiveAbsolute(ProjectSettings.GlobalizePath("res://debug_outputs"));
 
             var res = new BotanicalTextures();
-            res.BroadleafTex = GenerateLeafPng($"{dir}/leaf_broadleaf.png", 512, 0, res.TransparentPercent);
-            res.ConiferTex = GenerateLeafPng($"{dir}/leaf_conifer.png", 512, 1, res.TransparentPercent);
-            res.AcaciaTex = GenerateLeafPng($"{dir}/leaf_acacia.png", 512, 2, res.TransparentPercent);
-            res.PalmFernTex = GenerateLeafPng($"{dir}/leaf_palm_fern.png", 512, 3, res.TransparentPercent);
+            res.BroadleafTex = GenerateLeafPng($"{dir}/leaf_broadleaf.png", 512, 0, res.TransparentPercent, res.BorderOpaquePixels, out byte[] bBytes);
+            res.ConiferTex = GenerateLeafPng($"{dir}/leaf_conifer.png", 512, 1, res.TransparentPercent, res.BorderOpaquePixels, out byte[] cBytes);
+            res.AcaciaTex = GenerateLeafPng($"{dir}/leaf_acacia.png", 512, 2, res.TransparentPercent, res.BorderOpaquePixels, out byte[] aBytes);
+            res.PalmFernTex = GenerateLeafPng($"{dir}/leaf_palm_fern.png", 512, 3, res.TransparentPercent, res.BorderOpaquePixels, out byte[] pBytes);
             res.BarkRoughTex = GenerateBarkPng($"{dir}/bark_rough.png", 256, pale: false);
             res.BarkPaleTex = GenerateBarkPng($"{dir}/bark_pale.png", 256, pale: true);
+
+            SaveCompositeCheckPng("debug_outputs/leaf_atlas_check.png", 512, bBytes, cBytes, aBytes, pBytes);
 
             _cached = res;
             return res;
         }
 
-        private static ImageTexture GenerateLeafPng(string relPath, int size, int style, Dictionary<string, float> stats)
+        private static void SaveCompositeCheckPng(string relPath, int qSize, byte[] b, byte[] c, byte[] a, byte[] p)
+        {
+            int full = qSize * 2;
+            byte[] comp = new byte[full * full * 4];
+            BlitQuad(b, comp, qSize, full, 0, 0);
+            BlitQuad(c, comp, qSize, full, qSize, 0);
+            BlitQuad(a, comp, qSize, full, 0, qSize);
+            BlitQuad(p, comp, qSize, full, qSize, qSize);
+            var img = Image.CreateFromData(full, full, false, Image.Format.Rgba8, comp);
+            img.SavePng(ProjectSettings.GlobalizePath($"res://{relPath}"));
+        }
+
+        private static void BlitQuad(byte[] src, byte[] dst, int qSize, int dstW, int ox, int oy)
+        {
+            for (int y = 0; y < qSize; y++)
+                Buffer.BlockCopy(src, y * qSize * 4, dst, ((oy + y) * dstW + ox) * 4, qSize * 4);
+        }
+
+        private static ImageTexture GenerateLeafPng(
+            string relPath, int size, int style,
+            Dictionary<string, float> stats, Dictionary<string, int> borderStats, out byte[] outBytes)
         {
             byte[] rgba = new byte[size * size * 4]; // Starts 100% transparent (alpha = 0)
             var rng = new Random(2026 + style * 97);
 
-            if (style == 0) // Broadleaf: central woody twig + 22 distinct serrated ovate leaves
+            if (style == 0) // Broadleaf: central woody twig + 20 distinct serrated ovate leaves (target 60-72% transparent)
             {
-                DrawTwigLine(rgba, size, size * 0.5f, size * 0.94f, size * 0.5f, size * 0.14f, 4.5f, new Color(0.32f, 0.23f, 0.14f));
-                for (int i = 0; i < 18; i++)
+                DrawTwigLine(rgba, size, size * 0.5f, size * 0.94f, size * 0.5f, size * 0.14f, 5.0f, new Color(0.32f, 0.23f, 0.14f));
+                for (int i = 0; i < 20; i++)
                 {
-                    float t = 0.18f + (i / 17.0f) * 0.72f;
+                    float t = 0.16f + (i / 19.0f) * 0.74f;
                     float side = (i % 2 == 0) ? 1.0f : -1.0f;
                     float stemX = size * 0.5f + MathF.Sin(t * 4.0f) * 8.0f;
                     float stemY = size * (0.92f - t * 0.78f);
                     float ang = side * (0.55f + (1.0f - t) * 0.45f) + (float)(rng.NextDouble() - 0.5) * 0.25f;
-                    float len = 64.0f + (1.0f - MathF.Abs(t - 0.5f)) * 42.0f;
-                    float wid = len * 0.50f;
+                    float len = 82.0f + (1.0f - MathF.Abs(t - 0.5f)) * 52.0f;
+                    float wid = len * 0.56f;
                     float tipX = stemX + MathF.Sin(ang) * len;
                     float tipY = stemY - MathF.Cos(ang) * len;
-                    DrawTwigLine(rgba, size, stemX, stemY, tipX, tipY, 2.2f, new Color(0.35f, 0.26f, 0.16f));
-                    DrawSerratedLeaf(rgba, size, (stemX + tipX) * 0.5f, (stemY + tipY) * 0.5f, wid, len * 0.85f, ang, 0.78f + (float)rng.NextDouble() * 0.22f);
+                    DrawTwigLine(rgba, size, stemX, stemY, tipX, tipY, 2.5f, new Color(0.35f, 0.26f, 0.16f));
+                    DrawSerratedLeaf(rgba, size, (stemX + tipX) * 0.5f, (stemY + tipY) * 0.5f, wid, len * 0.92f, ang, 0.78f + (float)rng.NextDouble() * 0.22f);
                 }
-                // Terminal leaf
-                DrawSerratedLeaf(rgba, size, size * 0.5f, size * 0.13f, 38f, 74f, 0.0f, 0.95f);
+                DrawSerratedLeaf(rgba, size, size * 0.5f, size * 0.13f, 48f, 88f, 0.0f, 0.95f);
             }
             else if (style == 1) // Conifer: central branchlet + fine radiating needle sprays
             {
@@ -130,13 +153,25 @@ namespace PrimevalWorld.Flora
                 }
             }
 
+            // Ensure 4px outer border is 100% transparent (alpha == 0)
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                    if (x < 4 || x >= size - 4 || y < 4 || y >= size - 4)
+                        rgba[(y * size + x) * 4 + 3] = 0;
+
             int transparentCount = 0;
-            for (int i = 3; i < rgba.Length; i += 4)
-            {
-                if (rgba[i] == 0) transparentCount++;
-            }
-            float transparentPct = transparentCount * 100.0f / (size * size);
-            stats[relPath] = transparentPct;
+            int borderOpaque = 0;
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    byte a = rgba[(y * size + x) * 4 + 3];
+                    if (a < 128) transparentCount++;
+                    if ((x == 0 || x == size - 1 || y == 0 || y == size - 1) && a >= 128)
+                        borderOpaque++;
+                }
+            stats[relPath] = transparentCount * 100.0f / (size * size);
+            borderStats[relPath] = borderOpaque;
+            outBytes = rgba;
 
             var img = Image.CreateFromData(size, size, false, Image.Format.Rgba8, rgba);
             img.SavePng(ProjectSettings.GlobalizePath($"res://{relPath}"));

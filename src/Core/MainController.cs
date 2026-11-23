@@ -577,6 +577,7 @@ namespace PrimevalWorld.Core
 
             Vector3 activeDir = elev > 0.0f ? sunDir : new Vector3(-sunDir.X, Mathf.Max(0.22f, -sunDir.Y), -sunDir.Z).Normalized();
             _sunLight.LookAtFromPosition(activeDir * 100.0f, Vector3.Zero, Vector3.Up);
+            _sunLight.DirectionalShadowMaxDistance = (_camera != null && _camera.IsAnimalPov) ? 260.0f : 900.0f;
 
             Color dayCol = new Color(1.0f, 0.94f, 0.86f);
             Color goldenCol = new Color(1.0f, 0.64f, 0.34f);

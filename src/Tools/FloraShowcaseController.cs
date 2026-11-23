@@ -426,7 +426,10 @@ namespace PrimevalWorld.Tools
             if (_botTex != null)
             {
                 foreach (var kv in _botTex.TransparentPercent)
-                    GD.Print($"[BotanicalPNG] {kv.Key} | 512x512 RGBA8 | Transparent(alpha==0)={kv.Value:0.0}%");
+                {
+                    int border = _botTex.BorderOpaquePixels.TryGetValue(kv.Key, out int b) ? b : -1;
+                    GD.Print($"[BotanicalPNG] {kv.Key} | 512x512 RGBA8 | Transparent={kv.Value:0.0}% | BorderOpaquePixels={border}");
+                }
             }
             for (int i = 0; i < ShowcaseSpecies.Length; i++)
             {

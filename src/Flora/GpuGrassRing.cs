@@ -71,9 +71,9 @@ namespace PrimevalWorld.Flora
                 float lx = MathF.Cos(a) * r;
                 float lz = MathF.Sin(a) * r;
                 float yaw = (float)(rng.NextDouble() * Mathf.Tau);
-                float s = 0.80f + (float)rng.NextDouble() * 0.55f;
 
-                var xform = new Transform3D(Basis.Identity.Rotated(Vector3.Up, yaw).Scaled(new Vector3(s, s, s)), new Vector3(lx, 0.0f, lz));
+                // IMPORTANT: Keep scale = 1.0 on MODEL_MATRIX so vertex shader's ground_h offset is never multiplied!
+                var xform = new Transform3D(Basis.Identity.Rotated(Vector3.Up, yaw), new Vector3(lx, 0.0f, lz));
                 mm.SetInstanceTransform(i, xform);
             }
 
@@ -111,6 +111,18 @@ namespace PrimevalWorld.Flora
                 _grassMat.SetShaderParameter("canopy_coverage_tex", canopyTex);
                 _grassMat.SetShaderParameter("wind_dir_speed_tex", windTex);
             }
+
+            // Mathematical verification: compare CPU bilinear height vs GPU HeightTex decoded value
+            float testX = 6350.0f, testZ = 3420.0f;
+            float cpuH = erosion.SampleHeight(testX, testZ);
+            float u = Math.Clamp(testX / WorldPhysicsConfig.WorldWidth, 0f, 1f) * (w - 1);
+            float v = Math.Clamp(testZ / WorldPhysicsConfig.WorldDepth, 0f, 1f) * (h - 1);
+            int x0 = Math.Clamp((int)u, 0, w - 2), z0 = Math.Clamp((int)v, 0, h - 2);
+            float tx = u - x0, tz = v - z0;
+            float g00 = hImg.GetPixel(x0, z0).R, g10 = hImg.GetPixel(x0 + 1, z0).R;
+            float g01 = hImg.GetPixel(x0, z0 + 1).R, g11 = hImg.GetPixel(x0 + 1, z0 + 1).R;
+            float gpuH = (g00 * (1 - tx) + g10 * tx) * (1 - tz) + (g01 * (1 - tx) + g11 * tx) * tz;
+            GD.Print($"[GpuGrassVerify] Sample({testX:0},{testZ:0}): CPU={cpuH:0.000}m | HeightTex={gpuH:0.000}m | Err={MathF.Abs(cpuH - gpuH):0.0000}m | RingY=0.0m");
         }
 
         public void UpdateDynamicState(Vector3 cameraPos, ImageTexture weatherTex, float seasonPhase, float windGust)

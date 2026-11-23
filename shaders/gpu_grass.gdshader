@@ -100,9 +100,10 @@ void vertex() {
 	float wave = sin(dot(inst_world.xz, wind_dir) * 0.32 - TIME * (1.8 + wind_spd * 0.15));
 	float bend = (smoothstep(3.0, 22.0, wind_spd) * 0.35 + wave * 0.35) * (0.15 + wind_spd * 0.018) * tip_t * tip_t;
 
-	// Place vertex directly at ground_h (world space offset relative to snapped MODEL_MATRIX)
-	VERTEX.y = VERTEX.y * blade_h * final_scale + ground_h - 0.04;
-	VERTEX.xz = VERTEX.xz * final_scale + wind_dir * bend * final_scale;
+	// Place vertex directly at ground_h - 0.08 (MODEL_MATRIX has scale=1.0 and Y=0.0, so no double-height!)
+	float width_var = 0.85 + rnd * 0.40;
+	VERTEX.y = VERTEX.y * blade_h * final_scale + ground_h - 0.08;
+	VERTEX.xz = VERTEX.xz * width_var * final_scale + wind_dir * bend * final_scale;
 	NORMAL = vec3(0.0, 1.0, 0.0);
 }
 

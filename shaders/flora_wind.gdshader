@@ -3,11 +3,11 @@ render_mode blend_mix, depth_draw_opaque, cull_disabled, diffuse_burley, specula
 
 uniform sampler2D wind_dir_speed_tex : filter_linear, repeat_disable; // R=dir.x*0.5+0.5, G=dir.z*0.5+0.5, B=speed/30
 uniform sampler2D weather_dynamic_tex : filter_linear, repeat_disable; // R=SnowAccum, G=Wetness, B=Ice, A=CloudShadow
-uniform sampler2D leaf_broadleaf_tex : filter_linear_mipmap, repeat_disable;
-uniform sampler2D leaf_conifer_tex : filter_linear_mipmap, repeat_disable;
-uniform sampler2D leaf_acacia_tex : filter_linear_mipmap, repeat_disable;
-uniform sampler2D leaf_palm_tex : filter_linear_mipmap, repeat_disable;
-uniform sampler2D bark_tex : filter_linear_mipmap, repeat_enable;
+uniform sampler2D leaf_broadleaf_tex : source_color, filter_linear_mipmap, repeat_disable;
+uniform sampler2D leaf_conifer_tex : source_color, filter_linear_mipmap, repeat_disable;
+uniform sampler2D leaf_acacia_tex : source_color, filter_linear_mipmap, repeat_disable;
+uniform sampler2D leaf_palm_tex : source_color, filter_linear_mipmap, repeat_disable;
+uniform sampler2D bark_tex : source_color, filter_linear_mipmap, repeat_enable;
 
 uniform vec2 world_size = vec2(9600.0, 5400.0);
 uniform float season_phase = 0.15;

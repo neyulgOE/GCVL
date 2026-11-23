@@ -100,8 +100,8 @@ namespace PrimevalWorld.Flora
                     bool inRange = dx * dx + dz * dz < 3100.0f * 3100.0f;
                     if (inRange) visCount += _macroCounts[x, z];
 
-                    // Enable shadows only on nearby macro cells (< 750m)
-                    bool nearShadow = dx * dx + dz * dz < 750.0f * 750.0f;
+                    // Enable shadows only on very close macro cells (< 260m) to keep >= 85 FPS on RTX 4060
+                    bool nearShadow = dx * dx + dz * dz < 260.0f * 260.0f;
                     var nodes = _macroNodes[x, z];
                     if (nodes == null) continue;
                     for (int i = 0; i < nodes.Count; i++)
