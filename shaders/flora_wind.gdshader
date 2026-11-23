@@ -3,7 +3,10 @@ render_mode blend_mix, depth_draw_opaque, cull_disabled, diffuse_burley, specula
 
 uniform sampler2D wind_dir_speed_tex : filter_linear, repeat_disable; // R=dir.x*0.5+0.5, G=dir.z*0.5+0.5, B=speed/30
 uniform sampler2D weather_dynamic_tex : filter_linear, repeat_disable; // R=SnowAccum, G=Wetness, B=Ice, A=CloudShadow
-uniform sampler2D leaf_atlas_tex : filter_linear_mipmap, repeat_disable;
+uniform sampler2D leaf_broadleaf_tex : filter_linear_mipmap, repeat_disable;
+uniform sampler2D leaf_conifer_tex : filter_linear_mipmap, repeat_disable;
+uniform sampler2D leaf_acacia_tex : filter_linear_mipmap, repeat_disable;
+uniform sampler2D leaf_palm_tex : filter_linear_mipmap, repeat_disable;
 uniform sampler2D bark_tex : filter_linear_mipmap, repeat_enable;
 
 uniform vec2 world_size = vec2(9600.0, 5400.0);
@@ -18,11 +21,19 @@ varying vec3 v_world_normal;
 varying float v_snow_accum;
 varying vec2 v_uv;
 varying float v_is_leaf;
+varying float v_leaf_type;
+
+vec2 hash21_v(vec2 p) {
+	vec3 p3 = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
+	p3 += dot(p3, p3.yzx + 33.33);
+	return fract((p3.xx + p3.yz) * p3.zy);
+}
 
 void vertex() {
 	v_color = COLOR.rgb;
 	v_uv = UV;
 	v_is_leaf = UV2.x;
+	v_leaf_type = UV2.y;
 	float stem_flex = COLOR.a;
 
 	vec3 world_origin = (MODEL_MATRIX * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
@@ -33,6 +44,22 @@ void vertex() {
 
 	vec2 local_wind_dir = normalize(vec2(w_data.r * 2.0 - 1.0, w_data.g * 2.0 - 1.0) + vec2(0.0001));
 	float local_wind_speed = w_data.b * 30.0 * global_wind_gust;
+
+	// Per-Instance Organic GPU Deformation (0 extra VRAM: eliminates clone feeling!)
+	vec2 inst_rnd = hash21_v(floor(world_origin.xz * 0.5));
+	float twist_ang = (inst_rnd.x - 0.5) * 0.45 * clamp(VERTEX.y / 14.0, 0.0, 1.0);
+	float c_tw = cos(twist_ang);
+	float s_tw = sin(twist_ang);
+	float rx = VERTEX.x * c_tw - VERTEX.z * s_tw;
+	float rz = VERTEX.x * s_tw + VERTEX.z * c_tw;
+	float aspect_var = 0.90 + inst_rnd.y * 0.22;
+	VERTEX.x = rx * aspect_var;
+	VERTEX.z = rz * aspect_var;
+
+	// Permanent Wind Flagging on exposed windy ridges
+	float flag_lean = smoothstep(10.0, 25.0, local_wind_speed) * clamp(VERTEX.y / 12.0, 0.0, 1.5) * 0.65;
+	VERTEX.xz += local_wind_dir * flag_lean;
+
 	float phase = dot(world_origin.xz, local_wind_dir) * 0.16;
 	float freq = 1.2 + local_wind_speed * 0.12;
 
@@ -68,10 +95,17 @@ void vertex() {
 void fragment() {
 	vec3 col = v_color;
 	if (v_is_leaf > 0.5) {
-		vec4 leaf_tex = texture(leaf_atlas_tex, v_uv);
-		if (leaf_tex.a < 0.42) {
-			discard;
+		vec4 leaf_tex = texture(leaf_broadleaf_tex, v_uv);
+		if (v_leaf_type > 0.5 && v_leaf_type < 1.5) {
+			leaf_tex = texture(leaf_conifer_tex, v_uv);
+		} else if (v_leaf_type >= 1.5 && v_leaf_type < 2.5) {
+			leaf_tex = texture(leaf_acacia_tex, v_uv);
+		} else if (v_leaf_type >= 2.5) {
+			leaf_tex = texture(leaf_palm_tex, v_uv);
 		}
+
+		ALPHA = leaf_tex.a;
+		ALPHA_SCISSOR_THRESHOLD = 0.5;
 		col *= leaf_tex.rgb;
 
 		float spring_t = sin(clamp(season_phase / 0.25, 0.0, 1.0) * 3.14159);
@@ -91,11 +125,10 @@ void fragment() {
 		SPECULAR = 0.14;
 		BACKLIGHT = col * 0.48 * (1.0 - snow_dust * 0.6);
 	} else {
-		// Solid trunk bark / rock / herb blades
 		vec3 b_col = texture(bark_tex, v_uv).rgb;
-		ALBEDO = col * mix(vec3(1.0), b_col * 1.35, 0.55);
+		ALBEDO = col * mix(vec3(1.0), b_col * 1.35, 0.60);
 		ROUGHNESS = 0.92;
-		SPECULAR = 0.10;
-		BACKLIGHT = col * 0.12;
+		SPECULAR = 0.08;
+		BACKLIGHT = col * 0.10;
 	}
 }

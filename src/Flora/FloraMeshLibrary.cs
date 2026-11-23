@@ -48,18 +48,13 @@ namespace PrimevalWorld.Flora
 
         private static ArrayMesh BuildProceduralMesh(FloraNicheProfile p)
         {
+            if (p.Layer <= FloraLayer.Canopy || p.Id == FloraSpeciesId.ArborescentTreeFern || p.Id == FloraSpeciesId.NipaWaterPalm)
+                return ProceduralTreeBuilder.BuildTree(p.Id, AgeStage.Mature, 2026);
+
             return p.Architecture switch
             {
-                FloraArchitecture.ArchButtressBroadleaf => CreateButtressBroadleafMesh(p.Id == FloraSpeciesId.PrimevalBanyanFig),
-                FloraArchitecture.ArchEmergentSequoia => CreateGiantSequoiaMesh(),
-                FloraArchitecture.ArchCanopyBroadleaf => CreateCanopyBroadleafMesh(),
-                FloraArchitecture.ArchWeepingTree => CreateWeepingTreeMesh(p.Id == FloraSpeciesId.WeepingSilverBirch),
-                FloraArchitecture.ArchAlpineConifer => CreateAlpineConiferMesh(),
-                FloraArchitecture.ArchSwollenBaobab => CreateBaobabMesh(),
-                FloraArchitecture.ArchUmbrellaDesert => CreateUmbrellaDesertMesh(),
                 FloraArchitecture.ArchKrummholz => CreateKrummholzMesh(),
                 FloraArchitecture.ArchWoodyShrub => CreateWoodyShrubMesh(),
-                FloraArchitecture.ArchColumnarPalmFern => CreateColumnarPalmFernMesh(p.Id == FloraSpeciesId.ArborescentTreeFern),
                 FloraArchitecture.ArchCaudexCycad => CreateCaudexCycadMesh(),
                 FloraArchitecture.ArchBambooCulm => CreateBambooCulmMesh(),
                 FloraArchitecture.ArchSoftTallHerb => CreateSoftTallHerbMesh(p.Id),

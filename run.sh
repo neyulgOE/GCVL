@@ -7,4 +7,10 @@ export __GLX_VENDOR_LIBRARY_NAME=nvidia
 export __VK_LAYER_NV_optimus=NVIDIA_only
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+if [[ "${1:-}" == "--flora-test" ]]; then
+    shift
+    exec godot4 --path "$SCRIPT_DIR" --scene res://scenes/FloraShowcase.tscn "$@"
+fi
+
 exec godot4 --path "$SCRIPT_DIR" "$@"

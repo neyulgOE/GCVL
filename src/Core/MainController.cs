@@ -101,9 +101,7 @@ namespace PrimevalWorld.Core
                 SsaoEnabled = true,
                 SsaoRadius = 2.4f,
                 SsaoIntensity = 1.15f,
-                SsilEnabled = true,
-                SsilRadius = 4.0f,
-                SsilIntensity = 0.85f,
+                SsilEnabled = false,
             };
             _worldEnv = env;
 

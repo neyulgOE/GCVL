@@ -19,8 +19,6 @@ namespace PrimevalWorld.Flora
 
         private ShaderMaterial? _canopyMat;
         private ShaderMaterial? _detailMat;
-        private ImageTexture? _leafAtlasTex;
-        private ImageTexture? _barkTex;
         private ImageTexture? _windDataTex;
 
         public ImageTexture? WindDataTex => _windDataTex;
@@ -225,21 +223,26 @@ namespace PrimevalWorld.Flora
         {
             var shader = GD.Load<Shader>("res://shaders/foliage_wind.gdshader");
             _windDataTex = BuildWindDataTexture(climate);
-            _leafAtlasTex ??= FloraTextureAtlas.BuildLeafAtlasTexture();
-            _barkTex ??= FloraTextureAtlas.BuildBarkTexture();
+            var bot = BotanicalTextureGenerator.EnsureAndLoadAll();
 
             _canopyMat ??= new ShaderMaterial { Shader = shader };
             _canopyMat.SetShaderParameter("wind_dir_speed_tex", _windDataTex);
-            _canopyMat.SetShaderParameter("leaf_atlas_tex", _leafAtlasTex);
-            _canopyMat.SetShaderParameter("bark_tex", _barkTex);
+            _canopyMat.SetShaderParameter("leaf_broadleaf_tex", bot.BroadleafTex);
+            _canopyMat.SetShaderParameter("leaf_conifer_tex", bot.ConiferTex);
+            _canopyMat.SetShaderParameter("leaf_acacia_tex", bot.AcaciaTex);
+            _canopyMat.SetShaderParameter("leaf_palm_tex", bot.PalmFernTex);
+            _canopyMat.SetShaderParameter("bark_tex", bot.BarkRoughTex);
             _canopyMat.SetShaderParameter("enable_distance_fade", true);
             _canopyMat.SetShaderParameter("fade_start", 2450.0f);
             _canopyMat.SetShaderParameter("fade_end", 2950.0f);
 
             _detailMat ??= new ShaderMaterial { Shader = shader };
             _detailMat.SetShaderParameter("wind_dir_speed_tex", _windDataTex);
-            _detailMat.SetShaderParameter("leaf_atlas_tex", _leafAtlasTex);
-            _detailMat.SetShaderParameter("bark_tex", _barkTex);
+            _detailMat.SetShaderParameter("leaf_broadleaf_tex", bot.BroadleafTex);
+            _detailMat.SetShaderParameter("leaf_conifer_tex", bot.ConiferTex);
+            _detailMat.SetShaderParameter("leaf_acacia_tex", bot.AcaciaTex);
+            _detailMat.SetShaderParameter("leaf_palm_tex", bot.PalmFernTex);
+            _detailMat.SetShaderParameter("bark_tex", bot.BarkRoughTex);
             _detailMat.SetShaderParameter("enable_distance_fade", true);
             _detailMat.SetShaderParameter("fade_start", 460.0f);
             _detailMat.SetShaderParameter("fade_end", 610.0f);
