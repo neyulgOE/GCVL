@@ -26,11 +26,10 @@ namespace PrimevalWorld.Core
         private TerrainChunkManager? _terrainMgr;
         private WaterSurface? _waterSurface;
         private FloraManager? _floraMgr;
+        private GpuGrassRing? _grassRing;
         private LocalWeatherVfx? _weatherVfx;
-        private MeshInstance3D? _cloudCanopyPlane;
-        private ShaderMaterial? _cloudCanopyMat;
         private DirectionalLight3D? _sunLight;
-        private ProceduralSkyMaterial? _skyMat;
+        private ShaderMaterial? _skyShaderMat;
         private Environment? _worldEnv;
         private SpectatorCamera? _camera;
         private Label? _telemetryLabel;
@@ -60,10 +59,11 @@ namespace PrimevalWorld.Core
             _floraMgr = new FloraManager { Name = "FloraManager" };
             AddChild(_floraMgr);
 
+            _grassRing = new GpuGrassRing { Name = "GpuGrassRing" };
+            AddChild(_grassRing);
+
             _weatherVfx = new LocalWeatherVfx { Name = "LocalWeatherVfx" };
             AddChild(_weatherVfx);
-
-            SetupCloudCanopyPlane();
 
             _camera = new SpectatorCamera { Name = "SpectatorCamera" };
             AddChild(_camera);
@@ -78,36 +78,32 @@ namespace PrimevalWorld.Core
         {
             var horizonColor = new Color(0.60f, 0.72f, 0.84f);
 
-            var skyMaterial = new ProceduralSkyMaterial
-            {
-                SkyTopColor = new Color(0.15f, 0.31f, 0.56f),
-                SkyHorizonColor = horizonColor,
-                GroundBottomColor = new Color(0.10f, 0.14f, 0.20f),
-                GroundHorizonColor = horizonColor,
-                SunAngleMax = 24.0f,
-                SunCurve = 0.07f,
-            };
-            _skyMat = skyMaterial;
+            var skyShader = GD.Load<Shader>("res://shaders/procedural_sky_clouds.gdshader");
+            _skyShaderMat = new ShaderMaterial { Shader = skyShader };
+            var sky = new Sky { SkyMaterial = _skyShaderMat };
 
-            var sky = new Sky { SkyMaterial = skyMaterial };
             var env = new Environment
             {
                 BackgroundMode = Environment.BGMode.Sky,
                 Sky = sky,
                 AmbientLightSource = Environment.AmbientSource.Sky,
-                AmbientLightSkyContribution = 0.36f,
-                TonemapMode = Environment.ToneMapper.Aces,
-                TonemapExposure = 1.02f,
+                AmbientLightSkyContribution = 0.90f,
+                AmbientLightEnergy = 1.25f,
+                TonemapMode = Environment.ToneMapper.Agx,
+                TonemapExposure = 1.05f,
                 FogEnabled = true,
                 FogMode = Environment.FogModeEnum.Depth,
                 FogLightColor = horizonColor,
-                FogDensity = 0.00055f,
+                FogDensity = 0.00045f,
                 FogDepthBegin = 650.0f,
                 FogDepthEnd = 13500.0f,
                 FogAerialPerspective = 0.72f,
                 SsaoEnabled = true,
-                SsaoRadius = 3.2f,
-                SsaoIntensity = 2.0f,
+                SsaoRadius = 2.4f,
+                SsaoIntensity = 1.15f,
+                SsilEnabled = true,
+                SsilRadius = 4.0f,
+                SsilIntensity = 0.85f,
             };
             _worldEnv = env;
 
@@ -119,33 +115,14 @@ namespace PrimevalWorld.Core
                 LightColor = new Color(1.0f, 0.90f, 0.76f),
                 LightEnergy = 1.95f,
                 ShadowEnabled = true,
-                ShadowBlur = 1.2f,
+                ShadowBlur = 1.1f,
                 DirectionalShadowMode = DirectionalLight3D.ShadowMode.Parallel4Splits,
-                DirectionalShadowMaxDistance = 1400.0f,
+                DirectionalShadowSplit1 = 0.04f,
+                DirectionalShadowMaxDistance = 900.0f,
             };
             sun.RotationDegrees = new Vector3(-27.0f, -128.0f, 0.0f);
             AddChild(sun);
             _sunLight = sun;
-        }
-
-        private void SetupCloudCanopyPlane()
-        {
-            var shader = GD.Load<Shader>("res://shaders/cloud_canopy.gdshader");
-            _cloudCanopyMat = new ShaderMaterial { Shader = shader };
-            _cloudCanopyPlane = new MeshInstance3D
-            {
-                Name = "CloudCanopyPlane",
-                Mesh = new PlaneMesh
-                {
-                    Size = new Vector2(WorldPhysicsConfig.WorldWidth, WorldPhysicsConfig.WorldDepth),
-                    SubdivideWidth = 16,
-                    SubdivideDepth = 9,
-                },
-                MaterialOverride = _cloudCanopyMat,
-                Position = new Vector3(WorldPhysicsConfig.WorldWidth * 0.5f, 1380.0f, WorldPhysicsConfig.WorldDepth * 0.5f),
-                CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
-            };
-            AddChild(_cloudCanopyPlane);
         }
 
         private void BuildCompactHud()
@@ -351,9 +328,12 @@ namespace PrimevalWorld.Core
             {
                 ImageTexture canopyTex = _floraMgr.BuildFlora(_erosion, _hydrology, _climate, _soil, _seed);
                 _terrainMgr?.SetCanopyCoverageTexture(canopyTex);
+                if (_grassRing != null && _terrainMgr?.SoilATex != null && _terrainMgr.SoilBTex != null && _terrainMgr.ClimateTex != null && _floraMgr.WindDataTex != null)
+                    _grassRing.BindWorldTextures(_erosion, _terrainMgr.SoilATex, _terrainMgr.SoilBTex, _terrainMgr.ClimateTex, canopyTex, _floraMgr.WindDataTex);
                 _floraBuiltForSeed = true;
             }
             _floraMgr.Visible = _floraEnabled;
+            if (_grassRing != null) _grassRing.Visible = _floraEnabled;
         }
 
         private void UpdateCameraPin()
@@ -385,20 +365,27 @@ namespace PrimevalWorld.Core
             if (_floraMgr != null)
             {
                 _floraMgr.ClearFlora();
-                _terrainMgr?.SetCanopyCoverageTexture(_floraMgr.BuildEmptyCoverageTexture());
+                ImageTexture emptyCov = _floraMgr.BuildEmptyCoverageTexture();
+                _terrainMgr?.SetCanopyCoverageTexture(emptyCov);
+                ImageTexture canopyTex = emptyCov;
                 if (_floraEnabled)
                 {
-                    ImageTexture canopyTex = _floraMgr.BuildFlora(_erosion, _hydrology, _climate, _soil, seed);
+                    canopyTex = _floraMgr.BuildFlora(_erosion, _hydrology, _climate, _soil, seed);
                     _terrainMgr?.SetCanopyCoverageTexture(canopyTex);
                     _floraBuiltForSeed = true;
                 }
                 _floraMgr.Visible = _floraEnabled;
+
+                if (_grassRing != null && _terrainMgr?.SoilATex != null && _terrainMgr.SoilBTex != null && _terrainMgr.ClimateTex != null && _floraMgr.WindDataTex != null)
+                {
+                    _grassRing.BindWorldTextures(_erosion, _terrainMgr.SoilATex, _terrainMgr.SoilBTex, _terrainMgr.ClimateTex, canopyTex, _floraMgr.WindDataTex);
+                    _grassRing.Visible = _floraEnabled;
+                }
             }
 
             _weather.Initialize(_erosion, _hydrology, _climate, _soil, seed);
             _weather.ForceImmediateStep(_clock);
             _camera?.AttachPhysics(_erosion, _hydrology, _soil);
-            _cloudCanopyMat?.SetShaderParameter("weather_dynamic_tex", _weather.WeatherDynamicTex);
             _terrainMgr?.SetWeatherTexture(_weather.WeatherDynamicTex);
             _waterSurface?.UpdateWeather(_weather.WeatherDynamicTex, _weather.SurfaceState.RiverSurgeOffset, _weather.GlobalWindGust);
             _floraMgr?.UpdateWeatherAndSeason(_weather.WeatherDynamicTex, _clock.SeasonPhase, _weather.GlobalWindGust);
@@ -532,7 +519,10 @@ namespace PrimevalWorld.Core
             {
                 _terrainMgr?.UpdateLod(_camera.Position);
                 if (_floraEnabled)
+                {
                     _floraMgr?.UpdateStreaming(_camera.Position);
+                    _grassRing?.UpdateDynamicState(_camera.Position, _weather.WeatherDynamicTex, _clock.SeasonPhase, _weather.GlobalWindGust);
+                }
 
                 LiveWeatherSample liveW = _weather.SampleAt(_camera.Position.X, _camera.Position.Z);
                 _weatherVfx?.UpdateForCamera(_camera.Position, liveW);
@@ -579,42 +569,37 @@ namespace PrimevalWorld.Core
 
         private void UpdateSkyAndLighting(in LiveWeatherSample liveW)
         {
-            if (_sunLight == null || _skyMat == null || _worldEnv == null) return;
+            if (_sunLight == null || _skyShaderMat == null || _worldEnv == null) return;
 
             Vector3 sunDir = _clock.SunDirection;
             float elev = Mathf.Clamp(sunDir.Y, -1.0f, 1.0f);
             float dayT = Mathf.Clamp((elev + 0.08f) / 0.35f, 0.0f, 1.0f);
             float goldenT = Mathf.Clamp(1.0f - Mathf.Abs(elev - 0.12f) / 0.22f, 0.0f, 1.0f);
-            float cloudDim = 1.0f - liveW.CloudCover * 0.52f;
+            float cloudDim = 1.0f - liveW.CloudCover * 0.45f;
 
-            // Sun / Moon directional light (never pitch black at night)
             Vector3 activeDir = elev > 0.0f ? sunDir : new Vector3(-sunDir.X, Mathf.Max(0.22f, -sunDir.Y), -sunDir.Z).Normalized();
             _sunLight.LookAtFromPosition(activeDir * 100.0f, Vector3.Zero, Vector3.Up);
 
-            Color dayCol = new Color(1.0f, 0.94f, 0.84f);
-            Color goldenCol = new Color(1.0f, 0.62f, 0.32f);
-            Color moonCol = new Color(0.54f, 0.68f, 0.92f);
+            Color dayCol = new Color(1.0f, 0.94f, 0.86f);
+            Color goldenCol = new Color(1.0f, 0.64f, 0.34f);
+            Color moonCol = new Color(0.56f, 0.70f, 0.94f);
             _sunLight.LightColor = moonCol.Lerp(dayCol.Lerp(goldenCol, goldenT * 0.65f), dayT);
-            _sunLight.LightEnergy = Mathf.Lerp(0.42f, 1.98f * cloudDim, dayT);
+            _sunLight.LightEnergy = Mathf.Lerp(0.45f, 2.05f * cloudDim, dayT);
 
-            Color daySkyTop = new Color(0.15f, 0.32f, 0.58f);
-            Color nightSkyTop = new Color(0.03f, 0.06f, 0.14f);
-            Color stormSky = new Color(0.28f, 0.33f, 0.38f);
-            Color skyTop = nightSkyTop.Lerp(daySkyTop, dayT).Lerp(stormSky, liveW.CloudCover * 0.65f);
+            _skyShaderMat.SetShaderParameter("sun_direction", sunDir);
+            _skyShaderMat.SetShaderParameter("day_t", dayT);
+            _skyShaderMat.SetShaderParameter("golden_t", goldenT);
+            _skyShaderMat.SetShaderParameter("cloud_cover", liveW.CloudCover);
 
-            Color dayHorizon = new Color(0.60f, 0.72f, 0.84f);
-            Color goldenHorizon = new Color(0.88f, 0.56f, 0.38f);
+            Color dayHorizon = new Color(0.60f, 0.74f, 0.86f);
+            Color goldenHorizon = new Color(0.90f, 0.56f, 0.34f);
             Color nightHorizon = new Color(0.08f, 0.13f, 0.22f);
             Color horizon = nightHorizon.Lerp(dayHorizon.Lerp(goldenHorizon, goldenT * 0.70f), dayT)
-                                        .Lerp(new Color(0.46f, 0.50f, 0.54f), liveW.CloudCover * 0.55f);
-
-            _skyMat.SkyTopColor = skyTop;
-            _skyMat.SkyHorizonColor = horizon;
-            _skyMat.GroundHorizonColor = horizon;
+                                        .Lerp(new Color(0.48f, 0.52f, 0.56f), liveW.CloudCover * 0.50f);
 
             _worldEnv.FogLightColor = horizon;
-            _worldEnv.FogDensity = 0.00050f + liveW.RainIntensity * 0.0014f + (liveW.ConditionLabel == "Bão cát đỏ" ? 0.0018f : 0.0f);
-            _worldEnv.AmbientLightSkyContribution = Mathf.Lerp(0.55f, 0.36f, dayT);
+            _worldEnv.FogDensity = 0.00045f + liveW.RainIntensity * 0.0014f + (liveW.ConditionLabel == "Bão cát đỏ" ? 0.0018f : 0.0f);
+            _worldEnv.AmbientLightSkyContribution = Mathf.Lerp(0.85f, 0.92f, dayT);
         }
 
         private void TeleportCloseToGround(float wx, float wz, float heightAboveGround, Vector3 lookTarget)

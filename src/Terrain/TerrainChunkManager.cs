@@ -15,6 +15,9 @@ namespace PrimevalWorld.Terrain
 
         public int ChunkCount => _chunks.Count;
         public int ActiveTriangleEstimate { get; private set; }
+        public ImageTexture? SoilATex { get; private set; }
+        public ImageTexture? SoilBTex { get; private set; }
+        public ImageTexture? ClimateTex { get; private set; }
 
         public void BuildTerrain(
             ErosionPhysics erosion,
@@ -33,6 +36,9 @@ namespace PrimevalWorld.Terrain
             }
 
             var (soilA, soilB, climateTex) = soil.BuildGpuDataTextures(erosion, hydrology, climate);
+            SoilATex = soilA;
+            SoilBTex = soilB;
+            ClimateTex = climateTex;
             _terrainMaterial.SetShaderParameter("soil_tex_a", soilA);
             _terrainMaterial.SetShaderParameter("soil_tex_b", soilB);
             _terrainMaterial.SetShaderParameter("climate_tex", climateTex);

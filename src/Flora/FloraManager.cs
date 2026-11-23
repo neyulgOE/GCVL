@@ -19,6 +19,11 @@ namespace PrimevalWorld.Flora
 
         private ShaderMaterial? _canopyMat;
         private ShaderMaterial? _detailMat;
+        private ImageTexture? _leafAtlasTex;
+        private ImageTexture? _barkTex;
+        private ImageTexture? _windDataTex;
+
+        public ImageTexture? WindDataTex => _windDataTex;
 
         private readonly List<MultiMeshInstance3D>[,] _macroNodes = new List<MultiMeshInstance3D>[EcosystemSpawner.MacroCols, EcosystemSpawner.MacroRows];
         private readonly List<MultiMeshInstance3D>[,] _microNodes = new List<MultiMeshInstance3D>[EcosystemSpawner.MicroCols, EcosystemSpawner.MicroRows];
@@ -219,16 +224,22 @@ namespace PrimevalWorld.Flora
         private void EnsureMaterials(AtmosphereClimate climate)
         {
             var shader = GD.Load<Shader>("res://shaders/foliage_wind.gdshader");
-            ImageTexture windTex = BuildWindDataTexture(climate);
+            _windDataTex = BuildWindDataTexture(climate);
+            _leafAtlasTex ??= FloraTextureAtlas.BuildLeafAtlasTexture();
+            _barkTex ??= FloraTextureAtlas.BuildBarkTexture();
 
             _canopyMat ??= new ShaderMaterial { Shader = shader };
-            _canopyMat.SetShaderParameter("wind_dir_speed_tex", windTex);
+            _canopyMat.SetShaderParameter("wind_dir_speed_tex", _windDataTex);
+            _canopyMat.SetShaderParameter("leaf_atlas_tex", _leafAtlasTex);
+            _canopyMat.SetShaderParameter("bark_tex", _barkTex);
             _canopyMat.SetShaderParameter("enable_distance_fade", true);
             _canopyMat.SetShaderParameter("fade_start", 2450.0f);
             _canopyMat.SetShaderParameter("fade_end", 2950.0f);
 
             _detailMat ??= new ShaderMaterial { Shader = shader };
-            _detailMat.SetShaderParameter("wind_dir_speed_tex", windTex);
+            _detailMat.SetShaderParameter("wind_dir_speed_tex", _windDataTex);
+            _detailMat.SetShaderParameter("leaf_atlas_tex", _leafAtlasTex);
+            _detailMat.SetShaderParameter("bark_tex", _barkTex);
             _detailMat.SetShaderParameter("enable_distance_fade", true);
             _detailMat.SetShaderParameter("fade_start", 460.0f);
             _detailMat.SetShaderParameter("fade_end", 610.0f);

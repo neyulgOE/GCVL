@@ -193,16 +193,24 @@ void fragment() {
 	bump_strength = mix(bump_strength, 0.20, snow_weight);
 
 	float cam_dist = length(CAMERA_POSITION_WORLD - v_world_pos);
+	float close_detail_fade = 1.0 - smoothstep(22.0, 68.0, cam_dist);
+	// High-frequency close-up ground grain (soil litter, pebbles, rock grit at 0.35m..1.5m)
+	float close_grain = triplanar_fbm(v_world_pos, tri_blend, 1.45) * 0.65 + triplanar_fbm(v_world_pos, tri_blend, 3.80) * 0.35;
+	terrain_col *= mix(1.0, 0.78 + 0.44 * close_grain, close_detail_fade * (1.0 - snow_weight * 0.7));
+
 	float bump_fade = 1.0 - smoothstep(350.0, 1800.0, cam_dist);
-	vec3 bumped_world_n = safe_normalize(wn - grad * bump_strength * bump_fade);
+	float close_bump = (close_grain - 0.5) * 0.65 * close_detail_fade;
+	vec3 bumped_world_n = safe_normalize(wn - grad * bump_strength * bump_fade + vec3(close_bump, 0.0, -close_bump));
 	NORMAL = safe_normalize((VIEW_MATRIX * vec4(bumped_world_n, 0.0)).xyz);
 
-	float roughness = mix(0.90, 0.76, rock_exposure);
-	roughness = mix(roughness, 0.36, river_bank * 0.70 + (1.0 - smoothstep(-1.0, 2.5, h)) * 0.55);
-	roughness = mix(roughness, 0.16, dyn_wetness * 0.85);
-	roughness = mix(roughness, 0.86, snow_weight);
+	// Lock PBR roughness in [0.84..0.96] for dry soil/grass/rock (never plastic/mirror unless actively raining)
+	float roughness = mix(0.92, 0.85, rock_exposure);
+	roughness = mix(roughness, 0.68, river_bank * 0.60);
+	roughness = mix(roughness, 0.56, smoothstep(0.15, 0.90, dyn_wetness));
+	roughness = mix(roughness, 0.90, snow_weight);
+	roughness = clamp(roughness, 0.52, 0.97);
 
 	ALBEDO = terrain_col;
 	ROUGHNESS = roughness;
-	SPECULAR = mix(0.28, 0.68, max(river_bank, dyn_wetness));
+	SPECULAR = mix(0.12, 0.34, max(river_bank * 0.5, dyn_wetness * 0.8));
 }
