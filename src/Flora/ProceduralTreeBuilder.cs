@@ -128,7 +128,7 @@ namespace PrimevalWorld.Flora
                 Vector3 bEnd = p2 + dir * len;
                 AddTaperedCylinder(st, p2, bEnd, childR, childR * 0.55f, 5, barkTop, barkTop);
 
-                // Secondary branches + compact curved leaf sprigs (1.4-2.0m, low overdraw)
+                // Secondary branches + compact curved leaf sprigs (1.25-1.55m, natural airy clusters)
                 float subR = childR * 0.55f / 1.414f;
                 for (int s = 0; s < 3; s++)
                 {
@@ -136,11 +136,11 @@ namespace PrimevalWorld.Flora
                     Vector3 sDir = new Vector3(MathF.Cos(sAz), 0.35f + (float)rng.NextDouble() * 0.35f, MathF.Sin(sAz)).Normalized();
                     Vector3 sEnd = bEnd + sDir * (3.2f * sMult);
                     AddTaperedCylinder(st, bEnd, sEnd, subR, subR * 0.45f, 4, barkTop, barkTop);
-                    AddCurvedLeafSprigCluster(st, sEnd, crownCenter, 1.85f * sMult, 1, leafType: 0, rng, 0.14f);
+                    AddCurvedLeafSprigCluster(st, sEnd, crownCenter, 1.35f * sMult, 2, leafType: 0, rng, 0.14f);
                 }
-                AddCurvedLeafSprigCluster(st, bEnd, crownCenter, 2.0f * sMult, 2, leafType: 0, rng, 0.14f);
+                AddCurvedLeafSprigCluster(st, bEnd, crownCenter, 1.45f * sMult, 2, leafType: 0, rng, 0.14f);
             }
-            AddCurvedLeafSprigCluster(st, crownCenter + Vector3.Up * 1.4f, crownCenter, 2.1f * sMult, 2, leafType: 0, rng, 0.15f);
+            AddCurvedLeafSprigCluster(st, crownCenter + Vector3.Up * 1.4f, crownCenter, 1.55f * sMult, 2, leafType: 0, rng, 0.15f);
         }
 
         private static void BuildDeciduousTree(SurfaceTool st, Random rng, float hMult, float sMult, float rMult)
