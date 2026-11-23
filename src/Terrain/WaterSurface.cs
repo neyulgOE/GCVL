@@ -35,6 +35,21 @@ namespace PrimevalWorld.Terrain
             BuildInlandWaterMesh(hydrology);
         }
 
+        public void UpdateWeather(ImageTexture weatherTex, float riverSurgeOffset, float globalWindGust)
+        {
+            if (_oceanMaterial != null)
+            {
+                _oceanMaterial.SetShaderParameter("weather_dynamic_tex", weatherTex);
+                _oceanMaterial.SetShaderParameter("global_wind_gust", globalWindGust);
+            }
+            if (_riverMaterial != null)
+            {
+                _riverMaterial.SetShaderParameter("weather_dynamic_tex", weatherTex);
+                _riverMaterial.SetShaderParameter("river_surge_offset", riverSurgeOffset);
+                _riverMaterial.SetShaderParameter("global_wind_gust", globalWindGust);
+            }
+        }
+
         private void BuildHorizonOceanPlane()
         {
             if (_oceanMesh == null)

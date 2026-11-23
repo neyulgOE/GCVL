@@ -130,6 +130,22 @@ namespace PrimevalWorld.Flora
             VisibleInstanceCount = visCount;
         }
 
+        public void UpdateWeatherAndSeason(ImageTexture weatherTex, float seasonPhase, float globalWindGust)
+        {
+            if (_canopyMat != null)
+            {
+                _canopyMat.SetShaderParameter("weather_dynamic_tex", weatherTex);
+                _canopyMat.SetShaderParameter("season_phase", seasonPhase);
+                _canopyMat.SetShaderParameter("global_wind_gust", globalWindGust);
+            }
+            if (_detailMat != null)
+            {
+                _detailMat.SetShaderParameter("weather_dynamic_tex", weatherTex);
+                _detailMat.SetShaderParameter("season_phase", seasonPhase);
+                _detailMat.SetShaderParameter("global_wind_gust", globalWindGust);
+            }
+        }
+
         public string GetDominantSpeciesNameAt(float worldX, float worldZ) => _spawner.GetDominantSpeciesNameAt(worldX, worldZ);
 
         public ImageTexture BuildEmptyCoverageTexture() => _spawner.BuildEmptyCoverageTexture();

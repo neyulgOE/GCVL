@@ -3,6 +3,7 @@ using Godot;
 using PrimevalWorld.Camera;
 using PrimevalWorld.Flora;
 using PrimevalWorld.Terrain;
+using PrimevalWorld.Weather;
 using PrimevalWorld.WorldGen;
 
 namespace PrimevalWorld.Core
@@ -19,10 +20,18 @@ namespace PrimevalWorld.Core
         private readonly HydrologySolver _hydrology = new HydrologySolver();
         private readonly AtmosphereClimate _climate = new AtmosphereClimate();
         private readonly SoilPedology _soil = new SoilPedology();
+        private readonly SimulationClock _clock = new SimulationClock();
+        private readonly DynamicWeatherSystem _weather = new DynamicWeatherSystem();
 
         private TerrainChunkManager? _terrainMgr;
         private WaterSurface? _waterSurface;
         private FloraManager? _floraMgr;
+        private LocalWeatherVfx? _weatherVfx;
+        private MeshInstance3D? _cloudCanopyPlane;
+        private ShaderMaterial? _cloudCanopyMat;
+        private DirectionalLight3D? _sunLight;
+        private ProceduralSkyMaterial? _skyMat;
+        private Environment? _worldEnv;
         private SpectatorCamera? _camera;
         private Label? _telemetryLabel;
 
@@ -31,7 +40,8 @@ namespace PrimevalWorld.Core
         private Control? _cameraPin;
         private Label? _mapLegendLabel;
 
-        private ImageTexture[] _mapTextures = new ImageTexture[7];
+        private ImageTexture[] _mapTextures = new ImageTexture[8];
+        private float _radarRefreshAccum;
         private int _mapMode = 0;
         private int _seed = 2026;
         private bool _floraEnabled = true;
@@ -49,6 +59,11 @@ namespace PrimevalWorld.Core
 
             _floraMgr = new FloraManager { Name = "FloraManager" };
             AddChild(_floraMgr);
+
+            _weatherVfx = new LocalWeatherVfx { Name = "LocalWeatherVfx" };
+            AddChild(_weatherVfx);
+
+            SetupCloudCanopyPlane();
 
             _camera = new SpectatorCamera { Name = "SpectatorCamera" };
             AddChild(_camera);
@@ -72,6 +87,7 @@ namespace PrimevalWorld.Core
                 SunAngleMax = 24.0f,
                 SunCurve = 0.07f,
             };
+            _skyMat = skyMaterial;
 
             var sky = new Sky { SkyMaterial = skyMaterial };
             var env = new Environment
@@ -93,6 +109,7 @@ namespace PrimevalWorld.Core
                 SsaoRadius = 3.2f,
                 SsaoIntensity = 2.0f,
             };
+            _worldEnv = env;
 
             AddChild(new WorldEnvironment { Name = "WorldEnvironment", Environment = env });
 
@@ -108,6 +125,27 @@ namespace PrimevalWorld.Core
             };
             sun.RotationDegrees = new Vector3(-27.0f, -128.0f, 0.0f);
             AddChild(sun);
+            _sunLight = sun;
+        }
+
+        private void SetupCloudCanopyPlane()
+        {
+            var shader = GD.Load<Shader>("res://shaders/cloud_canopy.gdshader");
+            _cloudCanopyMat = new ShaderMaterial { Shader = shader };
+            _cloudCanopyPlane = new MeshInstance3D
+            {
+                Name = "CloudCanopyPlane",
+                Mesh = new PlaneMesh
+                {
+                    Size = new Vector2(WorldPhysicsConfig.WorldWidth, WorldPhysicsConfig.WorldDepth),
+                    SubdivideWidth = 16,
+                    SubdivideDepth = 9,
+                },
+                MaterialOverride = _cloudCanopyMat,
+                Position = new Vector3(WorldPhysicsConfig.WorldWidth * 0.5f, 1380.0f, WorldPhysicsConfig.WorldDepth * 0.5f),
+                CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+            };
+            AddChild(_cloudCanopyPlane);
         }
 
         private void BuildCompactHud()
@@ -164,7 +202,7 @@ namespace PrimevalWorld.Core
 
             var helpLabel = new Label
             {
-                Text = "WASD: Bay | Chuột phải: Xoay | Q/E: Lên/Xuống | Shift+Cuộn: Max 1000m/s | 1-5: 5 Vùng | M: Bản đồ 6 lớp | F: Bật/Tắt cây | G: Đổi Seed",
+                Text = "WASD: Bay | E/Q: Lên/Xuống | Shift+Cuộn: Max 1000m/s | 1-5: 5 Vùng | M: Bản đồ 8 lớp | F: Cây | Space: Dừng | [/]: Tốc độ | T:+3h | Y: Đổi Mùa | P: Thời tiết",
             };
             helpLabel.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
             helpLabel.OffsetLeft = 16;
@@ -201,7 +239,7 @@ namespace PrimevalWorld.Core
 
             var title = new Label
             {
-                Text = "BẢN ĐỒ PHÂN TÍCH VẬT LÝ 9.6x5.4 KM (Click bản đồ để bay tới | Phím 1-6 đổi lớp | M để đóng)",
+                Text = "BẢN ĐỒ PHÂN TÍCH VẬT LÝ & RADAR 9.6x5.4 KM (Click để bay tới | Phím 1-8 đổi lớp | M để đóng)",
                 HorizontalAlignment = HorizontalAlignment.Center,
             };
             title.AddThemeFontSizeOverride("font_size", 13);
@@ -211,13 +249,14 @@ namespace PrimevalWorld.Core
             vbox.AddChild(modeRow);
             string[] modeNames =
             {
-                "1. Địa hình & Sông",
-                "2. Nhiệt độ (°C)",
+                "1. Địa hình",
+                "2. Nhiệt độ",
                 "3. Mưa & Gió",
-                "4. Độ ẩm & Lưu vực",
-                "5. Thổ nhưỡng (6 Đất)",
-                "6. Độ dốc & Xói mòn",
-                "7. Thảo Mộc (6 Tầng)"
+                "4. Độ ẩm",
+                "5. Thổ nhưỡng",
+                "6. Độ dốc",
+                "7. Thảo mộc",
+                "8. Radar Bão"
             };
             for (int i = 0; i < modeNames.Length; i++)
             {
@@ -270,7 +309,8 @@ namespace PrimevalWorld.Core
                     3 => "Lớp 4: Độ ẩm đất & Tích tụ dòng chảy D8 (Mạng lưới lưu vực & hành lang ven nước)",
                     4 => "Lớp 5: 6 Loại Đất (Xanh đậm: Phù sa | Xanh rêu: Đất rừng | Vàng: Thảo nguyên | Đỏ: Cát đỏ | Cát biển | Xám: Băng/Đá)",
                     5 => "Lớp 6: Độ dốc & Trầm tích Xói mòn (Kiểm tra Góc nghỉ Cát 32° vs Đất 40° vs Đá gốc 64°)",
-                    _ => "Lớp 7: Hệ Sinh Thái & Tầng Tán Thảo Mộc (Đại ngàn xanh thẫm | Bạch quả/Phong vàng đỏ | Thông tuyết lam | Cọ ốc đảo ngọc)",
+                    6 => "Lớp 7: Hệ Sinh Thái & Tầng Tán Thảo Mộc (Đại ngàn xanh thẫm | Bạch quả/Phong vàng đỏ | Thông tuyết lam | Cọ ốc đảo ngọc)",
+                    _ => "Lớp 8: Radar Thời Tiết & Tuyết Động 2 Hz (Mây bão trôi theo gió | Đẳng nhiệt 0°C xanh lơ | Tuyết phủ trắng)",
                 };
             }
         }
@@ -355,7 +395,14 @@ namespace PrimevalWorld.Core
                 _floraMgr.Visible = _floraEnabled;
             }
 
-            _mapTextures = WorldMapVisualizer.BuildAllModes(_tectonic, _erosion, _hydrology, _climate, _soil, _floraMgr?.Spawner);
+            _weather.Initialize(_erosion, _hydrology, _climate, _soil, seed);
+            _weather.ForceImmediateStep(_clock);
+            _cloudCanopyMat?.SetShaderParameter("weather_dynamic_tex", _weather.WeatherDynamicTex);
+            _terrainMgr?.SetWeatherTexture(_weather.WeatherDynamicTex);
+            _waterSurface?.UpdateWeather(_weather.WeatherDynamicTex, _weather.SurfaceState.RiverSurgeOffset, _weather.GlobalWindGust);
+            _floraMgr?.UpdateWeatherAndSeason(_weather.WeatherDynamicTex, _clock.SeasonPhase, _weather.GlobalWindGust);
+
+            _mapTextures = WorldMapVisualizer.BuildAllModes(_tectonic, _erosion, _hydrology, _climate, _soil, _floraMgr?.Spawner, _weather);
             SetMapMode(_mapMode);
 
             if (_camera != null)
@@ -389,6 +436,14 @@ namespace PrimevalWorld.Core
                 }
                 GD.Print(parts.ToString());
             }
+
+            float sumTempMin = _climate.MinTempC + 9.5f - 5.5f;
+            float sumTempMax = _climate.MaxTempC + 9.5f + 5.5f;
+            float winTempMin = _climate.MinTempC - 9.5f - 5.5f;
+            float winTempMax = _climate.MaxTempC - 9.5f + 5.5f;
+            GD.Print($"[Weather4D] Grid=256x144 (2Hz) | UpdateTime={_weather.LastUpdateMs:0.00}ms | " +
+                     $"SummerRange=[{sumTempMin:0.0}°C..{sumTempMax:0.0}°C] | WinterRange=[{winTempMin:0.0}°C..{winTempMax:0.0}°C] | " +
+                     $"SnowCover={_weather.SurfaceState.MeanSnowPercent:0.0}% | RiverSurge=+{_weather.SurfaceState.RiverSurgeOffset:0.00}m");
         }
 
         public override void _UnhandledInput(InputEvent @event)
@@ -432,39 +487,129 @@ namespace PrimevalWorld.Core
                     case Key.Key7:
                         if (_worldMapOverlay?.Visible == true) SetMapMode(6);
                         break;
+                    case Key.Key8:
+                        if (_worldMapOverlay?.Visible == true) SetMapMode(7);
+                        break;
+                    case Key.Space:
+                        _clock.TogglePause();
+                        break;
+                    case Key.Bracketleft:
+                        _clock.StepSpeed(-1);
+                        break;
+                    case Key.Bracketright:
+                        _clock.StepSpeed(1);
+                        break;
+                    case Key.T:
+                        _clock.AddHours(3.0f);
+                        _weather.ForceImmediateStep(_clock);
+                        break;
+                    case Key.Y:
+                        _clock.AdvanceToNextSeason();
+                        _weather.ForceImmediateStep(_clock);
+                        break;
+                    case Key.P:
+                        _weather.OverrideMode = (WeatherOverrideMode)(((int)_weather.OverrideMode + 1) % 4);
+                        _weather.ForceImmediateStep(_clock);
+                        break;
                 }
             }
         }
 
         public override void _Process(double delta)
         {
+            float dt = (float)delta;
+            _clock.Advance(dt);
+            _weather.Update(dt, _clock);
+
+            _waterSurface?.UpdateWeather(_weather.WeatherDynamicTex, _weather.SurfaceState.RiverSurgeOffset, _weather.GlobalWindGust);
+            _floraMgr?.UpdateWeatherAndSeason(_weather.WeatherDynamicTex, _clock.SeasonPhase, _weather.GlobalWindGust);
+
             if (_camera != null)
             {
                 _terrainMgr?.UpdateLod(_camera.Position);
                 if (_floraEnabled)
                     _floraMgr?.UpdateStreaming(_camera.Position);
-            }
 
-            if (_telemetryLabel != null && _camera != null)
-            {
-                Vector3 p = _camera.Position;
-                float h = _erosion.SampleHeight(p.X, p.Z);
-                float slope = _erosion.SampleSlopeDeg(p.X, p.Z);
-                ClimateSample cs = _climate.SampleClimate(p.X, p.Z);
-                SoilSample ss = _soil.SampleSoil(p.X, p.Z);
-                int tris = _terrainMgr?.ActiveTriangleEstimate ?? 0;
-                string domSp = _floraEnabled && _floraMgr != null ? _floraMgr.GetDominantSpeciesNameAt(p.X, p.Z) : "Tắt";
-                string floraStr = _floraEnabled
-                    ? $"Cây: {_floraMgr?.TotalInstanceCount ?? 0:N0} (Hiện: {_floraMgr?.VisibleInstanceCount ?? 0:N0}) | Loài trội: {domSp}"
-                    : "Cây: Tắt [F]";
+                LiveWeatherSample liveW = _weather.SampleAt(_camera.Position.X, _camera.Position.Z);
+                _weatherVfx?.UpdateForCamera(_camera.Position, liveW);
+                UpdateSkyAndLighting(liveW);
 
-                _telemetryLabel.Text =
-                    $"Primeval Reach 9.6x5.4 km | FPS: {Engine.GetFramesPerSecond():0} | Seed: {_seed} | Tris: {tris:N0} | {floraStr}\n" +
-                    $"Cao độ: {h:0.0}m | Dốc: {slope:0.0}° | Nhiệt: {cs.TemperatureC:0.0}°C | Ẩm: {cs.Moisture * 100f:0}% | Mưa: {cs.Precipitation * 100f:0}% | Gió: {cs.WindSpeed:0.0}m/s | Đất: {FormatSoil(ss.DominantSoil)}";
+                if (_telemetryLabel != null)
+                {
+                    Vector3 p = _camera.Position;
+                    float h = _erosion.SampleHeight(p.X, p.Z);
+                    float slope = _erosion.SampleSlopeDeg(p.X, p.Z);
+                    SoilSample ss = _soil.SampleSoil(p.X, p.Z);
+                    int tris = _terrainMgr?.ActiveTriangleEstimate ?? 0;
+                    string domSp = _floraEnabled && _floraMgr != null ? _floraMgr.GetDominantSpeciesNameAt(p.X, p.Z) : "Tắt";
+                    string floraStr = _floraEnabled
+                        ? $"Cây: {_floraMgr?.TotalInstanceCount ?? 0:N0} (Hiện: {_floraMgr?.VisibleInstanceCount ?? 0:N0}) | Loài: {domSp}"
+                        : "Cây: Tắt [F]";
+
+                    int hh = (int)_clock.TimeOfDay;
+                    int mm = (int)((_clock.TimeOfDay - hh) * 60.0f);
+                    string speedStr = _clock.IsPaused ? "Dừng" : $"x{_clock.SpeedMultiplier:0}";
+
+                    _telemetryLabel.Text =
+                        $"Primeval Reach 9.6x5.4 km | FPS: {Engine.GetFramesPerSecond():0} | Tris: {tris:N0} | {floraStr}\n" +
+                        $"Ngày {_clock.DayOfYear + 1} | Mùa {_clock.SeasonNameVi} | {hh:00}:{mm:00} ({speedStr}) | {liveW.ConditionLabel} | Nhiệt: {liveW.LiveTempC:0.0}°C | Tuyết: {liveW.SnowAccum * 100f:0}% | Ẩm mặt: {liveW.Wetness * 100f:0}%\n" +
+                        $"Cao độ: {h:0.0}m | Dốc: {slope:0.0}° | Gió: {liveW.LiveWindSpeed:0.0}m/s | Mây: {liveW.CloudCover * 100f:0}% | Đất: {FormatSoil(ss.DominantSoil)}";
+                }
             }
 
             if (_worldMapOverlay != null && _worldMapOverlay.Visible)
+            {
                 UpdateCameraPin();
+                if (_mapMode == 7 && _mapTextures[7] != null)
+                {
+                    _radarRefreshAccum += dt;
+                    if (_radarRefreshAccum >= 0.5f)
+                    {
+                        _radarRefreshAccum = 0.0f;
+                        WorldMapVisualizer.RefreshWeatherRadarMap(_mapTextures[7], _erosion, _weather);
+                    }
+                }
+            }
+        }
+
+        private void UpdateSkyAndLighting(in LiveWeatherSample liveW)
+        {
+            if (_sunLight == null || _skyMat == null || _worldEnv == null) return;
+
+            Vector3 sunDir = _clock.SunDirection;
+            float elev = Mathf.Clamp(sunDir.Y, -1.0f, 1.0f);
+            float dayT = Mathf.Clamp((elev + 0.08f) / 0.35f, 0.0f, 1.0f);
+            float goldenT = Mathf.Clamp(1.0f - Mathf.Abs(elev - 0.12f) / 0.22f, 0.0f, 1.0f);
+            float cloudDim = 1.0f - liveW.CloudCover * 0.52f;
+
+            // Sun / Moon directional light (never pitch black at night)
+            Vector3 activeDir = elev > 0.0f ? sunDir : new Vector3(-sunDir.X, Mathf.Max(0.22f, -sunDir.Y), -sunDir.Z).Normalized();
+            _sunLight.LookAtFromPosition(activeDir * 100.0f, Vector3.Zero, Vector3.Up);
+
+            Color dayCol = new Color(1.0f, 0.94f, 0.84f);
+            Color goldenCol = new Color(1.0f, 0.62f, 0.32f);
+            Color moonCol = new Color(0.54f, 0.68f, 0.92f);
+            _sunLight.LightColor = moonCol.Lerp(dayCol.Lerp(goldenCol, goldenT * 0.65f), dayT);
+            _sunLight.LightEnergy = Mathf.Lerp(0.42f, 1.98f * cloudDim, dayT);
+
+            Color daySkyTop = new Color(0.15f, 0.32f, 0.58f);
+            Color nightSkyTop = new Color(0.03f, 0.06f, 0.14f);
+            Color stormSky = new Color(0.28f, 0.33f, 0.38f);
+            Color skyTop = nightSkyTop.Lerp(daySkyTop, dayT).Lerp(stormSky, liveW.CloudCover * 0.65f);
+
+            Color dayHorizon = new Color(0.60f, 0.72f, 0.84f);
+            Color goldenHorizon = new Color(0.88f, 0.56f, 0.38f);
+            Color nightHorizon = new Color(0.08f, 0.13f, 0.22f);
+            Color horizon = nightHorizon.Lerp(dayHorizon.Lerp(goldenHorizon, goldenT * 0.70f), dayT)
+                                        .Lerp(new Color(0.46f, 0.50f, 0.54f), liveW.CloudCover * 0.55f);
+
+            _skyMat.SkyTopColor = skyTop;
+            _skyMat.SkyHorizonColor = horizon;
+            _skyMat.GroundHorizonColor = horizon;
+
+            _worldEnv.FogLightColor = horizon;
+            _worldEnv.FogDensity = 0.00050f + liveW.RainIntensity * 0.0014f + (liveW.ConditionLabel == "Bão cát đỏ" ? 0.0018f : 0.0f);
+            _worldEnv.AmbientLightSkyContribution = Mathf.Lerp(0.55f, 0.36f, dayT);
         }
 
         private static string FormatSoil(SoilType soil) => soil switch

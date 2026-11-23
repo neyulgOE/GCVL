@@ -3,6 +3,11 @@ render_mode blend_mix, depth_draw_always, cull_back, specular_schlick_ggx;
 
 uniform sampler2D depth_tex : hint_depth_texture, repeat_disable, filter_nearest;
 uniform sampler2D screen_tex : hint_screen_texture, repeat_disable, filter_linear_mipmap;
+uniform sampler2D weather_dynamic_tex : filter_linear, repeat_disable;
+
+uniform vec2 world_size = vec2(9600.0, 5400.0);
+uniform float river_surge_offset = 0.0;
+uniform float global_wind_gust = 1.0;
 
 uniform vec2 flow_speed = vec2(0.025, 0.12);
 uniform vec4 shallow_color : source_color = vec4(0.12, 0.66, 0.70, 0.76);
@@ -38,7 +43,9 @@ void vertex() {
 
 	float w1 = sin(wp.x * 0.14 + TIME * 1.4) * cos(wp.z * 0.12 + TIME * 1.1);
 	float w2 = noise2(wp.xz * 0.08 + flow_speed * TIME * 2.5) - 0.5;
-	VERTEX.y += (w1 * 0.05 + w2 * 0.08) * vert_fade;
+	float is_inland = step(0.15, wp.y);
+	VERTEX.y += is_inland * river_surge_offset;
+	VERTEX.y += (w1 * 0.05 + w2 * 0.08) * vert_fade * global_wind_gust;
 	v_world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 }
 
@@ -64,7 +71,12 @@ void fragment() {
 	float eps = 0.09;
 	float nx = (noise2(uv1 + vec2(eps, 0.0)) - n1) + (noise2(uv2 + vec2(eps, 0.0)) - n2);
 	float nz = (noise2(uv1 + vec2(0.0, eps)) - n1) + (noise2(uv2 + vec2(0.0, eps)) - n2);
-	vec3 ripple_normal = normalize(vec3(-nx * wave_strength * 7.0 * ripple_fade, 1.0, -nz * wave_strength * 7.0 * ripple_fade));
+
+	vec2 world_uv = clamp(v_world_pos.xz / world_size, vec2(0.0), vec2(1.0));
+	float surface_ice = texture(weather_dynamic_tex, world_uv).b;
+	float ice_t = smoothstep(0.35, 0.78, surface_ice);
+
+	vec3 ripple_normal = normalize(vec3(-nx * wave_strength * 7.0 * ripple_fade * global_wind_gust * (1.0 - ice_t), 1.0, -nz * wave_strength * 7.0 * ripple_fade * global_wind_gust * (1.0 - ice_t)));
 	NORMAL = normalize(mix(NORMAL, (VIEW_MATRIX * vec4(ripple_normal, 0.0)).xyz, 0.72));
 
 	float depth_t = 1.0 - exp(-water_depth * 0.28);
@@ -84,8 +96,12 @@ void fragment() {
 	float foam = max(foam_band, rapids_foam) * foam_noise;
 	final_col = mix(final_col, foam_color, clamp(foam * 0.82, 0.0, 1.0));
 
+	// Frozen Lake / Stream Surface Ice
+	vec3 ice_col = mix(vec3(0.68, 0.84, 0.94), vec3(0.88, 0.94, 0.98), ripple);
+	final_col = mix(final_col, ice_col, ice_t * 0.88);
+
 	ALBEDO = final_col;
-	ROUGHNESS = mix(0.05, 0.34, foam);
+	ROUGHNESS = mix(mix(0.05, 0.34, foam), 0.56, ice_t);
 	SPECULAR = 0.85;
-	ALPHA = clamp(smoothstep(0.0, 0.16, water_depth) * mix(0.76, 0.98, depth_t) + foam * 0.45, 0.25, 0.98);
+	ALPHA = clamp(max(smoothstep(0.0, 0.16, water_depth) * mix(0.76, 0.98, depth_t) + foam * 0.45, ice_t * 0.92), 0.25, 0.98);
 }

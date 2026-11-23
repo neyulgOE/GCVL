@@ -2,6 +2,7 @@ using System;
 using Godot;
 using PrimevalWorld.Core;
 using PrimevalWorld.Flora;
+using PrimevalWorld.Weather;
 
 namespace PrimevalWorld.WorldGen
 {
@@ -19,9 +20,10 @@ namespace PrimevalWorld.WorldGen
             HydrologySolver hydrology,
             AtmosphereClimate climate,
             SoilPedology soil,
-            EcosystemSpawner? flora = null)
+            EcosystemSpawner? flora = null,
+            DynamicWeatherSystem? weather = null)
         {
-            var textures = new ImageTexture[7];
+            var textures = new ImageTexture[8];
             textures[0] = BuildTerrainHydrologyMap(erosion, hydrology, soil);
             textures[1] = BuildTemperatureMap(climate);
             textures[2] = BuildPrecipitationWindMap(climate);
@@ -29,6 +31,7 @@ namespace PrimevalWorld.WorldGen
             textures[4] = BuildSoilMap(erosion, soil);
             textures[5] = BuildSlopeSedimentMap(erosion);
             textures[6] = flora != null ? BuildFloraMap(erosion, hydrology, flora) : textures[0];
+            textures[7] = weather != null ? BuildWeatherRadarMap(erosion, weather) : textures[0];
             return textures;
         }
 
@@ -205,6 +208,60 @@ namespace PrimevalWorld.WorldGen
                     WriteRgb(rgb, py * MapW + px, col);
                 }
             return ImageTexture.CreateFromImage(Image.CreateFromData(MapW, MapH, false, Image.Format.Rgb8, rgb));
+        }
+
+        public static ImageTexture BuildWeatherRadarMap(ErosionPhysics erosion, DynamicWeatherSystem weather)
+        {
+            byte[] rgb = new byte[MapW * MapH * 3];
+            FillWeatherRadarBytes(rgb, erosion, weather);
+            return ImageTexture.CreateFromImage(Image.CreateFromData(MapW, MapH, false, Image.Format.Rgb8, rgb));
+        }
+
+        public static void RefreshWeatherRadarMap(ImageTexture tex, ErosionPhysics erosion, DynamicWeatherSystem weather)
+        {
+            byte[] rgb = new byte[MapW * MapH * 3];
+            FillWeatherRadarBytes(rgb, erosion, weather);
+            tex.Update(Image.CreateFromData(MapW, MapH, false, Image.Format.Rgb8, rgb));
+        }
+
+        private static void FillWeatherRadarBytes(byte[] rgb, ErosionPhysics erosion, DynamicWeatherSystem weather)
+        {
+            for (int py = 0; py < MapH; py++)
+            {
+                int sz = Math.Clamp((int)((py / (float)(MapH - 1)) * (SeasonalState.SimH - 1)), 0, SeasonalState.SimH - 1);
+                for (int px = 0; px < MapW; px++)
+                {
+                    int sx = Math.Clamp((int)((px / (float)(MapW - 1)) * (SeasonalState.SimW - 1)), 0, SeasonalState.SimW - 1);
+                    int gIdx = MapToGridIdx(px, py);
+                    int wIdx = sz * SeasonalState.SimW + sx;
+
+                    float h = erosion.HeightMap[gIdx];
+                    float temp = weather.SurfaceState.LiveTempMap[wIdx];
+                    float snow = weather.SurfaceState.SnowAccumulationMap[wIdx];
+                    float rain = weather.RainIntensityMap[wIdx];
+                    float cloud = weather.CloudCoverMap[wIdx];
+
+                    Color baseCol = h <= 0.2f ? new Color(0.05f, 0.12f, 0.22f) : new Color(0.16f, 0.20f, 0.18f);
+                    // Snow cover overlay
+                    baseCol = baseCol.Lerp(new Color(0.90f, 0.94f, 0.99f), snow * 0.85f);
+                    // Cloud & Rain Radar (green -> yellow -> magenta for heavy storms)
+                    if (cloud > 0.25f)
+                        baseCol = baseCol.Lerp(new Color(0.45f, 0.55f, 0.65f), (cloud - 0.25f) * 0.6f);
+                    if (rain > 0.12f)
+                    {
+                        Color radarCol = temp <= 0.5f
+                            ? new Color(0.45f, 0.85f, 1.0f) // Snowfall radar
+                            : (rain < 0.5f ? new Color(0.15f, 0.85f, 0.32f) : new Color(0.95f, 0.72f, 0.12f));
+                        baseCol = baseCol.Lerp(radarCol, Math.Clamp(rain * 1.1f, 0.0f, 0.92f));
+                    }
+
+                    // 0°C Isotherm contour line
+                    if (MathF.Abs(temp) < 0.75f && h > 0.2f)
+                        baseCol = new Color(0.35f, 0.90f, 1.0f);
+
+                    WriteRgb(rgb, py * MapW + px, baseCol);
+                }
+            }
         }
 
         private static void DrawArrow(byte[] rgb, int cx, int cy, Vector2 dir, Color col)

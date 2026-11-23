@@ -5,6 +5,7 @@ uniform sampler2D soil_tex_a : filter_linear, repeat_disable;    // R=Alluvial, 
 uniform sampler2D soil_tex_b : filter_linear, repeat_disable;    // R=CoastalSand, G=PermafrostRock, B=SoilDepth, A=BedrockMask
 uniform sampler2D climate_tex : filter_linear, repeat_disable;   // R=TempNorm, G=Moisture, B=RiverMask, A=FlowAccum
 uniform sampler2D canopy_coverage_tex : filter_linear, repeat_disable;
+uniform sampler2D weather_dynamic_tex : filter_linear, repeat_disable; // R=SnowAccum, G=Wetness, B=SurfaceIce, A=CloudShadow
 
 varying vec3 v_world_pos;
 varying vec3 v_world_normal;
@@ -160,12 +161,22 @@ void fragment() {
 	);
 	terrain_col = mix(terrain_col, rock_col, rock_exposure);
 
-	// Physical Temperature Snow & Frost (Temp < 1°C, sheds off steep cliffs)
-	float snow_temp = smoothstep(1.5, -5.0, temp_c + (macro_var - 0.5) * 2.5);
-	float snow_slope_mask = 1.0 - smoothstep(0.10, 0.24, slope + (cliff_cracks - 0.5) * 0.04);
-	float snow_weight = snow_temp * snow_slope_mask;
-	vec3 snow_col = vec3(0.87, 0.91, 0.96) * (0.90 + 0.14 * micro_detail);
+	// Dynamic Stage 4 Snow Accumulation + Permanent High-Altitude Frost (sheds off steep cliffs >42°)
+	vec4 wd = texture(weather_dynamic_tex, uv);
+	float dyn_snow = wd.r;
+	float dyn_wetness = wd.g;
+	float dyn_cloud_shadow = wd.a;
+
+	float snow_temp = smoothstep(1.5, -5.0, temp_c + (macro_var - 0.5) * 2.5) * 0.45;
+	float snow_signal = max(snow_temp, dyn_snow);
+	float snow_slope_mask = 1.0 - smoothstep(0.11, 0.27, slope + (cliff_cracks - 0.5) * 0.04);
+	float snow_weight = clamp(snow_signal * snow_slope_mask * smoothstep(-0.2, 2.5, h), 0.0, 1.0);
+	vec3 snow_col = vec3(0.88, 0.92, 0.97) * (0.90 + 0.14 * micro_detail);
 	terrain_col = mix(terrain_col, snow_col, snow_weight);
+
+	// Wetness darkening & Cloud shadow pass
+	terrain_col = mix(terrain_col, terrain_col * 0.62, dyn_wetness * (1.0 - snow_weight) * 0.65);
+	terrain_col *= (1.0 - dyn_cloud_shadow * 0.36);
 
 	// Procedural Triplanar Normal Perturbation
 	float eps = 0.55;
@@ -188,9 +199,10 @@ void fragment() {
 
 	float roughness = mix(0.90, 0.76, rock_exposure);
 	roughness = mix(roughness, 0.36, river_bank * 0.70 + (1.0 - smoothstep(-1.0, 2.5, h)) * 0.55);
+	roughness = mix(roughness, 0.16, dyn_wetness * 0.85);
 	roughness = mix(roughness, 0.86, snow_weight);
 
 	ALBEDO = terrain_col;
 	ROUGHNESS = roughness;
-	SPECULAR = mix(0.28, 0.55, river_bank);
+	SPECULAR = mix(0.28, 0.68, max(river_bank, dyn_wetness));
 }

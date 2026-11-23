@@ -54,6 +54,11 @@ namespace PrimevalWorld.Terrain
             _terrainMaterial?.SetShaderParameter("canopy_coverage_tex", canopyTex);
         }
 
+        public void SetWeatherTexture(ImageTexture weatherTex)
+        {
+            _terrainMaterial?.SetShaderParameter("weather_dynamic_tex", weatherTex);
+        }
+
         public void UpdateLod(Vector3 cameraPos)
         {
             int tris = 0;

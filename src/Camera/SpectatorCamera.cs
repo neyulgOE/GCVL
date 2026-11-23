@@ -100,7 +100,7 @@ namespace PrimevalWorld.Camera
             if (Input.IsKeyPressed(Key.S) || Input.IsKeyPressed(Key.Down)) inputDir -= forward;
             if (Input.IsKeyPressed(Key.D) || Input.IsKeyPressed(Key.Right)) inputDir += right;
             if (Input.IsKeyPressed(Key.A) || Input.IsKeyPressed(Key.Left)) inputDir -= right;
-            if (Input.IsKeyPressed(Key.E) || Input.IsKeyPressed(Key.Space)) inputDir += Vector3.Up;
+            if (Input.IsKeyPressed(Key.E)) inputDir += Vector3.Up;
             if (Input.IsKeyPressed(Key.Q) || Input.IsKeyPressed(Key.C)) inputDir -= Vector3.Up;
 
             float targetSpeed = Mathf.Min(
