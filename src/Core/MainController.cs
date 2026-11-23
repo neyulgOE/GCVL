@@ -31,10 +31,10 @@ namespace PrimevalWorld.Core
         private Control? _cameraPin;
         private Label? _mapLegendLabel;
 
-        private ImageTexture[] _mapTextures = new ImageTexture[6];
+        private ImageTexture[] _mapTextures = new ImageTexture[7];
         private int _mapMode = 0;
         private int _seed = 2026;
-        private bool _floraEnabled = false;
+        private bool _floraEnabled = true;
         private bool _floraBuiltForSeed = false;
 
         public override void _Ready()
@@ -216,7 +216,8 @@ namespace PrimevalWorld.Core
                 "3. Mưa & Gió",
                 "4. Độ ẩm & Lưu vực",
                 "5. Thổ nhưỡng (6 Đất)",
-                "6. Độ dốc & Xói mòn"
+                "6. Độ dốc & Xói mòn",
+                "7. Thảo Mộc (6 Tầng)"
             };
             for (int i = 0; i < modeNames.Length; i++)
             {
@@ -268,7 +269,8 @@ namespace PrimevalWorld.Core
                     2 => "Lớp 3: Lượng mưa & Bóng mưa (Sườn đón gió xanh đậm vs Bóng mưa Tây-Nam khô vàng) + Mũi tên hướng Gió",
                     3 => "Lớp 4: Độ ẩm đất & Tích tụ dòng chảy D8 (Mạng lưới lưu vực & hành lang ven nước)",
                     4 => "Lớp 5: 6 Loại Đất (Xanh đậm: Phù sa | Xanh rêu: Đất rừng | Vàng: Thảo nguyên | Đỏ: Cát đỏ | Cát biển | Xám: Băng/Đá)",
-                    _ => "Lớp 6: Độ dốc & Trầm tích Xói mòn (Kiểm tra Góc nghỉ Cát 32° vs Đất 40° vs Đá gốc 64°)",
+                    5 => "Lớp 6: Độ dốc & Trầm tích Xói mòn (Kiểm tra Góc nghỉ Cát 32° vs Đất 40° vs Đá gốc 64°)",
+                    _ => "Lớp 7: Hệ Sinh Thái & Tầng Tán Thảo Mộc (Đại ngàn xanh thẫm | Bạch quả/Phong vàng đỏ | Thông tuyết lam | Cọ ốc đảo ngọc)",
                 };
             }
         }
@@ -307,7 +309,8 @@ namespace PrimevalWorld.Core
 
             if (_floraEnabled && !_floraBuiltForSeed)
             {
-                _floraMgr.BuildFlora(_erosion, _hydrology, _climate, _soil, _seed);
+                ImageTexture canopyTex = _floraMgr.BuildFlora(_erosion, _hydrology, _climate, _soil, _seed);
+                _terrainMgr?.SetCanopyCoverageTexture(canopyTex);
                 _floraBuiltForSeed = true;
             }
             _floraMgr.Visible = _floraEnabled;
@@ -345,19 +348,23 @@ namespace PrimevalWorld.Core
                 _terrainMgr?.SetCanopyCoverageTexture(_floraMgr.BuildEmptyCoverageTexture());
                 if (_floraEnabled)
                 {
-                    _floraMgr.BuildFlora(_erosion, _hydrology, _climate, _soil, seed);
+                    ImageTexture canopyTex = _floraMgr.BuildFlora(_erosion, _hydrology, _climate, _soil, seed);
+                    _terrainMgr?.SetCanopyCoverageTexture(canopyTex);
                     _floraBuiltForSeed = true;
                 }
                 _floraMgr.Visible = _floraEnabled;
             }
 
-            _mapTextures = WorldMapVisualizer.BuildAllModes(_tectonic, _erosion, _hydrology, _climate, _soil);
+            _mapTextures = WorldMapVisualizer.BuildAllModes(_tectonic, _erosion, _hydrology, _climate, _soil, _floraMgr?.Spawner);
             SetMapMode(_mapMode);
 
             if (_camera != null)
+            {
                 _terrainMgr?.UpdateLod(_camera.Position);
+                if (_floraEnabled) _floraMgr?.UpdateStreaming(_camera.Position);
+            }
 
-            // Report comprehensive Stage 1+2 statistics
+            // Report comprehensive Stage 1+2+3 statistics
             int totalLand = System.Math.Max(1, _soil.TotalLandCells);
             GD.Print($"[World9.6x5.4km] Seed={seed} | PhysicsGen={physicsMs:0.0}ms | Temp=[{_climate.MinTempC:0.0}°C..{_climate.MaxTempC:0.0}°C] | MeanPrecip={_climate.MeanPrecip * 100f:0.0}% | " +
                      $"Chunks={_terrainMgr?.ChunkCount ?? 0} | ActiveTris={_terrainMgr?.ActiveTriangleEstimate ?? 0} | Soil%: " +
@@ -367,6 +374,21 @@ namespace PrimevalWorld.Core
                      $"AridRed={_soil.LandSoilCounts[3] * 100f / totalLand:0.0}%, " +
                      $"CoastalSand={_soil.LandSoilCounts[4] * 100f / totalLand:0.0}%, " +
                      $"Permafrost/Rock={_soil.LandSoilCounts[5] * 100f / totalLand:0.0}%");
+
+            if (_floraMgr != null && _floraBuiltForSeed)
+            {
+                var spw = _floraMgr.Spawner;
+                GD.Print($"[Flora6Layers] SpawnTime={spw.LastSpawnMs:0.0}ms | Total={spw.TotalInstances:N0} | " +
+                         $"L1_Emergent={spw.LayerCounts[1]:N0}, L2_Canopy={spw.LayerCounts[2]:N0}, L3_Understory={spw.LayerCounts[3]:N0}, " +
+                         $"L4_Shrub={spw.LayerCounts[4]:N0}, L5_Herb={spw.LayerCounts[5]:N0}, L6_Litter={spw.LayerCounts[6]:N0}");
+                var parts = new System.Text.StringBuilder("[FloraSpecies] ");
+                for (int s = 0; s < FloraNicheDatabase.AllSpecies.Length; s++)
+                {
+                    if (spw.SpeciesCounts[s] > 0)
+                        parts.Append($"{FloraNicheDatabase.AllSpecies[s].SpeciesKey}={spw.SpeciesCounts[s]:N0} | ");
+                }
+                GD.Print(parts.ToString());
+            }
         }
 
         public override void _UnhandledInput(InputEvent @event)
@@ -407,6 +429,9 @@ namespace PrimevalWorld.Core
                     case Key.Key6:
                         if (_worldMapOverlay?.Visible == true) SetMapMode(5);
                         break;
+                    case Key.Key7:
+                        if (_worldMapOverlay?.Visible == true) SetMapMode(6);
+                        break;
                 }
             }
         }
@@ -416,6 +441,8 @@ namespace PrimevalWorld.Core
             if (_camera != null)
             {
                 _terrainMgr?.UpdateLod(_camera.Position);
+                if (_floraEnabled)
+                    _floraMgr?.UpdateStreaming(_camera.Position);
             }
 
             if (_telemetryLabel != null && _camera != null)
@@ -426,7 +453,10 @@ namespace PrimevalWorld.Core
                 ClimateSample cs = _climate.SampleClimate(p.X, p.Z);
                 SoilSample ss = _soil.SampleSoil(p.X, p.Z);
                 int tris = _terrainMgr?.ActiveTriangleEstimate ?? 0;
-                string floraStr = _floraEnabled ? $"Cây: {_floraMgr?.TotalInstanceCount ?? 0:N0}" : "Cây: Tắt [F]";
+                string domSp = _floraEnabled && _floraMgr != null ? _floraMgr.GetDominantSpeciesNameAt(p.X, p.Z) : "Tắt";
+                string floraStr = _floraEnabled
+                    ? $"Cây: {_floraMgr?.TotalInstanceCount ?? 0:N0} (Hiện: {_floraMgr?.VisibleInstanceCount ?? 0:N0}) | Loài trội: {domSp}"
+                    : "Cây: Tắt [F]";
 
                 _telemetryLabel.Text =
                     $"Primeval Reach 9.6x5.4 km | FPS: {Engine.GetFramesPerSecond():0} | Seed: {_seed} | Tris: {tris:N0} | {floraStr}\n" +

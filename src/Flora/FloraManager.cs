@@ -6,91 +6,31 @@ using PrimevalWorld.WorldGen;
 
 namespace PrimevalWorld.Flora
 {
-    internal readonly struct FloraInstanceData
-    {
-        public readonly Transform3D Transform;
-        public readonly Color Tint;
-
-        public FloraInstanceData(Transform3D transform, Color tint)
-        {
-            Transform = transform;
-            Tint = tint;
-        }
-    }
-
     /// <summary>
-    /// Optional Stage 1+2 Flora preview layer (toggled via [F], default OFF during geology/soil inspection;
-    /// will be upgraded with Spatial Streaming in Stage 3).
+    /// Stage 3 Spatial Streaming Flora Manager:
+    /// - L1 & L2 (Emergent + Canopy): 16x9 Macro Cells (600m x 600m) for hardware Frustum Culling + VisibilityRangeEnd fade.
+    /// - L3..L6 (Understory, Shrub, Herb, Litter): 64x36 Micro Cells (150m x 150m) dynamically streamed within ~540m of camera.
+    /// - Wind Shader driven directly by Stage 2 WindDirMap & WindSpeedMap GPU texture.
     /// </summary>
     public partial class FloraManager : Node3D
     {
-        private readonly List<MultiMeshInstance3D> _layers = new();
-        private ShaderMaterial? _foliageMat;
-        private Mesh? _broadleafMesh;
-        private Mesh? _autumnMesh;
-        private Mesh? _coniferMesh;
-        private Mesh? _desertTreeMesh;
-        private Mesh? _palmMesh;
+        private readonly EcosystemSpawner _spawner = new();
+        private readonly FloraMeshLibrary _meshLib = new();
 
-        private readonly FloraNicheProfile[] _canopyNiches =
-        {
-            new FloraNicheProfile
-            {
-                Id = FloraSpeciesId.PrimevalBroadleaf,
-                IdealTempC = 18.0f, TempTolerance = 9.5f,
-                IdealMoisture = 0.66f, MoistureTolerance = 0.30f,
-                MaxWindSpeed = 16.5f, MaxSlope = 0.28f, MinSoilDepth = 0.25f, SalinityTolerance = 0.35f,
-                SoilAffinities = new[] { 0.95f, 1.0f, 0.25f, 0.04f, 0.10f, 0.02f }
-            },
-            new FloraNicheProfile
-            {
-                Id = FloraSpeciesId.AutumnGinkgo,
-                IdealTempC = 11.5f, TempTolerance = 7.5f,
-                IdealMoisture = 0.46f, MoistureTolerance = 0.28f,
-                MaxWindSpeed = 18.5f, MaxSlope = 0.30f, MinSoilDepth = 0.22f, SalinityTolerance = 0.25f,
-                SoilAffinities = new[] { 0.45f, 0.75f, 1.0f, 0.10f, 0.05f, 0.05f }
-            },
-            new FloraNicheProfile
-            {
-                Id = FloraSpeciesId.AlpineConifer,
-                IdealTempC = 2.0f, TempTolerance = 8.5f,
-                IdealMoisture = 0.55f, MoistureTolerance = 0.32f,
-                MaxWindSpeed = 22.0f, MaxSlope = 0.32f, MinSoilDepth = 0.12f, SalinityTolerance = 0.30f,
-                SoilAffinities = new[] { 0.30f, 0.65f, 0.65f, 0.02f, 0.05f, 0.95f }
-            },
-            new FloraNicheProfile
-            {
-                Id = FloraSpeciesId.DesertBaobab,
-                IdealTempC = 27.0f, TempTolerance = 8.5f,
-                IdealMoisture = 0.22f, MoistureTolerance = 0.24f,
-                MaxWindSpeed = 20.0f, MaxSlope = 0.30f, MinSoilDepth = 0.12f, SalinityTolerance = 0.35f,
-                SoilAffinities = new[] { 0.15f, 0.20f, 0.35f, 1.0f, 0.20f, 0.10f }
-            },
-            new FloraNicheProfile
-            {
-                Id = FloraSpeciesId.OasisPalm,
-                IdealTempC = 23.0f, TempTolerance = 8.0f,
-                IdealMoisture = 0.72f, MoistureTolerance = 0.28f,
-                MaxWindSpeed = 19.0f, MaxSlope = 0.26f, MinSoilDepth = 0.12f, SalinityTolerance = 1.0f,
-                SoilAffinities = new[] { 0.85f, 0.35f, 0.10f, 0.45f, 1.0f, 0.02f }
-            },
-        };
+        private ShaderMaterial? _canopyMat;
+        private ShaderMaterial? _detailMat;
 
-        public int TotalInstanceCount { get; private set; }
+        private readonly List<MultiMeshInstance3D>[,] _macroNodes = new List<MultiMeshInstance3D>[EcosystemSpawner.MacroCols, EcosystemSpawner.MacroRows];
+        private readonly List<MultiMeshInstance3D>[,] _microNodes = new List<MultiMeshInstance3D>[EcosystemSpawner.MicroCols, EcosystemSpawner.MicroRows];
+        private readonly int[,] _macroCounts = new int[EcosystemSpawner.MacroCols, EcosystemSpawner.MacroRows];
+        private readonly int[,] _microCounts = new int[EcosystemSpawner.MicroCols, EcosystemSpawner.MicroRows];
 
-        public void ClearFlora()
-        {
-            foreach (MultiMeshInstance3D layer in _layers)
-                layer.QueueFree();
-            _layers.Clear();
-            TotalInstanceCount = 0;
-        }
+        private int _lastCamMicroX = -999;
+        private int _lastCamMicroZ = -999;
 
-        public ImageTexture BuildEmptyCoverageTexture()
-        {
-            byte[] zero = new byte[64 * 64];
-            return ImageTexture.CreateFromImage(Image.CreateFromData(64, 64, false, Image.Format.L8, zero));
-        }
+        public EcosystemSpawner Spawner => _spawner;
+        public int TotalInstanceCount => _spawner.TotalInstances;
+        public int VisibleInstanceCount { get; private set; }
 
         public ImageTexture BuildFlora(
             ErosionPhysics erosion,
@@ -100,148 +40,199 @@ namespace PrimevalWorld.Flora
             int seed)
         {
             ClearFlora();
-            EnsureAssets(climate);
+            EnsureMaterials(climate);
 
-            var broadleafs = new List<FloraInstanceData>(6000);
-            var ginkgos = new List<FloraInstanceData>(4000);
-            var conifers = new List<FloraInstanceData>(6000);
-            var desertTrees = new List<FloraInstanceData>(2500);
-            var palms = new List<FloraInstanceData>(1500);
+            _spawner.Generate(erosion, hydrology, climate, soil, seed);
 
-            var rng = new Random(seed + 4242);
-            const float step = 28.0f;
-            float[] scores = new float[_canopyNiches.Length];
-
-            for (float z = 120.0f; z < WorldPhysicsConfig.WorldDepth - 120.0f; z += step)
+            // Build L1 & L2 Macro MultiMesh cells (16x9)
+            for (int mz = 0; mz < EcosystemSpawner.MacroRows; mz++)
             {
-                for (float x = 120.0f; x < WorldPhysicsConfig.WorldWidth - 120.0f; x += step)
+                for (int mx = 0; mx < EcosystemSpawner.MacroCols; mx++)
                 {
-                    float wx = x + (float)(rng.NextDouble() - 0.5) * step * 0.85f;
-                    float wz = z + (float)(rng.NextDouble() - 0.5) * step * 0.85f;
-                    float h = erosion.SampleHeight(wx, wz);
-                    if (h < 2.0f || hydrology.SampleRiverMask(wx, wz) > 0.50f) continue;
+                    var list = _spawner.MacroCanopyCells[mx, mz];
+                    _macroCounts[mx, mz] = list.Count;
+                    var nodeList = BuildCellMultiMeshes(list, _canopyMat!, isMacroCanopy: true, mx, mz);
+                    _macroNodes[mx, mz] = nodeList;
+                }
+            }
 
-                    float slopeNorm = 1.0f - Math.Clamp(MathF.Cos(Mathf.DegToRad(erosion.SampleSlopeDeg(wx, wz))), 0.0f, 1.0f);
-                    ClimateSample cs = climate.SampleClimate(wx, wz);
-                    SoilSample ss = soil.SampleSoil(wx, wz);
+            // Build L3..L6 Micro MultiMesh cells (64x36, initially hidden until streamed near camera)
+            for (int mz = 0; mz < EcosystemSpawner.MicroRows; mz++)
+            {
+                for (int mx = 0; mx < EcosystemSpawner.MicroCols; mx++)
+                {
+                    var list = _spawner.MicroDetailCells[mx, mz];
+                    _microCounts[mx, mz] = list.Count;
+                    var nodeList = BuildCellMultiMeshes(list, _detailMat!, isMacroCanopy: false, mx, mz);
+                    _microNodes[mx, mz] = nodeList;
+                }
+            }
 
-                    // Evaluate niche profile using continuous soil weights
-                    float total = 0.0f;
-                    float maxSc = 0.0f;
-                    for (int i = 0; i < _canopyNiches.Length; i++)
+            _lastCamMicroX = -999;
+            _lastCamMicroZ = -999;
+            return _spawner.BuildCanopyCoverageTexture();
+        }
+
+        public void UpdateStreaming(Vector3 cameraPos)
+        {
+            int camMx = Math.Clamp((int)(cameraPos.X / EcosystemSpawner.MicroCellSize), 0, EcosystemSpawner.MicroCols - 1);
+            int camMz = Math.Clamp((int)(cameraPos.Z / EcosystemSpawner.MicroCellSize), 0, EcosystemSpawner.MicroRows - 1);
+            if (camMx == _lastCamMicroX && camMz == _lastCamMicroZ) return;
+
+            _lastCamMicroX = camMx;
+            _lastCamMicroZ = camMz;
+
+            const int streamRadiusCells = 4; // 4 * 150m = 600m radius
+            int visCount = 0;
+
+            // Count macro canopy instances within visibility range (~2900m)
+            for (int z = 0; z < EcosystemSpawner.MacroRows; z++)
+            {
+                float cz = (z + 0.5f) * EcosystemSpawner.MacroCellSize;
+                for (int x = 0; x < EcosystemSpawner.MacroCols; x++)
+                {
+                    float cx = (x + 0.5f) * EcosystemSpawner.MacroCellSize;
+                    float dx = cx - cameraPos.X;
+                    float dz = cz - cameraPos.Z;
+                    bool inRange = dx * dx + dz * dz < 3100.0f * 3100.0f;
+                    if (inRange) visCount += _macroCounts[x, z];
+
+                    // Enable shadows only on nearby macro cells (< 750m)
+                    bool nearShadow = dx * dx + dz * dz < 750.0f * 750.0f;
+                    var nodes = _macroNodes[x, z];
+                    if (nodes == null) continue;
+                    for (int i = 0; i < nodes.Count; i++)
+                        nodes[i].CastShadow = nearShadow ? GeometryInstance3D.ShadowCastingSetting.On : GeometryInstance3D.ShadowCastingSetting.Off;
+                }
+            }
+
+            // Toggle L3..L6 micro cells within 4-cell (~600m) radius (zero GC allocations per frame!)
+            for (int z = 0; z < EcosystemSpawner.MicroRows; z++)
+            {
+                for (int x = 0; x < EcosystemSpawner.MicroCols; x++)
+                {
+                    var nodes = _microNodes[x, z];
+                    if (nodes == null || nodes.Count == 0) continue;
+
+                    int dx = x - camMx;
+                    int dz = z - camMz;
+                    bool active = dx * dx + dz * dz <= streamRadiusCells * streamRadiusCells;
+                    if (active) visCount += _microCounts[x, z];
+
+                    if (nodes[0].Visible != active)
                     {
-                        var n = _canopyNiches[i];
-                        if (slopeNorm > n.MaxSlope || ss.SoilDepth < n.MinSoilDepth || cs.WindSpeed > n.MaxWindSpeed)
-                        {
-                            scores[i] = 0.0f;
-                            continue;
-                        }
-                        float tDiff = (cs.TemperatureC - n.IdealTempC) / n.TempTolerance;
-                        float mDiff = (cs.Moisture - n.IdealMoisture) / n.MoistureTolerance;
-                        float sScore = ss.WAlluvial * n.SoilAffinities[0]
-                                     + ss.WForestBrown * n.SoilAffinities[1]
-                                     + ss.WSteppeLoess * n.SoilAffinities[2]
-                                     + ss.WAridRed * n.SoilAffinities[3]
-                                     + ss.WCoastalSand * n.SoilAffinities[4]
-                                     + ss.WPermafrostRock * n.SoilAffinities[5];
-                        float sc = MathF.Exp(-tDiff * tDiff * 1.3f) * MathF.Exp(-mDiff * mDiff * 1.2f) * MathF.Max(0.02f, sScore);
-                        scores[i] = sc;
-                        total += sc;
-                        if (sc > maxSc) maxSc = sc;
-                    }
-
-                    if (maxSc < 0.08f || rng.NextDouble() > Math.Clamp(maxSc * 1.4f, 0.05f, 0.90f))
-                        continue;
-
-                    float pick = (float)rng.NextDouble() * total;
-                    float acc = 0.0f;
-                    int chosen = 0;
-                    for (int i = 0; i < _canopyNiches.Length; i++)
-                    {
-                        acc += scores[i];
-                        if (pick <= acc) { chosen = i; break; }
-                    }
-
-                    float yaw = (float)rng.NextDouble() * MathF.Tau;
-                    float scale = 1.15f + (float)rng.NextDouble() * 0.85f;
-                    var xf = new Transform3D(Basis.Identity.Rotated(Vector3.Up, yaw).Scaled(new Vector3(scale, scale, scale)), new Vector3(wx, h - 0.3f, wz));
-
-                    switch (_canopyNiches[chosen].Id)
-                    {
-                        case FloraSpeciesId.PrimevalBroadleaf:
-                            broadleafs.Add(new FloraInstanceData(xf, new Color(0.85f, 1.0f, 0.85f)));
-                            break;
-                        case FloraSpeciesId.AutumnGinkgo:
-                            ginkgos.Add(new FloraInstanceData(xf, new Color(1.05f, 0.90f, 0.55f)));
-                            break;
-                        case FloraSpeciesId.AlpineConifer:
-                            conifers.Add(new FloraInstanceData(xf, new Color(0.85f, 0.95f, 0.98f)));
-                            break;
-                        case FloraSpeciesId.DesertBaobab:
-                            desertTrees.Add(new FloraInstanceData(xf, new Color(0.95f, 0.88f, 0.74f)));
-                            break;
-                        case FloraSpeciesId.OasisPalm:
-                            palms.Add(new FloraInstanceData(xf, new Color(0.92f, 1.04f, 0.86f)));
-                            break;
+                        for (int i = 0; i < nodes.Count; i++)
+                            nodes[i].Visible = active;
                     }
                 }
             }
 
-            CreateLayer("Broadleaf", _broadleafMesh!, broadleafs, 2600.0f);
-            CreateLayer("Ginkgo", _autumnMesh!, ginkgos, 2600.0f);
-            CreateLayer("Conifer", _coniferMesh!, conifers, 2600.0f);
-            CreateLayer("Baobab", _desertTreeMesh!, desertTrees, 2400.0f);
-            CreateLayer("Palm", _palmMesh!, palms, 2000.0f);
-
-            return BuildEmptyCoverageTexture();
+            VisibleInstanceCount = visCount;
         }
 
-        private void EnsureAssets(AtmosphereClimate climate)
-        {
-            if (_foliageMat == null)
-            {
-                var windShader = GD.Load<Shader>("res://shaders/foliage_wind.gdshader");
-                _foliageMat = new ShaderMaterial { Shader = windShader };
-                _foliageMat.SetShaderParameter("wind_speed", 1.45f);
-                _foliageMat.SetShaderParameter("wind_strength", 0.16f);
-                _foliageMat.SetShaderParameter("enable_distance_fade", false);
-            }
-            _foliageMat.SetShaderParameter("wind_dir", climate.GlobalPrevailingWind);
+        public string GetDominantSpeciesNameAt(float worldX, float worldZ) => _spawner.GetDominantSpeciesNameAt(worldX, worldZ);
 
-            _broadleafMesh ??= FloraMeshBuilder.CreatePrimevalBroadleafMesh();
-            _autumnMesh ??= FloraMeshBuilder.CreateAutumnDeciduousMesh();
-            _coniferMesh ??= FloraMeshBuilder.CreateAlpineConiferMesh();
-            _desertTreeMesh ??= FloraMeshBuilder.CreateDesertUmbrellaTreeMesh();
-            _palmMesh ??= FloraMeshBuilder.CreatePalmMesh();
+        public ImageTexture BuildEmptyCoverageTexture() => _spawner.BuildEmptyCoverageTexture();
+
+        public void ClearFlora()
+        {
+            foreach (Node child in GetChildren())
+                child.QueueFree();
+            Array.Clear(_macroNodes, 0, _macroNodes.Length);
+            Array.Clear(_microNodes, 0, _microNodes.Length);
+            Array.Clear(_macroCounts, 0, _macroCounts.Length);
+            Array.Clear(_microCounts, 0, _microCounts.Length);
+            VisibleInstanceCount = 0;
         }
 
-        private void CreateLayer(string name, Mesh mesh, List<FloraInstanceData> items, float visEnd)
+        private List<MultiMeshInstance3D> BuildCellMultiMeshes(
+            List<FloraInstance> instances,
+            ShaderMaterial mat,
+            bool isMacroCanopy,
+            int cellX,
+            int cellZ)
         {
-            if (items.Count == 0) return;
-            var mm = new MultiMesh
+            var created = new List<MultiMeshInstance3D>();
+            if (instances.Count == 0) return created;
+
+            var bySpecies = new Dictionary<FloraSpeciesId, List<FloraInstance>>();
+            for (int i = 0; i < instances.Count; i++)
             {
-                TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
-                UseColors = true,
-                Mesh = mesh,
-                InstanceCount = items.Count,
-            };
-            for (int i = 0; i < items.Count; i++)
-            {
-                mm.SetInstanceTransform(i, items[i].Transform);
-                mm.SetInstanceColor(i, items[i].Tint);
+                var inst = instances[i];
+                if (!bySpecies.TryGetValue(inst.Species, out var list))
+                {
+                    list = new List<FloraInstance>(16);
+                    bySpecies[inst.Species] = list;
+                }
+                list.Add(inst);
             }
-            var mmi = new MultiMeshInstance3D
+
+            foreach (var kv in bySpecies)
             {
-                Name = name,
-                Multimesh = mm,
-                MaterialOverride = _foliageMat,
-                CastShadow = GeometryInstance3D.ShadowCastingSetting.On,
-                VisibilityRangeEnd = visEnd,
-                VisibilityRangeEndMargin = 80.0f,
-            };
-            AddChild(mmi);
-            _layers.Add(mmi);
-            TotalInstanceCount += items.Count;
+                FloraNicheProfile prof = FloraNicheDatabase.AllSpecies[(int)kv.Key];
+                var mm = new MultiMesh
+                {
+                    TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
+                    UseColors = true,
+                    Mesh = _meshLib.GetMesh(prof),
+                    InstanceCount = kv.Value.Count,
+                };
+                for (int i = 0; i < kv.Value.Count; i++)
+                {
+                    mm.SetInstanceTransform(i, kv.Value[i].Transform);
+                    mm.SetInstanceColor(i, kv.Value[i].Tint);
+                }
+
+                var mmi = new MultiMeshInstance3D
+                {
+                    Name = $"{(isMacroCanopy ? "Macro" : "Micro")}_{cellX}_{cellZ}_{prof.SpeciesKey}",
+                    Multimesh = mm,
+                    MaterialOverride = mat,
+                    Visible = isMacroCanopy,
+                    CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+                    VisibilityRangeEnd = isMacroCanopy ? 2950.0f : 620.0f,
+                    VisibilityRangeEndMargin = isMacroCanopy ? 350.0f : 80.0f,
+                };
+                AddChild(mmi);
+                created.Add(mmi);
+            }
+
+            return created;
+        }
+
+        private void EnsureMaterials(AtmosphereClimate climate)
+        {
+            var shader = GD.Load<Shader>("res://shaders/foliage_wind.gdshader");
+            ImageTexture windTex = BuildWindDataTexture(climate);
+
+            _canopyMat ??= new ShaderMaterial { Shader = shader };
+            _canopyMat.SetShaderParameter("wind_dir_speed_tex", windTex);
+            _canopyMat.SetShaderParameter("enable_distance_fade", true);
+            _canopyMat.SetShaderParameter("fade_start", 2450.0f);
+            _canopyMat.SetShaderParameter("fade_end", 2950.0f);
+
+            _detailMat ??= new ShaderMaterial { Shader = shader };
+            _detailMat.SetShaderParameter("wind_dir_speed_tex", windTex);
+            _detailMat.SetShaderParameter("enable_distance_fade", true);
+            _detailMat.SetShaderParameter("fade_start", 460.0f);
+            _detailMat.SetShaderParameter("fade_end", 610.0f);
+        }
+
+        private static ImageTexture BuildWindDataTexture(AtmosphereClimate climate)
+        {
+            int w = WorldPhysicsConfig.VertW;
+            int h = WorldPhysicsConfig.VertH;
+            byte[] data = new byte[w * h * 3];
+            for (int i = 0; i < w * h; i++)
+            {
+                Vector2 dir = climate.WindDirMap[i];
+                float spd = climate.WindSpeedMap[i];
+                int o = i * 3;
+                data[o + 0] = (byte)(Math.Clamp(dir.X * 0.5f + 0.5f, 0.0f, 1.0f) * 255.0f);
+                data[o + 1] = (byte)(Math.Clamp(dir.Y * 0.5f + 0.5f, 0.0f, 1.0f) * 255.0f);
+                data[o + 2] = (byte)(Math.Clamp(spd / 30.0f, 0.0f, 1.0f) * 255.0f);
+            }
+            return ImageTexture.CreateFromImage(Image.CreateFromData(w, h, false, Image.Format.Rgb8, data));
         }
     }
 }

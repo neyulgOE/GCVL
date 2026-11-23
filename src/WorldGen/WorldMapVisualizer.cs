@@ -1,6 +1,7 @@
 using System;
 using Godot;
 using PrimevalWorld.Core;
+using PrimevalWorld.Flora;
 
 namespace PrimevalWorld.WorldGen
 {
@@ -17,15 +18,17 @@ namespace PrimevalWorld.WorldGen
             ErosionPhysics erosion,
             HydrologySolver hydrology,
             AtmosphereClimate climate,
-            SoilPedology soil)
+            SoilPedology soil,
+            EcosystemSpawner? flora = null)
         {
-            var textures = new ImageTexture[6];
+            var textures = new ImageTexture[7];
             textures[0] = BuildTerrainHydrologyMap(erosion, hydrology, soil);
             textures[1] = BuildTemperatureMap(climate);
             textures[2] = BuildPrecipitationWindMap(climate);
             textures[3] = BuildMoistureFlowMap(hydrology, climate);
             textures[4] = BuildSoilMap(erosion, soil);
             textures[5] = BuildSlopeSedimentMap(erosion);
+            textures[6] = flora != null ? BuildFloraMap(erosion, hydrology, flora) : textures[0];
             return textures;
         }
 
@@ -168,6 +171,38 @@ namespace PrimevalWorld.WorldGen
                     float sedT = Math.Clamp(erosion.SedimentMap[idx] / 18.0f, 0.0f, 1.0f);
                     Color c = new Color(0.12f + sedT * 0.65f, 0.28f + sedT * 0.30f - slopeT * 0.15f, 0.22f + slopeT * 0.65f);
                     WriteRgb(rgb, py * MapW + px, c);
+                }
+            return ImageTexture.CreateFromImage(Image.CreateFromData(MapW, MapH, false, Image.Format.Rgb8, rgb));
+        }
+
+        private static ImageTexture BuildFloraMap(ErosionPhysics erosion, HydrologySolver hydrology, EcosystemSpawner flora)
+        {
+            byte[] rgb = new byte[MapW * MapH * 3];
+            for (int py = 0; py < MapH; py++)
+                for (int px = 0; px < MapW; px++)
+                {
+                    int idx = MapToGridIdx(px, py);
+                    float h = erosion.HeightMap[idx];
+                    Color col;
+                    if (h < -6.0f) col = new Color(0.04f, 0.14f, 0.26f);
+                    else if (h < 0.3f) col = new Color(0.10f, 0.44f, 0.54f);
+                    else if (hydrology.HasInlandWater[idx] || hydrology.RiverMaskMap[idx] > 0.48f) col = new Color(0.12f, 0.56f, 0.72f);
+                    else
+                    {
+                        sbyte spId = flora.DominantSpeciesMap[idx];
+                        float cov = flora.CanopyCoverageMap[idx];
+                        if (spId >= 0 && spId < FloraNicheDatabase.AllSpecies.Length)
+                        {
+                            Color spCol = FloraNicheDatabase.AllSpecies[spId].MapColor;
+                            float shade = 0.62f + cov * 0.48f;
+                            col = new Color(Math.Clamp(spCol.R * shade, 0, 1), Math.Clamp(spCol.G * shade, 0, 1), Math.Clamp(spCol.B * shade, 0, 1));
+                        }
+                        else
+                        {
+                            col = h > 180.0f ? new Color(0.84f, 0.88f, 0.94f) : new Color(0.38f, 0.34f, 0.28f);
+                        }
+                    }
+                    WriteRgb(rgb, py * MapW + px, col);
                 }
             return ImageTexture.CreateFromImage(Image.CreateFromData(MapW, MapH, false, Image.Format.Rgb8, rgb));
         }
