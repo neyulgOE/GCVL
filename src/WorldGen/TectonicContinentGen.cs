@@ -156,8 +156,8 @@ namespace PrimevalWorld.WorldGen
                     float inlandRamp = FastNoise.SmoothStep(70.0f, 360.0f, dMeters);
                     float baseLandH = 0.8f + beachRamp * 7.5f + beachRamp * (inlandRamp * 32.0f + fbm * 22.0f) + micro * 0.5f;
 
-                    // NW Glacial Alpine peaks up to ~440-460m
-                    float nwLift = snowFeature[idx] * (125.0f + ridged * 285.0f);
+                    // NW Glacial Alpine peaks up to ~600-635m (22:1 mountain-to-emergent scale)
+                    float nwLift = snowFeature[idx] * (155.0f + ridged * 405.0f);
 
                     // SW Terracotta: weathered sandstone mesas (bedrock) + deep loose sand (sediment)
                     float swMesa = fbm * 42.0f + MathF.Pow(ridged, 1.7f) * 28.0f;

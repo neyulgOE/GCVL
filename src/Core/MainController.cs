@@ -428,6 +428,8 @@ namespace PrimevalWorld.Core
                 GD.Print($"[Flora6Layers] SpawnTime={spw.LastSpawnMs:0.0}ms | Total={spw.TotalInstances:N0} | " +
                          $"L1_Emergent={spw.LayerCounts[1]:N0}, L2_Canopy={spw.LayerCounts[2]:N0}, L3_Understory={spw.LayerCounts[3]:N0}, " +
                          $"L4_Shrub={spw.LayerCounts[4]:N0}, L5_Herb={spw.LayerCounts[5]:N0}, L6_Litter={spw.LayerCounts[6]:N0}");
+                GD.Print($"[Flora4StemGroups] WoodyBranching={spw.StemGroupCounts[0]:N0} | DwarfWoodyShrub={spw.StemGroupCounts[1]:N0} | " +
+                         $"ColumnarCaudexCulm={spw.StemGroupCounts[2]:N0} | HerbaceousGround={spw.StemGroupCounts[3]:N0}");
                 var parts = new System.Text.StringBuilder("[FloraSpecies] ");
                 for (int s = 0; s < FloraNicheDatabase.AllSpecies.Length; s++)
                 {
@@ -463,23 +465,23 @@ namespace PrimevalWorld.Core
                         break;
                     case Key.Key1:
                         if (_worldMapOverlay?.Visible == true) SetMapMode(0);
-                        else _camera?.TeleportTo(new Vector3(2650.0f, 540.0f, 2250.0f), new Vector3(2400.0f, 120.0f, 900.0f));
+                        else TeleportCloseToGround(2420.0f, 1180.0f, 38.0f, new Vector3(2360.0f, 180.0f, 920.0f)); // NW Alpine & Krummholz
                         break;
                     case Key.Key2:
                         if (_worldMapOverlay?.Visible == true) SetMapMode(1);
-                        else _camera?.TeleportTo(new Vector3(2350.0f, 340.0f, 4550.0f), new Vector3(2150.0f, 40.0f, 3450.0f));
+                        else TeleportCloseToGround(2220.0f, 3550.0f, 26.0f, new Vector3(2150.0f, 20.0f, 3420.0f)); // SW Red Desert & Oasis Palms
                         break;
                     case Key.Key3:
                         if (_worldMapOverlay?.Visible == true) SetMapMode(2);
-                        else _camera?.TeleportTo(new Vector3(6100.0f, 360.0f, 4750.0f), new Vector3(6400.0f, 30.0f, 3350.0f));
+                        else TeleportCloseToGround(6350.0f, 3420.0f, 24.0f, new Vector3(6420.0f, 28.0f, 3260.0f)); // East Primeval Forest Edge & River
                         break;
                     case Key.Key4:
                         if (_worldMapOverlay?.Visible == true) SetMapMode(3);
-                        else _camera?.TeleportTo(new Vector3(7150.0f, 380.0f, 2650.0f), new Vector3(6700.0f, 55.0f, 1550.0f));
+                        else TeleportCloseToGround(6780.0f, 1620.0f, 28.0f, new Vector3(6680.0f, 52.0f, 1480.0f)); // NE Autumn Steppes
                         break;
                     case Key.Key5:
                         if (_worldMapOverlay?.Visible == true) SetMapMode(4);
-                        else _camera?.TeleportTo(new Vector3(7950.0f, 320.0f, 5150.0f), new Vector3(8650.0f, 25.0f, 4450.0f));
+                        else TeleportCloseToGround(8580.0f, 4540.0f, 22.0f, new Vector3(8660.0f, 16.0f, 4420.0f)); // SE Sanctuary Wetland & Nipa Palms
                         break;
                     case Key.Key6:
                         if (_worldMapOverlay?.Visible == true) SetMapMode(5);
@@ -610,6 +612,12 @@ namespace PrimevalWorld.Core
             _worldEnv.FogLightColor = horizon;
             _worldEnv.FogDensity = 0.00050f + liveW.RainIntensity * 0.0014f + (liveW.ConditionLabel == "Bão cát đỏ" ? 0.0018f : 0.0f);
             _worldEnv.AmbientLightSkyContribution = Mathf.Lerp(0.55f, 0.36f, dayT);
+        }
+
+        private void TeleportCloseToGround(float wx, float wz, float heightAboveGround, Vector3 lookTarget)
+        {
+            float groundH = Mathf.Max(2.0f, _erosion.SampleHeight(wx, wz));
+            _camera?.TeleportTo(new Vector3(wx, groundH + heightAboveGround, wz), new Vector3(lookTarget.X, groundH + 4.0f, lookTarget.Z));
         }
 
         private static string FormatSoil(SoilType soil) => soil switch

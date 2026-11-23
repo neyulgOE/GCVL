@@ -136,12 +136,17 @@ namespace PrimevalWorld.WorldGen
                     localPrecip *= (1.0f - swShadow * 0.65f);
                     PrecipitationMap[idx] = Math.Clamp(localPrecip, 0.05f, 1.0f);
 
-                    // Soil Moisture = Precip + Groundwater + Flow - Evaporation(Temp, Wind)
+                    // Soil Moisture = Precip + Groundwater + Flow - Evaporation(Temp, Wind) + Micro-habitat variation (~350-500m)
+                    float wx = gx * Cell;
+                    float wz = gz * Cell;
+                    float microClim = (FastNoise.Fbm2D(wx * 0.0028f, wz * 0.0028f, seed + 523, 3) - 0.5f) * 0.24f;
+                    float aspectDry = MathF.Max(0.0f, erosion.AspectMap[idx]) * 0.07f; // South-facing slopes slightly drier/warmer
                     float evap = FastNoise.SmoothStep(16.0f, 36.0f, TemperatureMap[idx]) * 0.22f
-                               + FastNoise.SmoothStep(10.0f, 26.0f, WindSpeedMap[idx]) * 0.10f;
-                    float moist = PrecipitationMap[idx] * 0.56f
+                               + FastNoise.SmoothStep(10.0f, 26.0f, WindSpeedMap[idx]) * 0.10f + aspectDry;
+                    float moist = PrecipitationMap[idx] * 0.54f
                                 + hydrology.GroundwaterMap[idx] * 0.36f
-                                + hydrology.FlowAccumMap[idx] * 0.22f
+                                + hydrology.FlowAccumMap[idx] * 0.28f
+                                + microClim
                                 - evap;
                     if (erosion.HeightMap[idx] <= 0.2f) moist = 1.0f;
                     MoistureMap[idx] = Math.Clamp(moist, 0.04f, 1.0f);

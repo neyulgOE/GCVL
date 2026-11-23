@@ -32,14 +32,14 @@ namespace PrimevalWorld.Core
         public const float Lod2Dist = 6500.0f;
         public const float SkirtDepth = 24.0f;
 
-        // Elevation & Ocean Constants (meters)
-        public const float MaxMountainHeight = 460.0f;
+        // Elevation & Ocean Constants (meters) - 620m mountains for ~22:1 ratio over 22-32m emergent trees
+        public const float MaxMountainHeight = 620.0f;
         public const float SeaLevel = 0.0f;
         public const float MaxOceanDepth = -65.0f;
 
         // Atmospheric & Geological Physics Constants (SI)
         public const float Gravity = 9.81f;
-        public const float LapseRate = 0.048f; // °C drop per meter (450m peak ~21.6°C colder)
+        public const float LapseRate = 0.036f; // °C drop per meter (620m peak ~22.3°C colder)
         public const float SandReposeDeg = 32.0f;
         public const float SoilReposeDeg = 40.0f;
         public const float RockReposeDeg = 64.0f;
