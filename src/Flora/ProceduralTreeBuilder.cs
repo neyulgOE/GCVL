@@ -141,6 +141,18 @@ namespace PrimevalWorld.Flora
                     AddCurvedLeafSprigCluster(st, sEnd, crownCenter, 1.35f * sMult, 2, leafType: 0, rng, 0.14f);
                 }
                 AddCurvedLeafSprigCluster(st, bEnd, crownCenter, 1.45f * sMult, 2, leafType: 0, rng, 0.14f);
+
+                // Hanging Moss / Epiphyte Drapes dangling vertically under main rainforest limbs (Hoh Rainforest feel!)
+                if (age != AgeStage.Young)
+                {
+                    Vector3 midLimb = p2.Lerp(bEnd, 0.58f);
+                    float drapeLen = (2.2f + (float)rng.NextDouble() * 1.8f) * hMult;
+                    Vector3 side = new Vector3(-MathF.Sin(azim), 0.0f, MathF.Cos(azim)) * 0.55f;
+                    var mossTop = new Color(0.58f, 0.72f, 0.42f, 0.25f);
+                    var mossTip = new Color(0.76f, 0.88f, 0.52f, 0.48f);
+                    AddSprigQuad(st, midLimb - side, midLimb + side, midLimb + side - Vector3.Up * drapeLen, midLimb - side - Vector3.Up * drapeLen,
+                        mossTop, mossTip, Vector3.Up, leafType: 3, new Vector2(0.0f, 1.0f));
+                }
             }
             AddCurvedLeafSprigCluster(st, crownCenter + Vector3.Up * 1.4f, crownCenter, 1.55f * sMult, 2, leafType: 0, rng, 0.15f);
         }

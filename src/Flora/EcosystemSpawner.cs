@@ -144,6 +144,13 @@ namespace PrimevalWorld.Flora
                     float corridorKeep = 1.0f - CorridorMask[gIdx] * 0.84f;
                     if (((hKey >> 16) & 0xFF) / 255.0f > corridorKeep) continue;
 
+                    // Natural Macro Forest Clumping vs Open River-Valley Meadows (eliminates uniform salt-and-pepper trees!)
+                    float forestPatch = FastNoise.Fbm2D(wx * 0.0014f, wz * 0.0014f, seed + 811, 3);
+                    bool isRiparianEdge = gw > 0.40f && hydrology.RiverMaskMap[gIdx] > 0.05f;
+                    bool isOpenMeadow = h < 36.0f && slopeDeg < 11.0f && forestPatch < 0.44f && !isRiparianEdge && ss.WAridRed < 0.35f;
+                    if (isOpenMeadow && (((hKey >> 20) & 0xFF) / 255.0f) > 0.045f)
+                        continue;
+
                     float total = 0.0f;
                     float bestScore = 0.0f;
                     int bestIdx = -1;
@@ -159,7 +166,8 @@ namespace PrimevalWorld.Flora
 
                     if (bestScore < 0.045f || bestIdx < 0) continue;
 
-                    float spawnProb = Math.Clamp(bestScore * 1.48f + ss.WAridRed * 0.12f, 0.04f, 0.94f);
+                    float clumpBoost = (forestPatch >= 0.44f || isRiparianEdge) ? 1.75f : 1.30f;
+                    float spawnProb = Math.Clamp(bestScore * clumpBoost + ss.WAridRed * 0.12f, 0.05f, 0.96f);
                     float roll = ((hKey >> 24) & 0xFF) / 255.0f;
                     if (roll > spawnProb) continue;
 
@@ -221,7 +229,7 @@ namespace PrimevalWorld.Flora
                             for (int b = 0; b < bucket.Count; b++)
                             {
                                 CandidateTree other = acceptedTrees[bucket[b]];
-                                float minDist = (cand.Radius + other.Radius) * 0.60f;
+                                float minDist = (cand.Radius + other.Radius) * 0.50f;
                                 float ddx = cand.X - other.X;
                                 float ddz = cand.Z - other.Z;
                                 if (ddx * ddx + ddz * ddz < minDist * minDist)

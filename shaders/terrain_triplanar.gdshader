@@ -145,10 +145,13 @@ void fragment() {
 	vec3 shore_col = mix(reef_bed, c_coastal * (0.86 + 0.28 * micro_detail), smoothstep(-3.5, 1.2, h));
 	vec3 terrain_col = mix(shore_col, soil_col, smoothstep(2.0, 8.0, h));
 
-	// Wet dark riverbanks & pebble beds
-	float river_bank = smoothstep(0.18, 0.78, river_mask);
+	// Natural Point-Bar Sand/Gravel Bars along gentle meandering river bends + Wet riverbanks
+	float river_bank = smoothstep(0.16, 0.72, river_mask);
+	float gentle_bar = smoothstep(0.14, 0.04, slope) * smoothstep(0.12, 0.45, river_mask) * (1.0 - smoothstep(0.55, 0.85, river_mask));
+	vec3 gravel_bar = mix(vec3(0.76, 0.71, 0.58), vec3(0.58, 0.54, 0.46), micro_detail * 0.65 + cliff_cracks * 0.35);
 	vec3 river_pebble = mix(vec3(0.36, 0.32, 0.25), vec3(0.24, 0.22, 0.19), cliff_cracks * 0.45);
-	terrain_col = mix(terrain_col, river_pebble, river_bank * 0.86);
+	terrain_col = mix(terrain_col, river_pebble, river_bank * 0.82);
+	terrain_col = mix(terrain_col, gravel_bar, gentle_bar * 0.78);
 
 	// Exposed Granite / Sandstone Cliffs (driven by Slope + SoilDepth + BedrockMask)
 	vec3 granite_rock = mix(vec3(0.22, 0.23, 0.25), vec3(0.37, 0.36, 0.34), cliff_cracks * 0.65 + strata * 0.35);

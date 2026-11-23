@@ -22,6 +22,7 @@ varying float v_snow_accum;
 varying vec2 v_uv;
 varying float v_is_leaf;
 varying float v_leaf_type;
+varying float v_local_y;
 
 vec2 hash21_v(vec2 p) {
 	vec3 p3 = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
@@ -34,6 +35,7 @@ void vertex() {
 	v_uv = UV;
 	v_is_leaf = UV2.x;
 	v_leaf_type = UV2.y;
+	v_local_y = VERTEX.y;
 	float stem_flex = COLOR.a;
 
 	vec3 world_origin = (MODEL_MATRIX * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
@@ -128,9 +130,17 @@ void fragment() {
 		BACKLIGHT = col * 0.48 * (1.0 - snow_dust * 0.6);
 	} else {
 		vec3 b_col = texture(bark_tex, v_uv).rgb;
-		ALBEDO = col * mix(vec3(1.0), b_col * 1.35, 0.60);
+		vec3 bark_final = col * mix(vec3(1.0), b_col * 1.35, 0.65);
+		// Hoh Rainforest Mossy Bark: rich moss climbs trunk bases (<3.8m) & coats top of horizontal limbs
+		float base_moss = smoothstep(3.8, 0.35, v_local_y) * 0.72;
+		float limb_moss = smoothstep(0.28, 0.76, v_world_normal.y) * 0.68;
+		float moss_mask = clamp(max(base_moss, limb_moss) * smoothstep(0.10, 0.55, b_col.r), 0.0, 0.85);
+		vec3 moss_col = mix(vec3(0.14, 0.27, 0.07), vec3(0.24, 0.38, 0.10), b_col.g);
+		bark_final = mix(bark_final, moss_col, moss_mask);
+
+		ALBEDO = bark_final;
 		ROUGHNESS = 0.92;
 		SPECULAR = 0.08;
-		BACKLIGHT = col * 0.10;
+		BACKLIGHT = moss_col * (0.14 * moss_mask);
 	}
 }
