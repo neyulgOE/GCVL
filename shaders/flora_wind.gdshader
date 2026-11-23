@@ -105,17 +105,19 @@ void fragment() {
 		}
 
 		ALPHA = leaf_tex.a;
-		ALPHA_SCISSOR_THRESHOLD = 0.5;
-		col *= leaf_tex.rgb;
+		ALPHA_SCISSOR_THRESHOLD = 0.44;
+		// Subtle botanical tint around 1.0 so real leaf greens, ginkgo golds, and brown twigs stay natural!
+		vec3 subtle_tint = mix(vec3(1.0), clamp(v_color * 1.45 + vec3(0.25), vec3(0.68), vec3(1.22)), 0.34);
+		col = leaf_tex.rgb * subtle_tint;
 
 		float spring_t = sin(clamp(season_phase / 0.25, 0.0, 1.0) * 3.14159);
 		float autumn_t = sin(clamp((season_phase - 0.48) / 0.28, 0.0, 1.0) * 3.14159);
 		float winter_t = smoothstep(0.72, 0.88, season_phase) * (1.0 - smoothstep(0.95, 1.0, season_phase));
 
 		float warm_leaf = smoothstep(0.18, 0.55, col.r + col.g * 0.4 - col.b * 0.5);
-		col = mix(col, col * vec3(1.06, 1.14, 0.92), spring_t * 0.32 * warm_leaf);
-		col = mix(col, vec3(col.r * 1.18 + 0.16, col.g * 0.84 + 0.04, col.b * 0.65), autumn_t * 0.48 * warm_leaf);
-		col = mix(col, col * vec3(0.68, 0.62, 0.58), winter_t * 0.42 * warm_leaf);
+		col = mix(col, col * vec3(1.05, 1.12, 0.92), spring_t * 0.25 * warm_leaf);
+		col = mix(col, vec3(col.r * 1.15 + 0.12, col.g * 0.86 + 0.03, col.b * 0.68), autumn_t * 0.42 * warm_leaf);
+		col = mix(col, col * vec3(0.72, 0.66, 0.62), winter_t * 0.36 * warm_leaf);
 
 		float snow_dust = smoothstep(0.22, 0.62, v_snow_accum) * smoothstep(0.32, 0.72, v_world_normal.y);
 		col = mix(col, vec3(0.88, 0.93, 0.98), snow_dust * 0.88);

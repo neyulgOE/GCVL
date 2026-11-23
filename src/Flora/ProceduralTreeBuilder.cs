@@ -38,8 +38,10 @@ namespace PrimevalWorld.Flora
 
                 case FloraSpeciesId.GinkgoAncientGold:
                 case FloraSpeciesId.CrimsonSteppeMaple:
+                    BuildDeciduousTree(st, rng, ageHeightMult, ageSpreadMult, ageRadiusMult, leafType: 2);
+                    break;
                 case FloraSpeciesId.StarAppleCanopy:
-                    BuildDeciduousTree(st, rng, ageHeightMult, ageSpreadMult, ageRadiusMult);
+                    BuildDeciduousTree(st, rng, ageHeightMult, ageSpreadMult, ageRadiusMult, leafType: 0);
                     break;
 
                 case FloraSpeciesId.WeepingRiverWillow:
@@ -68,7 +70,7 @@ namespace PrimevalWorld.Flora
                     break;
 
                 default:
-                    BuildDeciduousTree(st, rng, ageHeightMult, ageSpreadMult, ageRadiusMult);
+                    BuildDeciduousTree(st, rng, ageHeightMult, ageSpreadMult, ageRadiusMult, leafType: 0);
                     break;
             }
 
@@ -143,7 +145,7 @@ namespace PrimevalWorld.Flora
             AddCurvedLeafSprigCluster(st, crownCenter + Vector3.Up * 1.4f, crownCenter, 1.55f * sMult, 2, leafType: 0, rng, 0.15f);
         }
 
-        private static void BuildDeciduousTree(SurfaceTool st, Random rng, float hMult, float sMult, float rMult)
+        private static void BuildDeciduousTree(SurfaceTool st, Random rng, float hMult, float sMult, float rMult, int leafType)
         {
             var barkBot = new Color(0.32f, 0.25f, 0.18f, 0.0f);
             var barkTop = new Color(0.38f, 0.30f, 0.22f, 0.02f);
@@ -174,11 +176,11 @@ namespace PrimevalWorld.Flora
                     float sAz = azim + (s == 0 ? -0.65f : 0.65f);
                     Vector3 sEnd = bEnd + new Vector3(MathF.Cos(sAz), 0.45f, MathF.Sin(sAz)).Normalized() * (2.3f * sMult);
                     AddTaperedCylinder(st, bEnd, sEnd, childR * 0.45f, childR * 0.20f, 4, barkTop, barkTop);
-                    AddCurvedLeafSprigCluster(st, sEnd, crownCenter, 2.1f * sMult, 2, leafType: 0, rng, 0.15f);
+                    AddCurvedLeafSprigCluster(st, sEnd, crownCenter, 1.65f * sMult, 2, leafType, rng, 0.15f);
                 }
-                AddCurvedLeafSprigCluster(st, bEnd, crownCenter, 2.2f * sMult, 2, leafType: 0, rng, 0.15f);
+                AddCurvedLeafSprigCluster(st, bEnd, crownCenter, 1.75f * sMult, 2, leafType, rng, 0.15f);
             }
-            AddCurvedLeafSprigCluster(st, crownCenter + Vector3.Up * 1.4f, crownCenter, 2.4f * sMult, 2, leafType: 0, rng, 0.16f);
+            AddCurvedLeafSprigCluster(st, crownCenter + Vector3.Up * 1.4f, crownCenter, 1.9f * sMult, 2, leafType, rng, 0.16f);
         }
 
         private static void BuildWeepingTree(SurfaceTool st, Random rng, float hMult, float sMult, float rMult, bool paleBark)
