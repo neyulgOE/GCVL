@@ -202,7 +202,7 @@ namespace PrimevalWorld.Core
 
             var helpLabel = new Label
             {
-                Text = "WASD: Bay | E/Q: Lên/Xuống | Shift+Cuộn: Max 1000m/s | 1-5: 5 Vùng | M: Bản đồ 8 lớp | F: Cây | Space: Dừng | [/]: Tốc độ | T:+3h | Y: Đổi Mùa | P: Thời tiết",
+                Text = "WASD: Bay/Đi | V: Góc nhìn Thú (0.85/1.65/3.6m) | 1-5: 5 Vùng | M: Bản đồ 8 lớp | F: Cây | Space: Dừng/Nhảy | [/]: Tốc độ | T:+3h | Y: Mùa | P: Thời tiết",
             };
             helpLabel.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
             helpLabel.OffsetLeft = 16;
@@ -397,6 +397,7 @@ namespace PrimevalWorld.Core
 
             _weather.Initialize(_erosion, _hydrology, _climate, _soil, seed);
             _weather.ForceImmediateStep(_clock);
+            _camera?.AttachPhysics(_erosion, _hydrology, _soil);
             _cloudCanopyMat?.SetShaderParameter("weather_dynamic_tex", _weather.WeatherDynamicTex);
             _terrainMgr?.SetWeatherTexture(_weather.WeatherDynamicTex);
             _waterSurface?.UpdateWeather(_weather.WeatherDynamicTex, _weather.SurfaceState.RiverSurgeOffset, _weather.GlobalWindGust);
@@ -493,7 +494,8 @@ namespace PrimevalWorld.Core
                         if (_worldMapOverlay?.Visible == true) SetMapMode(7);
                         break;
                     case Key.Space:
-                        _clock.TogglePause();
+                        if (_camera == null || !_camera.IsAnimalPov)
+                            _clock.TogglePause();
                         break;
                     case Key.Bracketleft:
                         _clock.StepSpeed(-1);
@@ -551,10 +553,11 @@ namespace PrimevalWorld.Core
                     int hh = (int)_clock.TimeOfDay;
                     int mm = (int)((_clock.TimeOfDay - hh) * 60.0f);
                     string speedStr = _clock.IsPaused ? "Dừng" : $"x{_clock.SpeedMultiplier:0}";
+                    string warnStr = string.IsNullOrEmpty(_camera.MovementWarning) ? "" : $" | [!] {_camera.MovementWarning}";
 
                     _telemetryLabel.Text =
-                        $"Primeval Reach 9.6x5.4 km | FPS: {Engine.GetFramesPerSecond():0} | Tris: {tris:N0} | {floraStr}\n" +
-                        $"Ngày {_clock.DayOfYear + 1} | Mùa {_clock.SeasonNameVi} | {hh:00}:{mm:00} ({speedStr}) | {liveW.ConditionLabel} | Nhiệt: {liveW.LiveTempC:0.0}°C | Tuyết: {liveW.SnowAccum * 100f:0}% | Ẩm mặt: {liveW.Wetness * 100f:0}%\n" +
+                        $"Primeval Reach 9.6x5.4 km | FPS: {Engine.GetFramesPerSecond():0} | Tris: {tris:N0} | Góc nhìn [V]: {_camera.PovLabel}{warnStr}\n" +
+                        $"Ngày {_clock.DayOfYear + 1} | Mùa {_clock.SeasonNameVi} | {hh:00}:{mm:00} ({speedStr}) | {liveW.ConditionLabel} | Nhiệt: {liveW.LiveTempC:0.0}°C | Tuyết: {liveW.SnowAccum * 100f:0}% | Ẩm mặt: {liveW.Wetness * 100f:0}% | {floraStr}\n" +
                         $"Cao độ: {h:0.0}m | Dốc: {slope:0.0}° | Gió: {liveW.LiveWindSpeed:0.0}m/s | Mây: {liveW.CloudCover * 100f:0}% | Đất: {FormatSoil(ss.DominantSoil)}";
                 }
             }
