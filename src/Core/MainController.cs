@@ -332,7 +332,7 @@ namespace PrimevalWorld.Core
 
             if (_floraEnabled && !_floraBuiltForSeed)
             {
-                ImageTexture canopyTex = _floraMgr.BuildFlora(_tectonic, _erosion, _hydrology, _climate, _soil, _seed);
+                ImageTexture canopyTex = _floraMgr.BuildFlora(_tectonic, _erosion, _hydrology, _climate, _soil, _seed, _terrainMgr?.ClimateTex);
                 _terrainMgr?.SetCanopyCoverageTexture(canopyTex);
                 if (_grassRing != null && _terrainMgr?.SoilATex != null && _terrainMgr.SoilBTex != null && _terrainMgr.ClimateTex != null && _floraMgr.WindDataTex != null)
                     _grassRing.BindWorldTextures(_erosion, _terrainMgr.SoilATex, _terrainMgr.SoilBTex, _terrainMgr.ClimateTex, canopyTex, _floraMgr.WindDataTex);
@@ -376,7 +376,7 @@ namespace PrimevalWorld.Core
                 ImageTexture canopyTex = emptyCov;
                 if (_floraEnabled)
                 {
-                    canopyTex = _floraMgr.BuildFlora(_tectonic, _erosion, _hydrology, _climate, _soil, seed);
+                    canopyTex = _floraMgr.BuildFlora(_tectonic, _erosion, _hydrology, _climate, _soil, seed, _terrainMgr?.ClimateTex);
                     _terrainMgr?.SetCanopyCoverageTexture(canopyTex);
                     _floraBuiltForSeed = true;
                 }

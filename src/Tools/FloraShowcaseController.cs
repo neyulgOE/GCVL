@@ -1,31 +1,35 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using Godot;
 using PrimevalWorld.Flora;
 
 namespace PrimevalWorld.Tools
 {
     /// <summary>
-    /// Dedicated Close-Up Botanical Lab (scenes/FloraShowcase.tscn, ./run.sh --flora-test):
-    /// 100m x 100m test ground + 5 representative prehistoric species x 3 ages (Young / Mature / Ancient) = 15 trees
-    /// + 3 animal scale poles (0.85m Wolf, 1.65m Bison, 3.60m Mammoth) + live Sun/Wind/Seed/Wireframe controls.
+    /// Phase 1 Botanical Inspection Lab (scenes/FloraShowcase.tscn, ./run.sh --flora-test):
+    /// - Row 1 (Z = 0m): All 4 Broadleaf Variants (A: Buttress Giant, B: Gnarled Mid-Canopy, C: Forest Sapling, D: Columnar Giant)
+    ///   with CC0 1K PBR Bark+Moss (bark_moss.gdshader) & Hanging Moss Lianas.
+    /// - Row 2 (Z = -26m): 2 Conifer Variants, Weeping Willow, Baobab, Dragon Blood, and Tree Fern / Nipa Palm.
+    /// - Mini Rainforest Grove (25m x 25m at X = -12..+13m, Z = +20..+45m): 4 giant trees + Hanging Lianas +
+    ///   2 Lush Sword Fern variants + Giant Broadleaf Aroids + Dense Understory Shrubs + Mossy Fallen Logs!
+    /// - Quick 3-Distance Inspection Keys: [1]=10m (0.85m eye level), [2]=100m (LOD0->LOD1), [3]=500m (LOD2), [4]=Mini Grove, [L]=LOD Debug!
     /// </summary>
     public partial class FloraShowcaseController : Node3D
     {
-        private static readonly (FloraSpeciesId Id, string NameVi, Color Tint)[] ShowcaseSpecies =
-        {
-            (FloraSpeciesId.PrimevalBanyanFig, "Đa Cổ Thụ Nghìn Năm", new Color(0.92f, 1.02f, 0.88f, 0.25f)),
-            (FloraSpeciesId.GinkgoAncientGold, "Bạch Quả Cổ Sinh", new Color(0.98f, 1.06f, 0.88f, 0.50f)),
-            (FloraSpeciesId.BorealSnowPine, "Thông Tuyết Phương Bắc", new Color(0.84f, 0.94f, 0.90f, 0.35f)),
-            (FloraSpeciesId.DragonBloodTree, "Cây Máu Rồng Tán Ô", new Color(0.94f, 0.98f, 0.78f, 0.45f)),
-            (FloraSpeciesId.ArborescentTreeFern, "Dương Xỉ Thân Gỗ & Dừa Nước", new Color(0.95f, 1.05f, 0.90f, 0.30f)),
-        };
+        private readonly FloraMeshLibrary _meshLib = new();
 
         private Camera3D? _cam;
         private DirectionalLight3D? _sun;
         private ShaderMaterial? _skyMat;
-        private ShaderMaterial? _floraMat;
+
+        private ShaderMaterial? _barkLod0Mat;
+        private ShaderMaterial? _barkLod1Mat;
+        private ShaderMaterial? _leafLod0Mat;
+        private ShaderMaterial? _leafLod1Mat;
+        private ShaderMaterial? _leafLod2Mat;
         private ShaderMaterial? _grassMat;
+
         private MultiMeshInstance3D? _grassMmi;
         private Node3D? _treesRoot;
         private Node3D? _markersRoot;
@@ -33,19 +37,22 @@ namespace PrimevalWorld.Tools
 
         private ImageTexture? _windTex;
         private ImageTexture? _weatherTex;
+        private ImageTexture? _climateTex;
+        private ImageTexture? _canopyTex;
         private BotanicalTextureGenerator.BotanicalTextures? _botTex;
 
-        private readonly List<(Vector3 Pos, string Name, int Tris)> _treeRecords = new();
+        private readonly List<(Vector3 Pos, string Name, int Lod0Tris, int Lod1Tris, int Lod2Tris)> _treeRecords = new();
 
         private int _seed = 2026;
-        private float _sunElevDeg = 32.0f;
-        private float _sunAzimDeg = -135.0f;
+        private float _sunElevDeg = 29.0f; // Cinematic oblique 08:45 morning angle
+        private float _sunAzimDeg = -132.0f;
         private float _windSpeed = 7.5f;
         private int _povMode = 0; // 0 = Wolf (0.85m), 1 = Mammoth (3.60m), 2 = Free Fly
         private float _yaw;
         private float _pitch = 0.08f;
         private bool _rotating;
         private bool _wireframe;
+        private bool _lodDebug;
         private bool _showMarkersAndGrass = true;
 
         public override void _Ready()
@@ -54,9 +61,9 @@ namespace PrimevalWorld.Tools
             SetupSkyAndLighting();
             BuildGround();
             BuildGrassPatch();
-            BuildShowcaseTrees();
+            BuildShowcaseScene();
             BuildHud();
-            TeleportToRow(0);
+            JumpToInspectionDistance(10.0f);
             PrintVerificationLog();
         }
 
@@ -65,39 +72,40 @@ namespace PrimevalWorld.Tools
             var skyShader = GD.Load<Shader>("res://shaders/procedural_sky_clouds.gdshader");
             _skyMat = new ShaderMaterial { Shader = skyShader };
             _skyMat.SetShaderParameter("day_t", 1.0f);
-            _skyMat.SetShaderParameter("golden_t", 0.15f);
-            _skyMat.SetShaderParameter("cloud_cover", 0.25f);
+            _skyMat.SetShaderParameter("golden_t", 0.25f);
+            _skyMat.SetShaderParameter("cloud_cover", 0.22f);
 
             var env = new Godot.Environment
             {
                 BackgroundMode = Godot.Environment.BGMode.Sky,
                 Sky = new Sky { SkyMaterial = _skyMat },
                 AmbientLightSource = Godot.Environment.AmbientSource.Sky,
-                AmbientLightSkyContribution = 0.90f,
-                AmbientLightEnergy = 1.25f,
+                AmbientLightSkyContribution = 0.88f,
+                AmbientLightEnergy = 1.05f,
                 TonemapMode = Godot.Environment.ToneMapper.Agx,
-                TonemapExposure = 1.05f,
+                TonemapExposure = 1.02f,
                 SsaoEnabled = true,
-                SsaoRadius = 2.2f,
-                SsaoIntensity = 1.05f,
+                SsaoRadius = 2.0f,
+                SsaoIntensity = 0.95f,
                 SsilEnabled = false,
+                SdfgiEnabled = false,
             };
             AddChild(new WorldEnvironment { Environment = env });
 
             _sun = new DirectionalLight3D
             {
-                LightColor = new Color(1.0f, 0.94f, 0.86f),
+                LightColor = new Color(1.0f, 0.92f, 0.80f),
                 LightEnergy = 1.95f,
                 ShadowEnabled = true,
                 ShadowBlur = 1.1f,
                 DirectionalShadowMode = DirectionalLight3D.ShadowMode.Parallel4Splits,
-                DirectionalShadowSplit1 = 0.04f,
-                DirectionalShadowMaxDistance = 240.0f,
+                DirectionalShadowSplit1 = 0.05f,
+                DirectionalShadowMaxDistance = 260.0f,
             };
             AddChild(_sun);
             UpdateSunTransform();
 
-            _cam = new Camera3D { Fov = 80.0f, Near = 0.08f, Far = 1200.0f };
+            _cam = new Camera3D { Fov = 78.0f, Near = 0.08f, Far = 2000.0f };
             AddChild(_cam);
             _cam.Current = true;
         }
@@ -106,23 +114,22 @@ namespace PrimevalWorld.Tools
         {
             var st = new SurfaceTool();
             st.Begin(Mesh.PrimitiveType.Triangles);
-            const int n = 40;
-            const float size = 120.0f;
+            const int n = 48;
+            const float size = 180.0f;
 
             Vector3[,] pts = new Vector3[n + 1, n + 1];
             for (int z = 0; z <= n; z++)
                 for (int x = 0; x <= n; x++)
                 {
-                    float wx = (x / (float)n - 0.5f) * size + 44.0f;
-                    float wz = (z / (float)n - 0.5f) * size;
-                    float y = SampleGroundHeight(wx, wz);
-                    pts[x, z] = new Vector3(wx, y, wz);
+                    float wx = (x / (float)n - 0.5f) * size + 32.0f;
+                    float wz = (z / (float)n - 0.5f) * size + 10.0f;
+                    pts[x, z] = new Vector3(wx, SampleGroundHeight(wx, wz), wz);
                 }
 
             var mat = new StandardMaterial3D
             {
-                AlbedoColor = new Color(0.18f, 0.28f, 0.11f),
-                Roughness = 0.90f,
+                AlbedoColor = new Color(0.11f, 0.16f, 0.07f),
+                Roughness = 0.92f,
                 SpecularMode = BaseMaterial3D.SpecularModeEnum.Disabled,
             };
 
@@ -147,16 +154,16 @@ namespace PrimevalWorld.Tools
                 Vector3 dir = new Vector3(MathF.Cos(ang), 0.0f, MathF.Sin(ang));
                 Vector3 side = new Vector3(-dir.Z, 0.0f, dir.X);
                 Vector3 root = dir * 0.07f;
-                var cBot = new Color(0.15f, 0.26f, 0.09f, 0.0f);
-                var cMid = new Color(0.22f, 0.42f, 0.13f, 0.48f);
-                var cTip = new Color(0.32f, 0.54f, 0.16f, 1.0f);
-                AddTri(st, root - side * 0.06f, root + side * 0.06f, root + dir * 0.16f + side * 0.04f + new Vector3(0, 0.48f, 0), cBot, cBot, cMid);
-                AddTri(st, root - side * 0.06f, root + dir * 0.16f + side * 0.04f + new Vector3(0, 0.48f, 0), root + dir * 0.16f - side * 0.04f + new Vector3(0, 0.48f, 0), cBot, cMid, cMid);
-                AddTri(st, root + dir * 0.16f - side * 0.04f + new Vector3(0, 0.48f, 0), root + dir * 0.16f + side * 0.04f + new Vector3(0, 0.48f, 0), root + dir * 0.34f + new Vector3(0, 0.92f, 0), cMid, cMid, cTip);
+                var cBot = new Color(0.12f, 0.22f, 0.07f, 0.0f);
+                var cMid = new Color(0.19f, 0.38f, 0.11f, 0.48f);
+                var cTip = new Color(0.28f, 0.50f, 0.14f, 1.0f);
+                AddTri(st, root - side * 0.06f, root + side * 0.06f, root + dir * 0.16f + side * 0.04f + new Vector3(0, 0.45f, 0), cBot, cBot, cMid);
+                AddTri(st, root - side * 0.06f, root + dir * 0.16f + side * 0.04f + new Vector3(0, 0.45f, 0), root + dir * 0.16f - side * 0.04f + new Vector3(0, 0.45f, 0), cBot, cMid, cMid);
+                AddTri(st, root + dir * 0.16f - side * 0.04f + new Vector3(0, 0.45f, 0), root + dir * 0.16f + side * 0.04f + new Vector3(0, 0.45f, 0), root + dir * 0.32f + new Vector3(0, 0.85f, 0), cMid, cMid, cTip);
             }
             st.GenerateNormals();
 
-            const int count = 12000;
+            const int count = 10000;
             var mm = new MultiMesh
             {
                 TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
@@ -167,21 +174,20 @@ namespace PrimevalWorld.Tools
             var rng = new Random(555);
             for (int i = 0; i < count; i++)
             {
-                float gx = (float)(rng.NextDouble() * 110.0 - 11.0);
-                float gz = (float)(rng.NextDouble() * 76.0 - 38.0);
+                float gx = (float)(rng.NextDouble() * 115.0 - 18.0);
+                float gz = (float)(rng.NextDouble() * 90.0 - 38.0);
                 float gy = SampleGroundHeight(gx, gz);
                 float s = 0.65f + (float)rng.NextDouble() * 0.65f;
                 float yaw = (float)(rng.NextDouble() * Mathf.Tau);
                 mm.SetInstanceTransform(i, new Transform3D(Basis.Identity.Rotated(Vector3.Up, yaw).Scaled(new Vector3(s, s, s)), new Vector3(gx, gy - 0.03f, gz)));
-                float tintVar = 0.85f + (float)rng.NextDouble() * 0.30f;
-                mm.SetInstanceColor(i, new Color(0.22f * tintVar, 0.42f * tintVar, 0.13f * tintVar));
+                float tv = 0.85f + (float)rng.NextDouble() * 0.30f;
+                mm.SetInstanceColor(i, new Color(0.20f * tv, 0.40f * tv, 0.12f * tv));
             }
 
             _grassMat = new ShaderMaterial { Shader = GD.Load<Shader>("res://shaders/foliage_wind.gdshader") };
-            EnsureWeatherWindTextures();
+            EnsureSiteTextures();
             _grassMat.SetShaderParameter("wind_dir_speed_tex", _windTex!);
             _grassMat.SetShaderParameter("weather_dynamic_tex", _weatherTex!);
-            _grassMat.SetShaderParameter("bark_tex", _botTex!.BarkRoughTex);
 
             _grassMmi = new MultiMeshInstance3D
             {
@@ -192,7 +198,7 @@ namespace PrimevalWorld.Tools
             AddChild(_grassMmi);
         }
 
-        private void BuildShowcaseTrees()
+        private void BuildShowcaseScene()
         {
             _treesRoot?.QueueFree();
             _markersRoot?.QueueFree();
@@ -203,59 +209,200 @@ namespace PrimevalWorld.Tools
             AddChild(_treesRoot);
             AddChild(_markersRoot);
 
-            EnsureWeatherWindTextures();
-            _floraMat ??= new ShaderMaterial { Shader = GD.Load<Shader>("res://shaders/flora_wind.gdshader") };
-            _floraMat.SetShaderParameter("wind_dir_speed_tex", _windTex!);
-            _floraMat.SetShaderParameter("weather_dynamic_tex", _weatherTex!);
-            _floraMat.SetShaderParameter("leaf_broadleaf_tex", _botTex!.BroadleafTex);
-            _floraMat.SetShaderParameter("leaf_conifer_tex", _botTex.ConiferTex);
-            _floraMat.SetShaderParameter("leaf_acacia_tex", _botTex.AcaciaTex);
-            _floraMat.SetShaderParameter("leaf_palm_tex", _botTex.PalmFernTex);
-            _floraMat.SetShaderParameter("bark_tex", _botTex.BarkRoughTex);
-            _floraMat.SetShaderParameter("bark_pale_tex", _botTex.BarkPaleTex);
-            FloraLodConfig.ApplyToFloraMaterial(_floraMat, 0, false);
+            EnsureSiteTextures();
+            EnsureShowcaseMaterials();
 
-            AgeStage[] ages = { AgeStage.Young, AgeStage.Mature, AgeStage.Ancient };
-            for (int row = 0; row < ShowcaseSpecies.Length; row++)
+            // Scale reference poles (0.85m Wolf, 1.65m Bison, 3.60m Mammoth) beside Row 1
+            AddScalePole(new Vector3(-7.0f, SampleGroundHeight(-7.0f, 8.0f), 8.0f), 0.85f, new Color(0.88f, 0.32f, 0.24f));
+            AddScalePole(new Vector3(-5.8f, SampleGroundHeight(-5.8f, 8.0f), 8.0f), 1.65f, new Color(0.90f, 0.76f, 0.20f));
+            AddScalePole(new Vector3(-4.6f, SampleGroundHeight(-4.6f, 8.0f), 8.0f), 3.60f, new Color(0.28f, 0.68f, 0.94f));
+
+            // ===================== ROW 1 (Z = 0m): 4 DISTINCT BROADLEAF VARIANTS (A / B / C / D) =====================
+            (FloraSpeciesId Sp, int Var, string Label, Color Tint)[] row1 =
             {
-                float x = row * 22.0f;
-                var sp = ShowcaseSpecies[row];
+                (FloraSpeciesId.PrimevalBanyanFig, 0, "Broadleaf A: Cổ Thụ Gốc Bạnh Vòm Bồng Bềnh", new Color(0.88f, 1.02f, 0.84f, 0.20f)),
+                (FloraSpeciesId.SacredAncientHardwood, 1, "Broadleaf B: Thân Cong Vặn Tán Lệch", new Color(0.94f, 1.06f, 0.86f, 0.45f)),
+                (FloraSpeciesId.StarAppleCanopy, 2, "Broadleaf C: Cây Non Tầng Áo Rừng", new Color(0.98f, 1.10f, 0.86f, 0.65f)),
+                (FloraSpeciesId.SacredAncientHardwood, 3, "Broadleaf D: Đại Thụ Thân Cao Trụ Rừng Mưa", new Color(0.86f, 0.98f, 0.82f, 0.30f)),
+            };
+            for (int i = 0; i < row1.Length; i++)
+            {
+                float x = i * 22.0f;
+                Spawn3LodSpecimen(row1[i].Sp, row1[i].Var, new Vector3(x, SampleGroundHeight(x, 0f), 0f), row1[i].Tint, row1[i].Label);
+                // Attach Hanging Moss Liana Curtain beneath each giant broadleaf!
+                SpawnSingleSpecimen(FloraSpeciesId.LianaMossCurtain, i & 1, new Vector3(x, SampleGroundHeight(x, 0f), 0f), 1.0f, i * 1.1f, new Color(0.88f, 1.02f, 0.78f, 0.5f));
+            }
 
-                // Place 3 scale reference poles beside each row (0.85m Wolf, 1.65m Bison, 3.60m Mammoth)
-                AddScalePole(new Vector3(x - 4.5f, SampleGroundHeight(x - 4.5f, 8.5f), 8.5f), 0.85f, new Color(0.85f, 0.35f, 0.25f));
-                AddScalePole(new Vector3(x - 3.3f, SampleGroundHeight(x - 3.3f, 8.5f), 8.5f), 1.65f, new Color(0.85f, 0.72f, 0.22f));
-                AddScalePole(new Vector3(x - 2.1f, SampleGroundHeight(x - 2.1f, 8.5f), 8.5f), 3.60f, new Color(0.32f, 0.68f, 0.90f));
+            // ===================== ROW 2 (Z = -26m): CONIFER x2, WILLOW, BAOBAB, DRAGON BLOOD, PALM/FERN =====================
+            (FloraSpeciesId Sp, int Var, string Label, Color Tint)[] row2 =
+            {
+                (FloraSpeciesId.BorealSnowPine, 0, "Conifer A: Thông Nguyên Sinh Chóp Lệch", new Color(0.80f, 0.92f, 0.88f, 0.25f)),
+                (FloraSpeciesId.GiantSequoiaReddawn, 1, "Conifer B: Tùng Hồng Thủy Sam", new Color(0.76f, 0.90f, 0.80f, 0.50f)),
+                (FloraSpeciesId.WeepingRiverWillow, 0, "Riparian: Liễu Rủ Ven Sông", new Color(0.96f, 1.10f, 0.84f, 0.35f)),
+                (FloraSpeciesId.BaobabPrehistoric, 0, "Desert A: Bao Báp Cổ Sinh", new Color(0.94f, 0.98f, 0.76f, 0.40f)),
+                (FloraSpeciesId.DragonBloodTree, 0, "Desert B: Cây Máu Rồng Tán Ô", new Color(0.90f, 0.96f, 0.74f, 0.60f)),
+                (FloraSpeciesId.ArborescentTreeFern, 0, "Columnar: Dương Xỉ Thân Gỗ", new Color(0.94f, 1.06f, 0.88f, 0.30f)),
+            };
+            for (int i = 0; i < row2.Length; i++)
+            {
+                float x = i * 20.0f - 10.0f;
+                Spawn3LodSpecimen(row2[i].Sp, row2[i].Var, new Vector3(x, SampleGroundHeight(x, -26f), -26f), row2[i].Tint, row2[i].Label);
+            }
 
-                for (int col = 0; col < 3; col++)
-                {
-                    float z = (col - 1) * -14.0f; // +14 (Young), 0 (Mature), -14 (Ancient)
-                    float y = SampleGroundHeight(x, z);
-                    ArrayMesh mesh = ProceduralTreeBuilder.BuildTree(sp.Id, ages[col], _seed + row * 17 + col * 5);
-                    int tris = mesh.GetSurfaceCount() > 0 ? mesh.SurfaceGetArrayLen(0) / 3 : 0;
+            // ===================== MINI RAINFOREST GROVE (25m x 25m at X = -8..+17m, Z = +20..+45m) =====================
+            Vector2[] groveTreePos =
+            {
+                new Vector2(-4f, 25f), new Vector2(12f, 24f), new Vector2(-2f, 40f), new Vector2(13f, 39f), new Vector2(5f, 32f),
+            };
+            for (int i = 0; i < groveTreePos.Length; i++)
+            {
+                float gx = groveTreePos[i].X, gz = groveTreePos[i].Y;
+                float gy = SampleGroundHeight(gx, gz);
+                int v = i % 4;
+                FloraSpeciesId sp = i == 4 ? FloraSpeciesId.BorealSnowPine : (v == 0 ? FloraSpeciesId.PrimevalBanyanFig : FloraSpeciesId.SacredAncientHardwood);
+                Spawn3LodSpecimen(sp, v, new Vector3(gx, gy, gz), new Color(0.90f, 1.02f, 0.85f, 0.35f), $"MiniGrove #{i + 1}");
+                if (i < 4)
+                    SpawnSingleSpecimen(FloraSpeciesId.LianaMossCurtain, i & 1, new Vector3(gx, gy, gz), 1.05f, i * 1.3f, new Color(0.86f, 1.00f, 0.76f, 0.5f));
+            }
 
-                    var mm = new MultiMesh
-                    {
-                        TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
-                        UseColors = false,
-                        UseCustomData = true,
-                        Mesh = mesh,
-                        InstanceCount = 1,
-                    };
-                    mm.SetInstanceTransform(0, new Transform3D(Basis.Identity, new Vector3(x, y - 0.1f, z)));
-                    mm.SetInstanceCustomData(0, sp.Tint);
-
-                    var mmi = new MultiMeshInstance3D
-                    {
-                        Multimesh = mm,
-                        MaterialOverride = _floraMat,
-                        CastShadow = GeometryInstance3D.ShadowCastingSetting.On,
-                    };
-                    _treesRoot.AddChild(mmi);
-                    _treeRecords.Add((new Vector3(x, y, z), $"{sp.NameVi} ({ages[col]})", tris));
-                }
+            // Populate 25m x 25m grove floor with 2 Sword Fern variants + Giant Broadleaf Aroids + Dense Shrubs + Mossy Fallen Logs
+            var rng = new Random(_seed + 909);
+            for (int i = 0; i < 42; i++)
+            {
+                float gx = -10.0f + (float)rng.NextDouble() * 27.0f;
+                float gz = 19.0f + (float)rng.NextDouble() * 27.0f;
+                float gy = SampleGroundHeight(gx, gz);
+                float yaw = (float)(rng.NextDouble() * Mathf.Tau);
+                float sc = 0.85f + (float)rng.NextDouble() * 0.45f;
+                int pick = i % 10;
+                FloraSpeciesId id = pick < 5 ? FloraSpeciesId.LushSwordFern
+                                  : (pick < 7 ? FloraSpeciesId.GiantElephantEar
+                                  : (pick < 9 ? FloraSpeciesId.WildBerryBush : FloraSpeciesId.HollowFallenTrunk));
+                SpawnSingleSpecimen(id, i & 1, new Vector3(gx, gy, gz), sc, yaw, new Color(0.92f, 1.06f, 0.85f, 0.4f));
             }
 
             _markersRoot.Visible = _showMarkersAndGrass;
+        }
+
+        private void Spawn3LodSpecimen(FloraSpeciesId sp, int variant, Vector3 pos, Color tint, string label)
+        {
+            ArrayMesh m0 = _meshLib.GetMesh(sp, variant, 0, _barkLod0Mat, _leafLod0Mat);
+            ArrayMesh m1 = _meshLib.GetMesh(sp, variant, 1, _barkLod1Mat, _leafLod1Mat);
+            ArrayMesh m2 = _meshLib.GetMesh(sp, variant, 2, null, _leafLod2Mat);
+
+            int t0 = FloraMeshLibrary.GetTriangleCount(m0);
+            int t1 = FloraMeshLibrary.GetTriangleCount(m1);
+            int t2 = FloraMeshLibrary.GetTriangleCount(m2);
+            _treeRecords.Add((pos, label, t0, t1, t2));
+
+            ArrayMesh[] lodMeshes = { m0, m1, m2 };
+            float[] beginD = { 0f, 0f, 200f };
+            float[] endD = { 280f, 580f, 1600f };
+
+            for (int lod = 0; lod < 3; lod++)
+            {
+                var mm = new MultiMesh
+                {
+                    TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
+                    UseColors = false,
+                    UseCustomData = true,
+                    Mesh = lodMeshes[lod],
+                    InstanceCount = 1,
+                };
+                mm.SetInstanceTransform(0, new Transform3D(Basis.Identity, Vector3.Zero));
+                mm.SetInstanceCustomData(0, tint);
+
+                _treesRoot!.AddChild(new MultiMeshInstance3D
+                {
+                    Position = pos,
+                    Multimesh = mm,
+                    MaterialOverride = null,
+                    CastShadow = lod == 0 ? GeometryInstance3D.ShadowCastingSetting.On : GeometryInstance3D.ShadowCastingSetting.Off,
+                    VisibilityRangeBegin = beginD[lod],
+                    VisibilityRangeEnd = endD[lod],
+                });
+            }
+        }
+
+        private void SpawnSingleSpecimen(FloraSpeciesId sp, int variant, Vector3 pos, float scale, float yaw, Color tint)
+        {
+            ArrayMesh m = _meshLib.GetMesh(sp, variant, 0, _barkLod0Mat, _leafLod0Mat);
+            var mm = new MultiMesh
+            {
+                TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
+                UseColors = false,
+                UseCustomData = true,
+                Mesh = m,
+                InstanceCount = 1,
+            };
+            mm.SetInstanceTransform(0, new Transform3D(Basis.Identity.Rotated(Vector3.Up, yaw).Scaled(new Vector3(scale, scale, scale)), Vector3.Zero));
+            mm.SetInstanceCustomData(0, tint);
+
+            _treesRoot!.AddChild(new MultiMeshInstance3D
+            {
+                Position = pos,
+                Multimesh = mm,
+                MaterialOverride = null,
+                CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+            });
+        }
+
+        private void EnsureShowcaseMaterials()
+        {
+            var leafShader = GD.Load<Shader>("res://shaders/flora_wind.gdshader");
+            var barkShader = GD.Load<Shader>("res://shaders/bark_moss.gdshader");
+
+            ShaderMaterial MakeLeaf(int lod)
+            {
+                var m = new ShaderMaterial { Shader = leafShader };
+                m.SetShaderParameter("wind_dir_speed_tex", _windTex!);
+                m.SetShaderParameter("weather_dynamic_tex", _weatherTex!);
+                m.SetShaderParameter("leaf_broadleaf_tex", _botTex!.BroadleafTex);
+                m.SetShaderParameter("leaf_conifer_tex", _botTex.ConiferTex);
+                m.SetShaderParameter("leaf_acacia_tex", _botTex.AcaciaTex);
+                m.SetShaderParameter("leaf_palm_tex", _botTex.PalmFernTex);
+                m.SetShaderParameter("bark_tex", _botTex.BarkRoughTex);
+                m.SetShaderParameter("bark_pale_tex", _botTex.BarkPaleTex);
+                FloraLodConfig.ApplyToFloraMaterial(m, lod, _lodDebug);
+                return m;
+            }
+
+            ShaderMaterial MakeBark(int lod)
+            {
+                var m = new ShaderMaterial { Shader = barkShader };
+                m.SetShaderParameter("wind_dir_speed_tex", _windTex!);
+                m.SetShaderParameter("weather_dynamic_tex", _weatherTex!);
+                m.SetShaderParameter("climate_tex", _climateTex!);
+                m.SetShaderParameter("canopy_coverage_tex", _canopyTex!);
+                m.SetShaderParameter("bark_hardwood_albedo", _botTex!.BarkHardwoodAlbedo);
+                m.SetShaderParameter("bark_hardwood_normal", _botTex.BarkHardwoodNormal);
+                m.SetShaderParameter("bark_hardwood_roughness", _botTex.BarkHardwoodRoughness);
+                m.SetShaderParameter("bark_conifer_albedo", _botTex.BarkConiferAlbedo);
+                m.SetShaderParameter("bark_conifer_normal", _botTex.BarkConiferNormal);
+                m.SetShaderParameter("bark_conifer_roughness", _botTex.BarkConiferRoughness);
+                m.SetShaderParameter("bark_pale_albedo", _botTex.BarkPaleTex);
+                m.SetShaderParameter("moss_albedo", _botTex.MossAlbedo);
+                m.SetShaderParameter("moss_normal", _botTex.MossNormal);
+                FloraLodConfig.ApplyToFloraMaterial(m, lod, _lodDebug);
+                return m;
+            }
+
+            _leafLod0Mat = MakeLeaf(0);
+            _leafLod1Mat = MakeLeaf(1);
+            _leafLod2Mat = MakeLeaf(2);
+            _barkLod0Mat = MakeBark(0);
+            _barkLod1Mat = MakeBark(1);
+        }
+
+        private void ToggleLodDebug()
+        {
+            _lodDebug = !_lodDebug;
+            int v = _lodDebug ? 1 : 0;
+            _leafLod0Mat?.SetShaderParameter("lod_debug_mode", v);
+            _leafLod1Mat?.SetShaderParameter("lod_debug_mode", v);
+            _leafLod2Mat?.SetShaderParameter("lod_debug_mode", v);
+            _barkLod0Mat?.SetShaderParameter("lod_debug_mode", v);
+            _barkLod1Mat?.SetShaderParameter("lod_debug_mode", v);
         }
 
         private void AddScalePole(Vector3 pos, float height, Color col)
@@ -270,24 +417,29 @@ namespace PrimevalWorld.Tools
             });
         }
 
-        private void EnsureWeatherWindTextures()
+        private void EnsureSiteTextures()
         {
             byte[] wBytes = new byte[4 * 4 * 3];
             byte spdByte = (byte)(Math.Clamp(_windSpeed / 30.0f, 0.0f, 1.0f) * 255.0f);
-            for (int i = 0; i < 16; i++)
-            {
-                wBytes[i * 3 + 0] = 220; // wind X+
-                wBytes[i * 3 + 1] = 175; // wind Z+
-                wBytes[i * 3 + 2] = spdByte;
-            }
+            for (int i = 0; i < 16; i++) { wBytes[i * 3 + 0] = 220; wBytes[i * 3 + 1] = 175; wBytes[i * 3 + 2] = spdByte; }
             var wImg = Image.CreateFromData(4, 4, false, Image.Format.Rgb8, wBytes);
             if (_windTex == null) _windTex = ImageTexture.CreateFromImage(wImg);
             else _windTex.Update(wImg);
 
             if (_weatherTex == null)
+                _weatherTex = ImageTexture.CreateFromImage(Image.CreateFromData(4, 4, false, Image.Format.Rgba8, new byte[4 * 4 * 4]));
+
+            if (_climateTex == null)
             {
-                byte[] dBytes = new byte[4 * 4 * 4];
-                _weatherTex = ImageTexture.CreateFromImage(Image.CreateFromData(4, 4, false, Image.Format.Rgba8, dBytes));
+                byte[] cl = new byte[4 * 4 * 4];
+                for (int i = 0; i < 16; i++) { cl[i * 4 + 0] = 175; cl[i * 4 + 1] = 210; cl[i * 4 + 2] = 0; cl[i * 4 + 3] = 128; }
+                _climateTex = ImageTexture.CreateFromImage(Image.CreateFromData(4, 4, false, Image.Format.Rgba8, cl));
+            }
+            if (_canopyTex == null)
+            {
+                byte[] cc = new byte[4 * 4 * 4];
+                for (int i = 0; i < 16; i++) { cc[i * 4 + 0] = 215; cc[i * 4 + 1] = 0; cc[i * 4 + 2] = 0; cc[i * 4 + 3] = 255; }
+                _canopyTex = ImageTexture.CreateFromImage(Image.CreateFromData(4, 4, false, Image.Format.Rgba8, cc));
             }
         }
 
@@ -296,7 +448,7 @@ namespace PrimevalWorld.Tools
             var canvas = new CanvasLayer();
             AddChild(canvas);
             var panel = new PanelContainer { Position = new Vector2(14, 14) };
-            panel.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color(0.05f, 0.08f, 0.12f, 0.82f), ContentMarginLeft = 10, ContentMarginRight = 10, ContentMarginTop = 8, ContentMarginBottom = 8 });
+            panel.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color(0.05f, 0.08f, 0.12f, 0.84f), ContentMarginLeft = 10, ContentMarginRight = 10, ContentMarginTop = 8, ContentMarginBottom = 8 });
             canvas.AddChild(panel);
             _hudLabel = new Label();
             _hudLabel.AddThemeFontSizeOverride("font_size", 13);
@@ -304,7 +456,7 @@ namespace PrimevalWorld.Tools
 
             var help = new Label
             {
-                Text = "WASD: Đi | Chuột phải: Xoay | V: Sói(0.85m)/Ma Mút(3.6m)/Tự do | 1-5: 5 Loài | J/K: Xoay nắng | U/I: Gió | G: Đổi Seed | O: Wireframe | B: Mốc/Cỏ",
+                Text = "1: Cận cảnh 10m (0.85m) | 2: Trung cảnh 100m | 3: Viễn cảnh 500m (LOD2) | 4: Cụm Rừng Mini 25x25m | L: Soi LOD | V: Sói/Ma Mút/Bay | J/K: Nắng | U/I: Gió | O: Wireframe",
             };
             help.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
             help.OffsetLeft = 16; help.OffsetBottom = -14; help.OffsetTop = -36;
@@ -328,13 +480,13 @@ namespace PrimevalWorld.Tools
             {
                 switch (k.Keycode)
                 {
-                    case Key.Key1: TeleportToRow(0); break;
-                    case Key.Key2: TeleportToRow(1); break;
-                    case Key.Key3: TeleportToRow(2); break;
-                    case Key.Key4: TeleportToRow(3); break;
-                    case Key.Key5: TeleportToRow(4); break;
+                    case Key.Key1: JumpToInspectionDistance(10.0f); break;
+                    case Key.Key2: JumpToInspectionDistance(100.0f); break;
+                    case Key.Key3: JumpToInspectionDistance(500.0f); break;
+                    case Key.Key4: JumpToMiniGrove(); break;
+                    case Key.L: ToggleLodDebug(); break;
                     case Key.V: _povMode = (_povMode + 1) % 3; break;
-                    case Key.G: _seed = (int)(GD.Randi() % 90000 + 1000); BuildShowcaseTrees(); break;
+                    case Key.G: _seed = (int)(GD.Randi() % 90000 + 1000); BuildShowcaseScene(); break;
                     case Key.O:
                         _wireframe = !_wireframe;
                         GetViewport().DebugDraw = _wireframe ? Viewport.DebugDrawEnum.Wireframe : Viewport.DebugDrawEnum.Disabled;
@@ -349,13 +501,43 @@ namespace PrimevalWorld.Tools
             }
         }
 
+        private void JumpToInspectionDistance(float distM)
+        {
+            if (_cam == null) return;
+            Vector3 target = new Vector3(33.0f, 7.5f, 0.0f);
+            if (distM <= 25.0f)
+            {
+                _povMode = 0; // Wolf 0.85m
+                _cam.Position = new Vector3(33.0f, SampleGroundHeight(33.0f, distM) + 0.85f, distM);
+            }
+            else
+            {
+                _povMode = 2; // Free Fly for 100m & 500m LOD inspection
+                _cam.Position = new Vector3(33.0f, distM * 0.24f + 12.0f, distM);
+            }
+            _cam.LookAt(target, Vector3.Up);
+            _pitch = _cam.Rotation.X;
+            _yaw = _cam.Rotation.Y;
+        }
+
+        private void JumpToMiniGrove()
+        {
+            if (_cam == null) return;
+            _povMode = 0; // Wolf 0.85m eye level right inside the 25m x 25m lush understory grove!
+            float x = 3.5f, z = 28.0f;
+            _cam.Position = new Vector3(x, SampleGroundHeight(x, z) + 0.85f, z);
+            _cam.LookAt(new Vector3(5.0f, SampleGroundHeight(5.0f, 34.0f) + 2.8f, 34.0f), Vector3.Up);
+            _pitch = _cam.Rotation.X;
+            _yaw = _cam.Rotation.Y;
+        }
+
         public override void _Process(double delta)
         {
             float dt = (float)delta;
             if (Input.IsKeyPressed(Key.J)) { _sunAzimDeg -= 40f * dt; UpdateSunTransform(); }
             if (Input.IsKeyPressed(Key.K)) { _sunAzimDeg += 40f * dt; UpdateSunTransform(); }
-            if (Input.IsKeyPressed(Key.U)) { _windSpeed = Math.Clamp(_windSpeed - 12f * dt, 0f, 25f); EnsureWeatherWindTextures(); }
-            if (Input.IsKeyPressed(Key.I)) { _windSpeed = Math.Clamp(_windSpeed + 12f * dt, 0f, 25f); EnsureWeatherWindTextures(); }
+            if (Input.IsKeyPressed(Key.U)) { _windSpeed = Math.Clamp(_windSpeed - 12f * dt, 0f, 25f); EnsureSiteTextures(); }
+            if (Input.IsKeyPressed(Key.I)) { _windSpeed = Math.Clamp(_windSpeed + 12f * dt, 0f, 25f); EnsureSiteTextures(); }
 
             if (_cam != null)
             {
@@ -371,47 +553,29 @@ namespace PrimevalWorld.Tools
                     if (Input.IsKeyPressed(Key.E)) move += Vector3.Up;
                     if (Input.IsKeyPressed(Key.Q)) move -= Vector3.Up;
                 }
-                float spd = (_povMode == 2 ? 22f : 8f) * (Input.IsKeyPressed(Key.Shift) ? 2.2f : 1.0f);
+                float spd = (_povMode == 2 ? 42f : 7f) * (Input.IsKeyPressed(Key.Shift) ? 2.5f : 1.0f);
                 Vector3 p = _cam.Position + (move.LengthSquared() > 0.001f ? move.Normalized() * spd * dt : Vector3.Zero);
                 if (_povMode != 2)
-                {
-                    float eyeH = _povMode == 0 ? 0.85f : 3.60f;
-                    p.Y = SampleGroundHeight(p.X, p.Z) + eyeH;
-                }
+                    p.Y = SampleGroundHeight(p.X, p.Z) + (_povMode == 0 ? 0.85f : 3.60f);
                 _cam.Position = p;
             }
 
             if (_hudLabel != null && _cam != null)
             {
-                string nearName = "-"; int nearTris = 0; float bestD = 9999f;
+                string nearName = "-"; int t0 = 0, t1 = 0, t2 = 0; float bestD = 9999f;
                 foreach (var rec in _treeRecords)
                 {
                     float d = _cam.Position.DistanceTo(rec.Pos);
-                    if (d < bestD) { bestD = d; nearName = rec.Name; nearTris = rec.Tris; }
+                    if (d < bestD) { bestD = d; nearName = rec.Name; t0 = rec.Lod0Tris; t1 = rec.Lod1Tris; t2 = rec.Lod2Tris; }
                 }
                 float fps = (float)Engine.GetFramesPerSecond();
-                float ms = fps > 1f ? 1000f / fps : 0f;
-                int totalTris = (int)RenderingServer.GetRenderingInfo(RenderingServer.RenderingInfo.TotalPrimitivesInFrame);
                 int drawCalls = (int)RenderingServer.GetRenderingInfo(RenderingServer.RenderingInfo.TotalDrawCallsInFrame);
-                string pov = _povMode == 0 ? "Sói (0.85m)" : (_povMode == 1 ? "Voi Ma Mút (3.60m)" : "Tự do");
-                float alphaPct = _botTex != null && _botTex.TransparentPercent.TryGetValue("assets/textures/flora/leaf_broadleaf.png", out float pct) ? pct : 0f;
-
+                string pov = _povMode == 0 ? "Sói (0.85m)" : (_povMode == 1 ? "Ma Mút (3.6m)" : "Tự do");
+                string dbg = _lodDebug ? " | [SOI LOD: ĐỎ/VÀNG/XANH]" : "";
                 _hudLabel.Text =
-                    $"Flora Showcase Lab | FPS: {fps:0} ({ms:0.1} ms) | Total Tris: {totalTris:N0} | DrawCalls: {drawCalls} | Góc nhìn [V]: {pov}\n" +
-                    $"Cây gần nhất: {nearName} ({nearTris:N0} tris) | Alpha trong suốt lá: {alphaPct:0.0}% | Nắng: {_sunAzimDeg:0}° | Gió: {_windSpeed:0.0}m/s | Seed: {_seed}";
+                    $"Flora Showcase Lab (10m/100m/500m) | FPS: {fps:0} | DrawCalls: {drawCalls} | Góc nhìn [V]: {pov}{dbg}\n" +
+                    $"Cây gần nhất ({bestD:0.0}m): {nearName} | Tris LOD0/1/2 = {t0:N0} / {t1:N0} / {t2:N0}";
             }
-        }
-
-        private void TeleportToRow(int row)
-        {
-            if (_cam == null) return;
-            float x = row * 22.0f;
-            float z = 12.0f;
-            float eye = _povMode == 1 ? 3.60f : 0.85f;
-            _cam.Position = new Vector3(x, SampleGroundHeight(x, z) + eye, z);
-            _cam.LookAt(new Vector3(x, SampleGroundHeight(x, 0f) + 5.5f, 0f), Vector3.Up);
-            _pitch = _cam.Rotation.X;
-            _yaw = _cam.Rotation.Y;
         }
 
         private void UpdateSunTransform()
@@ -420,28 +584,36 @@ namespace PrimevalWorld.Tools
             float az = Mathf.DegToRad(_sunAzimDeg);
             float el = Mathf.DegToRad(_sunElevDeg);
             Vector3 dir = new Vector3(MathF.Cos(el) * MathF.Cos(az), MathF.Sin(el), MathF.Cos(el) * MathF.Sin(az)).Normalized();
-            _sun.LookAtFromPosition(dir * 50f, Vector3.Zero, Vector3.Up);
+            _sun.LookAtFromPosition(dir * 60f, Vector3.Zero, Vector3.Up);
             _skyMat?.SetShaderParameter("sun_direction", dir);
         }
 
         private void PrintVerificationLog()
         {
-            if (_botTex != null)
+            var inv = CultureInfo.InvariantCulture;
+            GD.Print("[PBR_BarkMoss_CC0] Poly Haven 1024x1024 CC0 loaded: bark_hardwood (bark_brown_02), bark_conifer (pine_bark), moss (moss_01)");
+            foreach (var rec in _treeRecords)
             {
-                foreach (var kv in _botTex.TransparentPercent)
-                {
-                    int border = _botTex.BorderOpaquePixels.TryGetValue(kv.Key, out int b) ? b : -1;
-                    GD.Print($"[BotanicalPNG] {kv.Key} | 1024x1024 RGBA8 | Transparent={kv.Value:0.0}% | BorderOpaquePixels={border}");
-                }
+                if (!rec.Name.StartsWith("MiniGrove"))
+                    GD.Print(string.Create(inv, $"[Phase1Variant] {rec.Name} | LOD0={rec.Lod0Tris:N0} tris | LOD1={rec.Lod1Tris:N0} tris | LOD2={rec.Lod2Tris:N0} tris"));
             }
-            for (int i = 0; i < ShowcaseSpecies.Length; i++)
+            // Also log the 5 upgraded understory / liana meshes
+            (FloraSpeciesId Id, string Label)[] understory =
             {
-                var r = _treeRecords[i * 3 + 1]; // Mature sample
-                GD.Print($"[ShowcaseSpecies] {ShowcaseSpecies[i].Id} (Mature) = {r.Tris:N0} tris");
+                (FloraSpeciesId.LianaMossCurtain, "LianaMossCurtain (V0)"),
+                (FloraSpeciesId.LushSwordFern, "LushSwordFern (V0)"),
+                (FloraSpeciesId.GiantElephantEar, "GiantBroadleafAroid (V0)"),
+                (FloraSpeciesId.WildBerryBush, "DenseUnderstoryShrub (V0)"),
+                (FloraSpeciesId.HollowFallenTrunk, "MossyFallenLog (V0)"),
+            };
+            foreach (var u in understory)
+            {
+                var m = _meshLib.GetMesh(u.Id, 0, 0, _barkLod0Mat, _leafLod0Mat);
+                GD.Print(string.Create(inv, $"[Phase1Understory] {u.Label} = {FloraMeshLibrary.GetTriangleCount(m):N0} tris (Surfaces={m.GetSurfaceCount()})"));
             }
         }
 
-        private static float SampleGroundHeight(float x, float z) => MathF.Sin(x * 0.06f) * 0.6f + MathF.Cos(z * 0.08f) * 0.4f;
+        private static float SampleGroundHeight(float x, float z) => MathF.Sin(x * 0.05f) * 0.45f + MathF.Cos(z * 0.06f) * 0.35f;
 
         private static void AddTri(SurfaceTool st, Vector3 a, Vector3 b, Vector3 c, Color ca, Color cb, Color cc)
         {

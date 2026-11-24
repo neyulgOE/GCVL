@@ -5,8 +5,8 @@ using Godot;
 namespace PrimevalWorld.Flora
 {
     /// <summary>
-    /// Loads the real botanical RGBA8 PNG textures from res://assets/textures/flora/
-    /// (zero procedural leaf drawing overwrite!) and generates mipmaps + alpha statistics.
+    /// Loads real 1024x1024 botanical RGBA8 leaf textures plus CC0 1K Poly Haven PBR Bark & Moss maps
+    /// (bark_brown_02, pine_bark, moss_01) with mipmaps and alpha statistics.
     /// </summary>
     public static class BotanicalTextureGenerator
     {
@@ -18,6 +18,17 @@ namespace PrimevalWorld.Flora
             public ImageTexture PalmFernTex { get; set; } = null!;
             public ImageTexture BarkRoughTex { get; set; } = null!;
             public ImageTexture BarkPaleTex { get; set; } = null!;
+
+            // CC0 1K PBR Bark & Moss maps (Poly Haven: bark_brown_02, pine_bark, moss_01)
+            public ImageTexture BarkHardwoodAlbedo { get; set; } = null!;
+            public ImageTexture BarkHardwoodNormal { get; set; } = null!;
+            public ImageTexture BarkHardwoodRoughness { get; set; } = null!;
+            public ImageTexture BarkConiferAlbedo { get; set; } = null!;
+            public ImageTexture BarkConiferNormal { get; set; } = null!;
+            public ImageTexture BarkConiferRoughness { get; set; } = null!;
+            public ImageTexture MossAlbedo { get; set; } = null!;
+            public ImageTexture MossNormal { get; set; } = null!;
+
             public Dictionary<string, float> TransparentPercent { get; } = new();
             public Dictionary<string, int> BorderOpaquePixels { get; } = new();
         }
@@ -29,14 +40,25 @@ namespace PrimevalWorld.Flora
             if (_cached != null) return _cached;
 
             const string dir = "assets/textures/flora";
+            const string barkDir = "assets/textures/flora/bark";
+
             var res = new BotanicalTextures
             {
-                BroadleafTex = LoadLeafPng($"{dir}/leaf_broadleaf.png", res_t: null),
-                ConiferTex = LoadLeafPng($"{dir}/leaf_conifer.png", res_t: null),
-                AcaciaTex = LoadLeafPng($"{dir}/leaf_acacia.png", res_t: null),
-                PalmFernTex = LoadLeafPng($"{dir}/leaf_palm_fern.png", res_t: null),
-                BarkRoughTex = LoadBarkPng($"{dir}/bark_rough.png"),
-                BarkPaleTex = LoadBarkPng($"{dir}/bark_pale.png"),
+                BroadleafTex = LoadRgbaPng($"{dir}/leaf_broadleaf.png"),
+                ConiferTex = LoadRgbaPng($"{dir}/leaf_conifer.png"),
+                AcaciaTex = LoadRgbaPng($"{dir}/leaf_acacia.png"),
+                PalmFernTex = LoadRgbaPng($"{dir}/leaf_palm_fern.png"),
+                BarkRoughTex = LoadRgbTex($"{dir}/bark_rough.png"),
+                BarkPaleTex = LoadRgbTex($"{dir}/bark_pale.png"),
+
+                BarkHardwoodAlbedo = LoadRgbTex($"{barkDir}/bark_hardwood_albedo.jpg"),
+                BarkHardwoodNormal = LoadRgbTex($"{barkDir}/bark_hardwood_normal.jpg"),
+                BarkHardwoodRoughness = LoadRgbTex($"{barkDir}/bark_hardwood_roughness.jpg"),
+                BarkConiferAlbedo = LoadRgbTex($"{barkDir}/bark_conifer_albedo.jpg"),
+                BarkConiferNormal = LoadRgbTex($"{barkDir}/bark_conifer_normal.jpg"),
+                BarkConiferRoughness = LoadRgbTex($"{barkDir}/bark_conifer_roughness.jpg"),
+                MossAlbedo = LoadRgbTex($"{barkDir}/moss_albedo.jpg"),
+                MossNormal = LoadRgbTex($"{barkDir}/moss_normal.jpg"),
             };
 
             MeasureAlpha($"{dir}/leaf_broadleaf.png", res.TransparentPercent, res.BorderOpaquePixels);
@@ -48,7 +70,7 @@ namespace PrimevalWorld.Flora
             return res;
         }
 
-        private static ImageTexture LoadLeafPng(string relPath, object? res_t)
+        private static ImageTexture LoadRgbaPng(string relPath)
         {
             string absPath = ProjectSettings.GlobalizePath($"res://{relPath}");
             var img = new Image();
@@ -60,11 +82,10 @@ namespace PrimevalWorld.Flora
                 return ImageTexture.CreateFromImage(img);
             }
             GD.PushError($"Missing botanical leaf texture: {absPath}");
-            var fallback = Image.CreateEmpty(4, 4, false, Image.Format.Rgba8);
-            return ImageTexture.CreateFromImage(fallback);
+            return ImageTexture.CreateFromImage(Image.CreateEmpty(4, 4, false, Image.Format.Rgba8));
         }
 
-        private static ImageTexture LoadBarkPng(string relPath)
+        private static ImageTexture LoadRgbTex(string relPath)
         {
             string absPath = ProjectSettings.GlobalizePath($"res://{relPath}");
             var img = new Image();
@@ -73,7 +94,7 @@ namespace PrimevalWorld.Flora
                 img.GenerateMipmaps();
                 return ImageTexture.CreateFromImage(img);
             }
-            GD.PushError($"Missing bark texture: {absPath}");
+            GD.PushError($"Missing PBR bark/moss texture: {absPath}");
             return ImageTexture.CreateFromImage(Image.CreateEmpty(4, 4, false, Image.Format.Rgb8));
         }
 

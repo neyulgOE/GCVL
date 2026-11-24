@@ -7,13 +7,14 @@ using PrimevalWorld.WorldGen;
 namespace PrimevalWorld.Flora
 {
     /// <summary>
-    /// Phase 0 Emergency CPU Rescue — Dynamic Streaming Pool Flora Manager (< 1,200 SceneTree Nodes, CPU < 6ms):
-    /// - Stores all 64x36 (150m x 150m) cell flora data in pure C# RAM (CellFloraData) — ZERO SceneTree nodes outside streaming radius!
-    /// - Dynamically mounts/unmounts 150m cells via an Object Pool of MultiMeshInstance3D (only when camera crosses a 150m cell):
-    ///   * LOD0 (<= 310m), LOD1 (<= 580m), L3..L6 Detail (<= 420m) -> ~250-550 mounted nodes total!
-    /// - Groups all LOD2 (450..1350m) across 52 km2 into 16x9 (600m x 600m) macro cells x 4 Canopy Archetypes (~260-360 nodes total!).
-    /// - Enforces strict Shadow Discipline: CastShadow = On ONLY on mounted LOD0 nodes within shadow range (ShadowTrees <= LOD0 Active invariant).
-    /// - 4 Hz zero-GC HUD telemetry iterating ONLY currently mounted nodes.
+    /// Phase 0 + Phase 1 Dynamic Streaming Pool Flora Manager (< 1,200 SceneTree Nodes, Shadow <= LOD0):
+    /// - 2-Surface PBR Bark/Moss (shaders/bark_moss.gdshader) + Botanical Foliage (shaders/flora_wind.gdshader)
+    ///   for LOD0, LOD1, Detail & Close Understory (using ArrayMesh.SurfaceSetMaterial + MaterialOverride = null).
+    /// - Shared morphological MeshKey batching (4 Broadleaf variants, 3 Conifer variants, 2 Weeping/Desert/Palm variants)
+    ///   keeps SceneTree node count strictly < 1,200 even in dense multi-variant rainforests!
+    /// - Close Understory (LushSwordFern, GiantElephantEar, LianaMossCurtain, MossyFallenLog, DenseShrub) streams
+    ///   strictly within <= 200m (dither fade 75..100m, CastShadow = Off) for lush 0.85m eye-level forest floors!
+    /// - Macro 600m x 600m LOD2 (16x9 cells x 4 puffy canopy archetypes = ~312 nodes across whole 52 km2).
     /// </summary>
     public partial class FloraManager : Node3D
     {
@@ -25,18 +26,18 @@ namespace PrimevalWorld.Flora
             DesertUmbrella = 3,
         }
 
-        private sealed class SpeciesBatchData
+        private sealed class VariantBatchData
         {
-            public readonly FloraSpeciesId Species;
+            public readonly FloraMeshLibrary.MeshKey Key;
             public readonly Transform3D[] LocalTransforms;
             public readonly Color[] CustomDatas;
             public MultiMesh? CachedLod0Mm;
             public MultiMesh? CachedLod1Mm;
             public MultiMesh? CachedDetailMm;
 
-            public SpeciesBatchData(FloraSpeciesId species, List<FloraInstance> src, Vector3 cellCenter)
+            public VariantBatchData(FloraMeshLibrary.MeshKey key, List<FloraInstance> src, Vector3 cellCenter)
             {
-                Species = species;
+                Key = key;
                 int n = src.Count;
                 LocalTransforms = new Transform3D[n];
                 CustomDatas = new Color[n];
@@ -48,22 +49,27 @@ namespace PrimevalWorld.Flora
                 }
             }
 
-            public MultiMesh GetOrBuildMultiMesh(FloraMeshLibrary meshLib, int lod, bool isDetail)
+            public MultiMesh GetOrBuildMultiMesh(
+                FloraMeshLibrary meshLib,
+                int lod,
+                bool isDetail,
+                Material? barkMat,
+                Material? leafMat)
             {
                 if (isDetail)
                 {
                     if (CachedDetailMm != null) return CachedDetailMm;
-                    CachedDetailMm = BuildMultiMesh(meshLib.GetMesh(FloraNicheDatabase.AllSpecies[(int)Species], 0));
+                    CachedDetailMm = BuildMultiMesh(meshLib.GetMesh(Key.CanonicalSpecies, Key.Variant, 0, barkMat, leafMat));
                     return CachedDetailMm;
                 }
                 if (lod == 0)
                 {
                     if (CachedLod0Mm != null) return CachedLod0Mm;
-                    CachedLod0Mm = BuildMultiMesh(meshLib.GetMesh(FloraNicheDatabase.AllSpecies[(int)Species], 0));
+                    CachedLod0Mm = BuildMultiMesh(meshLib.GetMesh(Key.CanonicalSpecies, Key.Variant, 0, barkMat, leafMat));
                     return CachedLod0Mm;
                 }
                 if (CachedLod1Mm != null) return CachedLod1Mm;
-                CachedLod1Mm = BuildMultiMesh(meshLib.GetMesh(FloraNicheDatabase.AllSpecies[(int)Species], 1));
+                CachedLod1Mm = BuildMultiMesh(meshLib.GetMesh(Key.CanonicalSpecies, Key.Variant, 1, barkMat, leafMat));
                 return CachedLod1Mm;
             }
 
@@ -93,20 +99,24 @@ namespace PrimevalWorld.Flora
             public float Radius3D;
             public int TreeCount;
             public int DetailCount;
+            public int CloseUnderstoryCount;
             public float Lod0VisEnd;
             public float Lod1VisEnd;
             public float DetailVisEnd;
-            public SpeciesBatchData[] TreeBatches = Array.Empty<SpeciesBatchData>();
-            public SpeciesBatchData[] DetailBatches = Array.Empty<SpeciesBatchData>();
+            public float CloseUnderstoryVisEnd;
+            public VariantBatchData[] TreeBatches = Array.Empty<VariantBatchData>();
+            public VariantBatchData[] DetailBatches = Array.Empty<VariantBatchData>();
+            public VariantBatchData[] CloseUnderstoryBatches = Array.Empty<VariantBatchData>();
 
-            // Live mounted state (empty when outside camera streaming radius!)
             public bool Lod0Mounted;
             public bool Lod1Mounted;
             public bool DetailMounted;
+            public bool CloseUnderstoryMounted;
             public bool ShadowEnabled;
             public readonly List<MultiMeshInstance3D> MountedLod0Nodes = new(8);
             public readonly List<MultiMeshInstance3D> MountedLod1Nodes = new(8);
-            public readonly List<MultiMeshInstance3D> MountedDetailNodes = new(12);
+            public readonly List<MultiMeshInstance3D> MountedDetailNodes = new(8);
+            public readonly List<MultiMeshInstance3D> MountedCloseUnderstoryNodes = new(10);
         }
 
         private struct FarCanopyCell
@@ -122,20 +132,23 @@ namespace PrimevalWorld.Flora
         private readonly EcosystemSpawner _spawner = new();
         private readonly FloraMeshLibrary _meshLib = new();
 
-        private ShaderMaterial? _canopyLod0Mat;
-        private ShaderMaterial? _canopyLod1Mat;
-        private ShaderMaterial? _canopyLod2Mat;
-        private ShaderMaterial? _detailMat;
+        private ShaderMaterial? _leafLod0Mat;
+        private ShaderMaterial? _leafLod1Mat;
+        private ShaderMaterial? _leafLod2Mat;
+        private ShaderMaterial? _leafDetailMat;
+        private ShaderMaterial? _leafCloseUnderstoryMat;
+
+        private ShaderMaterial? _barkLod0Mat;
+        private ShaderMaterial? _barkLod1Mat;
+        private ShaderMaterial? _barkDetailMat;
+        private ShaderMaterial? _barkCloseUnderstoryMat;
+
         private ImageTexture? _windDataTex;
 
-        // Pure C# RAM cell data (64x36 = 2,304 slots; null for empty sea/bare cells)
         private readonly CellFloraData?[,] _nearGrid = new CellFloraData?[FloraLodConfig.NearCols, FloraLodConfig.NearRows];
-        // Compact list of ONLY currently mounted 150m cells (typically ~35-55 cells!)
         private readonly List<CellFloraData> _mountedNearCells = new(96);
-        // Reusable Object Pool for MultiMeshInstance3D (kept detached from SceneTree when parked!)
         private readonly Stack<MultiMeshInstance3D> _nodePool = new(512);
 
-        // Static Macro 600m x 600m LOD2 cells (16x9 = max 144 cells -> ~260-360 nodes across whole 52 km2!)
         private readonly FarCanopyCell[] _farCells = new FarCanopyCell[FloraLodConfig.FarCols * FloraLodConfig.FarRows];
         private int _activeFarCellCount;
 
@@ -147,17 +160,15 @@ namespace PrimevalWorld.Flora
         public ImageTexture? WindDataTex => _windDataTex;
         public bool LodDebugEnabled { get; private set; }
 
-        // Exact SceneTree Node Counts (always < 1,200 nodes!)
         public int MountedLod0NodeCount { get; private set; }
         public int MountedLod1NodeCount { get; private set; }
         public int MountedDetailNodeCount { get; private set; }
+        public int MountedCloseUnderstoryNodeCount { get; private set; }
         public int Lod2NodeCount { get; private set; }
-        public int TotalSceneTreeNodes => MountedLod0NodeCount + MountedLod1NodeCount + MountedDetailNodeCount + Lod2NodeCount;
+        public int TotalSceneTreeNodes => MountedLod0NodeCount + MountedLod1NodeCount + MountedDetailNodeCount + MountedCloseUnderstoryNodeCount + Lod2NodeCount;
         public int TotalSparseNodes => TotalSceneTreeNodes;
-        public int PooledIdleNodes => _nodePool.Count;
         public int TotalInstanceCount => _spawner.TotalInstances;
 
-        // Real Measured 4 Hz HUD Telemetry (0 fake multipliers, 0 GC allocation, ShadowTrees <= LOD0 Active invariant!)
         public int BucketActiveLod0Trees { get; private set; }
         public int BucketActiveLod1Trees { get; private set; }
         public int BucketActiveLod2Trees { get; private set; }
@@ -173,14 +184,17 @@ namespace PrimevalWorld.Flora
             HydrologySolver hydrology,
             AtmosphereClimate climate,
             SoilPedology soil,
-            int seed)
+            int seed,
+            ImageTexture? climateTex = null)
         {
             ClearFlora();
             EnsureMaterials(climate);
 
             _spawner.Generate(tectonic, erosion, hydrology, climate, soil, seed);
+            ImageTexture canopyTex = _spawner.BuildCanopyCoverageTexture(hydrology);
+            BindSiteMossTextures(climateTex, canopyTex);
 
-            // 1. Collect woody trees into pure C# RAM lists per 150m x 150m cell (0 Godot nodes created!)
+            // 1. Collect woody trees into pure C# RAM lists per 150m & 600m cell
             var nearTreeLists = new List<FloraInstance>?[FloraLodConfig.NearCols, FloraLodConfig.NearRows];
             var farTreeLists = new List<FloraInstance>?[FloraLodConfig.FarCols, FloraLodConfig.FarRows];
 
@@ -207,22 +221,20 @@ namespace PrimevalWorld.Flora
                 }
             }
 
-            // 2. Pack pure C# CellFloraData for 64x36 (150m) cells (ZERO SceneTree nodes allocated yet!)
+            // 2. Pack pure C# CellFloraData for 64x36 (150m) cells (0 SceneTree nodes allocated yet!)
             for (int nz = 0; nz < FloraLodConfig.NearRows; nz++)
             {
                 for (int nx = 0; nx < FloraLodConfig.NearCols; nx++)
                 {
                     var tList = nearTreeLists[nx, nz];
                     var dList = _spawner.MicroDetailCells[nx, nz];
-                    int tCnt = tList?.Count ?? 0;
-                    int dCnt = dList.Count;
-                    if (tCnt == 0 && dCnt == 0) continue;
+                    if ((tList == null || tList.Count == 0) && dList.Count == 0) continue;
 
                     _nearGrid[nx, nz] = BuildPureNearCellData(tList, dList, nx, nz);
                 }
             }
 
-            // 3. Build Static Grouped-Archetype LOD2 for 16x9 (600m x 600m) macro cells (~260-360 nodes across whole world!)
+            // 3. Build Static Grouped-Archetype Puffy LOD2 for 16x9 (600m x 600m) macro cells
             _activeFarCellCount = 0;
             for (int fz = 0; fz < FloraLodConfig.FarRows; fz++)
             {
@@ -239,7 +251,21 @@ namespace PrimevalWorld.Flora
             _lastCamCellZ = -999;
             _telemetryAccum = 999.0f;
 
-            return _spawner.BuildCanopyCoverageTexture(hydrology);
+            return canopyTex;
+        }
+
+        public void BindSiteMossTextures(ImageTexture? climateTex, ImageTexture? canopyTex)
+        {
+            void Apply(ShaderMaterial? mat)
+            {
+                if (mat == null) return;
+                if (climateTex != null) mat.SetShaderParameter("climate_tex", climateTex);
+                if (canopyTex != null) mat.SetShaderParameter("canopy_coverage_tex", canopyTex);
+            }
+            Apply(_barkLod0Mat);
+            Apply(_barkLod1Mat);
+            Apply(_barkDetailMat);
+            Apply(_barkCloseUnderstoryMat);
         }
 
         public void ToggleLodDebugMode() => SetLodDebugMode(!LodDebugEnabled);
@@ -248,10 +274,16 @@ namespace PrimevalWorld.Flora
         {
             LodDebugEnabled = enabled;
             int val = enabled ? 1 : 0;
-            _canopyLod0Mat?.SetShaderParameter("lod_debug_mode", val);
-            _canopyLod1Mat?.SetShaderParameter("lod_debug_mode", val);
-            _canopyLod2Mat?.SetShaderParameter("lod_debug_mode", val);
-            _detailMat?.SetShaderParameter("lod_debug_mode", val);
+            _leafLod0Mat?.SetShaderParameter("lod_debug_mode", val);
+            _leafLod1Mat?.SetShaderParameter("lod_debug_mode", val);
+            _leafLod2Mat?.SetShaderParameter("lod_debug_mode", val);
+            _leafDetailMat?.SetShaderParameter("lod_debug_mode", val);
+            _leafCloseUnderstoryMat?.SetShaderParameter("lod_debug_mode", val);
+
+            _barkLod0Mat?.SetShaderParameter("lod_debug_mode", val);
+            _barkLod1Mat?.SetShaderParameter("lod_debug_mode", val);
+            _barkDetailMat?.SetShaderParameter("lod_debug_mode", val);
+            _barkCloseUnderstoryMat?.SetShaderParameter("lod_debug_mode", val);
         }
 
         public void UpdateStreaming(Camera3D camera, float dt)
@@ -276,10 +308,6 @@ namespace PrimevalWorld.Flora
             }
         }
 
-        /// <summary>
-        /// Mounts/unmounts 150m x 150m cells around camera via Object Pool ONLY when camera enters a new 150m cell.
-        /// Keeps SceneTree node count strictly < 1,200 at all times across the 52 km2 world!
-        /// </summary>
         private void UpdateDynamicNearCellPool(Vector3 camPos, int camCx, int camCz)
         {
             float lod0MountSq = FloraLodConfig.NearLod0MountRadiusM * FloraLodConfig.NearLod0MountRadiusM;
@@ -294,7 +322,10 @@ namespace PrimevalWorld.Flora
             float detUnmountSq = (FloraLodConfig.NearDetailMountRadiusM + FloraLodConfig.UnmountHysteresisM)
                                * (FloraLodConfig.NearDetailMountRadiusM + FloraLodConfig.UnmountHysteresisM);
 
-            // 1. Unmount distant layers from currently mounted cells (iterate backwards for O(1) swap-remove)
+            float cuMountSq = FloraLodConfig.NearUnderstoryMountRadiusM * FloraLodConfig.NearUnderstoryMountRadiusM;
+            float cuUnmountSq = (FloraLodConfig.NearUnderstoryMountRadiusM + FloraLodConfig.UnmountHysteresisM)
+                              * (FloraLodConfig.NearUnderstoryMountRadiusM + FloraLodConfig.UnmountHysteresisM);
+
             for (int i = _mountedNearCells.Count - 1; i >= 0; i--)
             {
                 CellFloraData cell = _mountedNearCells[i];
@@ -302,14 +333,12 @@ namespace PrimevalWorld.Flora
                 float dz = cell.Center.Z - camPos.Z;
                 float dSqXZ = dx * dx + dz * dz;
 
-                if (cell.Lod0Mounted && dSqXZ > lod0UnmountSq)
-                    UnmountLayer(cell, 0);
-                if (cell.Lod1Mounted && dSqXZ > lod1UnmountSq)
-                    UnmountLayer(cell, 1);
-                if (cell.DetailMounted && dSqXZ > detUnmountSq)
-                    UnmountLayer(cell, 2);
+                if (cell.Lod0Mounted && dSqXZ > lod0UnmountSq) UnmountLayer(cell, 0);
+                if (cell.Lod1Mounted && dSqXZ > lod1UnmountSq) UnmountLayer(cell, 1);
+                if (cell.DetailMounted && dSqXZ > detUnmountSq) UnmountLayer(cell, 2);
+                if (cell.CloseUnderstoryMounted && dSqXZ > cuUnmountSq) UnmountLayer(cell, 3);
 
-                if (!cell.Lod0Mounted && !cell.Lod1Mounted && !cell.DetailMounted)
+                if (!cell.Lod0Mounted && !cell.Lod1Mounted && !cell.DetailMounted && !cell.CloseUnderstoryMounted)
                 {
                     int last = _mountedNearCells.Count - 1;
                     _mountedNearCells[i] = _mountedNearCells[last];
@@ -317,7 +346,6 @@ namespace PrimevalWorld.Flora
                 }
             }
 
-            // 2. Mount 150m cells within 580m streaming radius (~4 cells in each direction -> ~45-55 cells max!)
             int radCells = (int)MathF.Ceiling(FloraLodConfig.NearLod1MountRadiusM / FloraLodConfig.NearCellSize) + 1;
             int minX = Math.Max(0, camCx - radCells);
             int maxX = Math.Min(FloraLodConfig.NearCols - 1, camCx + radCells);
@@ -336,47 +364,72 @@ namespace PrimevalWorld.Flora
                     float dSqXZ = dx * dx + dz * dz;
                     if (dSqXZ > lod1MountSq) continue;
 
-                    bool wasMounted = cell.Lod0Mounted || cell.Lod1Mounted || cell.DetailMounted;
+                    bool wasMounted = cell.Lod0Mounted || cell.Lod1Mounted || cell.DetailMounted || cell.CloseUnderstoryMounted;
 
                     if (cell.TreeCount > 0)
                     {
-                        if (!cell.Lod0Mounted && dSqXZ <= lod0MountSq)
-                            MountLayer(cell, 0);
-                        if (!cell.Lod1Mounted && dSqXZ <= lod1MountSq)
-                            MountLayer(cell, 1);
+                        if (!cell.Lod0Mounted && dSqXZ <= lod0MountSq) MountLayer(cell, 0);
+                        if (!cell.Lod1Mounted && dSqXZ <= lod1MountSq) MountLayer(cell, 1);
                     }
                     if (cell.DetailCount > 0 && !cell.DetailMounted && dSqXZ <= detMountSq)
-                    {
                         MountLayer(cell, 2);
-                    }
+                    if (cell.CloseUnderstoryCount > 0 && !cell.CloseUnderstoryMounted && dSqXZ <= cuMountSq)
+                        MountLayer(cell, 3);
 
-                    bool nowMounted = cell.Lod0Mounted || cell.Lod1Mounted || cell.DetailMounted;
+                    bool nowMounted = cell.Lod0Mounted || cell.Lod1Mounted || cell.DetailMounted || cell.CloseUnderstoryMounted;
                     if (!wasMounted && nowMounted)
                         _mountedNearCells.Add(cell);
                 }
             }
         }
 
-        private void MountLayer(CellFloraData cell, int layerType) // 0=LOD0, 1=LOD1, 2=Detail
+        private void MountLayer(CellFloraData cell, int layerType) // 0=LOD0, 1=LOD1, 2=Detail, 3=CloseUnderstory
         {
-            SpeciesBatchData[] batches = layerType == 2 ? cell.DetailBatches : cell.TreeBatches;
-            List<MultiMeshInstance3D> targetList = layerType == 0
-                ? cell.MountedLod0Nodes
-                : (layerType == 1 ? cell.MountedLod1Nodes : cell.MountedDetailNodes);
-            ShaderMaterial mat = layerType == 0
-                ? _canopyLod0Mat!
-                : (layerType == 1 ? _canopyLod1Mat! : _detailMat!);
-            float visEnd = layerType == 0
-                ? cell.Lod0VisEnd
-                : (layerType == 1 ? cell.Lod1VisEnd : cell.DetailVisEnd);
+            VariantBatchData[] batches = layerType switch
+            {
+                0 or 1 => cell.TreeBatches,
+                2 => cell.DetailBatches,
+                _ => cell.CloseUnderstoryBatches,
+            };
+            List<MultiMeshInstance3D> targetList = layerType switch
+            {
+                0 => cell.MountedLod0Nodes,
+                1 => cell.MountedLod1Nodes,
+                2 => cell.MountedDetailNodes,
+                _ => cell.MountedCloseUnderstoryNodes,
+            };
+            ShaderMaterial? barkMat = layerType switch
+            {
+                0 => _barkLod0Mat,
+                1 => _barkLod1Mat,
+                2 => _barkDetailMat,
+                _ => _barkCloseUnderstoryMat,
+            };
+            ShaderMaterial? leafMat = layerType switch
+            {
+                0 => _leafLod0Mat,
+                1 => _leafLod1Mat,
+                2 => _leafDetailMat,
+                _ => _leafCloseUnderstoryMat,
+            };
+            float visEnd = layerType switch
+            {
+                0 => cell.Lod0VisEnd,
+                1 => cell.Lod1VisEnd,
+                2 => cell.DetailVisEnd,
+                _ => cell.CloseUnderstoryVisEnd,
+            };
+
+            bool isDetail = layerType >= 2;
+            int lodIdx = layerType == 1 ? 1 : 0;
 
             for (int i = 0; i < batches.Length; i++)
             {
                 MultiMeshInstance3D mmi = AcquirePooledNode();
-                mmi.Multimesh = batches[i].GetOrBuildMultiMesh(_meshLib, layerType, isDetail: layerType == 2);
+                mmi.Multimesh = batches[i].GetOrBuildMultiMesh(_meshLib, lodIdx, isDetail, barkMat, leafMat);
                 mmi.Position = cell.Center;
-                mmi.MaterialOverride = mat;
-                mmi.CastShadow = GeometryInstance3D.ShadowCastingSetting.Off; // Shadow enabled strictly on active LOD0!
+                mmi.MaterialOverride = null; // Multi-surface ArrayMesh uses Surface 0 (bark_moss) + Surface 1 (flora_wind)!
+                mmi.CastShadow = GeometryInstance3D.ShadowCastingSetting.Off;
                 mmi.VisibilityRangeBegin = 0.0f;
                 mmi.VisibilityRangeBeginMargin = 0.0f;
                 mmi.VisibilityRangeEnd = visEnd;
@@ -386,51 +439,31 @@ namespace PrimevalWorld.Flora
                 targetList.Add(mmi);
             }
 
-            if (layerType == 0)
-            {
-                cell.Lod0Mounted = true;
-                cell.ShadowEnabled = false;
-                MountedLod0NodeCount += batches.Length;
-            }
-            else if (layerType == 1)
-            {
-                cell.Lod1Mounted = true;
-                MountedLod1NodeCount += batches.Length;
-            }
-            else
-            {
-                cell.DetailMounted = true;
-                MountedDetailNodeCount += batches.Length;
-            }
+            if (layerType == 0) { cell.Lod0Mounted = true; cell.ShadowEnabled = false; MountedLod0NodeCount += batches.Length; }
+            else if (layerType == 1) { cell.Lod1Mounted = true; MountedLod1NodeCount += batches.Length; }
+            else if (layerType == 2) { cell.DetailMounted = true; MountedDetailNodeCount += batches.Length; }
+            else { cell.CloseUnderstoryMounted = true; MountedCloseUnderstoryNodeCount += batches.Length; }
         }
 
         private void UnmountLayer(CellFloraData cell, int layerType)
         {
-            List<MultiMeshInstance3D> list = layerType == 0
-                ? cell.MountedLod0Nodes
-                : (layerType == 1 ? cell.MountedLod1Nodes : cell.MountedDetailNodes);
+            List<MultiMeshInstance3D> list = layerType switch
+            {
+                0 => cell.MountedLod0Nodes,
+                1 => cell.MountedLod1Nodes,
+                2 => cell.MountedDetailNodes,
+                _ => cell.MountedCloseUnderstoryNodes,
+            };
 
             int cnt = list.Count;
             for (int i = 0; i < cnt; i++)
                 ReleasePooledNode(list[i]);
             list.Clear();
 
-            if (layerType == 0)
-            {
-                cell.Lod0Mounted = false;
-                cell.ShadowEnabled = false;
-                MountedLod0NodeCount -= cnt;
-            }
-            else if (layerType == 1)
-            {
-                cell.Lod1Mounted = false;
-                MountedLod1NodeCount -= cnt;
-            }
-            else
-            {
-                cell.DetailMounted = false;
-                MountedDetailNodeCount -= cnt;
-            }
+            if (layerType == 0) { cell.Lod0Mounted = false; cell.ShadowEnabled = false; MountedLod0NodeCount -= cnt; }
+            else if (layerType == 1) { cell.Lod1Mounted = false; MountedLod1NodeCount -= cnt; }
+            else if (layerType == 2) { cell.DetailMounted = false; MountedDetailNodeCount -= cnt; }
+            else { cell.CloseUnderstoryMounted = false; MountedCloseUnderstoryNodeCount -= cnt; }
         }
 
         private MultiMeshInstance3D AcquirePooledNode()
@@ -454,10 +487,6 @@ namespace PrimevalWorld.Flora
             _nodePool.Push(mmi);
         }
 
-        /// <summary>
-        /// Zero-GC 4 Hz real frustum telemetry & strict LOD0-only shadow enforcement.
-        /// Guarantees mathematical invariant: ShadowTrees <= BucketActiveLod0Trees!
-        /// </summary>
         private void MeasureRealFrustumTelemetryAndShadows(Camera3D camera)
         {
             Vector3 camPos = camera.GlobalPosition;
@@ -497,15 +526,13 @@ namespace PrimevalWorld.Flora
             int visNodes = 0;
             int detailInstances = 0;
 
-            // Only scan the ~35-55 mounted near cells (microseconds!)
-            float lod0ShadowCutoff = FloraLodConfig.Lod0End + FloraLodConfig.TransitionHalfBand + 35.0f; // 200m
+            float lod0ShadowCutoff = FloraLodConfig.Lod0End + FloraLodConfig.TransitionHalfBand + 35.0f;
             for (int i = 0; i < _mountedNearCells.Count; i++)
             {
                 CellFloraData cell = _mountedNearCells[i];
                 float dist = camPos.DistanceTo(cell.Center);
                 bool inFrustum = InFrustum(cell.Center, cell.Radius3D);
 
-                // Strict Shadow Discipline: CastShadow = On ONLY on mounted LOD0 cells within shadow range & frustum!
                 bool shouldCastShadow = cell.Lod0Mounted && inFrustum && dist <= lod0ShadowCutoff;
                 if (cell.Lod0Mounted && cell.ShadowEnabled != shouldCastShadow)
                 {
@@ -519,22 +546,23 @@ namespace PrimevalWorld.Flora
 
                 if (!inFrustum) continue;
 
-                if (cell.Lod0Mounted && dist <= cell.Lod0VisEnd)
-                    visNodes += cell.MountedLod0Nodes.Count;
-                if (cell.Lod1Mounted && dist <= cell.Lod1VisEnd)
-                    visNodes += cell.MountedLod1Nodes.Count;
+                if (cell.Lod0Mounted && dist <= cell.Lod0VisEnd) visNodes += cell.MountedLod0Nodes.Count;
+                if (cell.Lod1Mounted && dist <= cell.Lod1VisEnd) visNodes += cell.MountedLod1Nodes.Count;
                 if (cell.DetailMounted && dist <= cell.DetailVisEnd)
                 {
                     visNodes += cell.MountedDetailNodes.Count;
                     detailInstances += cell.DetailCount;
                 }
+                if (cell.CloseUnderstoryMounted && dist <= cell.CloseUnderstoryVisEnd)
+                {
+                    visNodes += cell.MountedCloseUnderstoryNodes.Count;
+                    detailInstances += cell.CloseUnderstoryCount;
+                }
 
-                // Disjoint cell-center bucket classification; shadow cutoff (200m) is strictly within LOD0 active range!
                 if (cell.Lod0Mounted && dist <= lod0ShadowCutoff)
                 {
                     lod0Trees += cell.TreeCount;
-                    if (cell.ShadowEnabled)
-                        shadowTrees += cell.TreeCount;
+                    if (cell.ShadowEnabled) shadowTrees += cell.TreeCount;
                 }
                 else if (cell.Lod1Mounted && dist <= FloraLodConfig.Lod1End + FloraLodConfig.TransitionHalfBand)
                 {
@@ -542,7 +570,6 @@ namespace PrimevalWorld.Flora
                 }
             }
 
-            // Scan the <= 144 macro 600m LOD2 cells (microseconds!)
             for (int i = 0; i < _activeFarCellCount; i++)
             {
                 ref FarCanopyCell cell = ref _farCells[i];
@@ -558,7 +585,7 @@ namespace PrimevalWorld.Flora
             BucketActiveLod0Trees = lod0Trees;
             BucketActiveLod1Trees = lod1Trees;
             BucketActiveLod2Trees = lod2Trees;
-            ShadowTrees = shadowTrees; // Mathematically guaranteed: ShadowTrees <= BucketActiveLod0Trees!
+            ShadowTrees = shadowTrees;
             VisibleMultiMeshNodes = visNodes;
             ActiveDetailInstances = detailInstances;
         }
@@ -602,10 +629,12 @@ namespace PrimevalWorld.Flora
                     bool m0 = c.TreeCount > 0 && dXZ <= FloraLodConfig.NearLod0MountRadiusM;
                     bool m1 = c.TreeCount > 0 && dXZ <= FloraLodConfig.NearLod1MountRadiusM;
                     bool md = c.DetailCount > 0 && dXZ <= FloraLodConfig.NearDetailMountRadiusM;
+                    bool mc = c.CloseUnderstoryCount > 0 && dXZ <= FloraLodConfig.NearUnderstoryMountRadiusM;
                     if (m0) mountedTotal += c.TreeBatches.Length;
                     if (m1) mountedTotal += c.TreeBatches.Length;
                     if (md) mountedTotal += c.DetailBatches.Length;
-                    if (!m0 && !m1 && !md) continue;
+                    if (mc) mountedTotal += c.CloseUnderstoryBatches.Length;
+                    if (!m0 && !m1 && !md && !mc) continue;
 
                     float dist = samplePos.DistanceTo(c.Center);
                     if (!InFrustum(c.Center, c.Radius3D)) continue;
@@ -613,16 +642,10 @@ namespace PrimevalWorld.Flora
                     if (m0 && dist <= c.Lod0VisEnd) vn += c.TreeBatches.Length;
                     if (m1 && dist <= c.Lod1VisEnd) vn += c.TreeBatches.Length;
                     if (md && dist <= c.DetailVisEnd) vn += c.DetailBatches.Length;
+                    if (mc && dist <= c.CloseUnderstoryVisEnd) vn += c.CloseUnderstoryBatches.Length;
 
-                    if (m0 && dist <= lod0ShadowCutoff)
-                    {
-                        l0 += c.TreeCount;
-                        sh += c.TreeCount;
-                    }
-                    else if (m1 && dist <= FloraLodConfig.Lod1End + FloraLodConfig.TransitionHalfBand)
-                    {
-                        l1 += c.TreeCount;
-                    }
+                    if (m0 && dist <= lod0ShadowCutoff) { l0 += c.TreeCount; sh += c.TreeCount; }
+                    else if (m1 && dist <= FloraLodConfig.Lod1End + FloraLodConfig.TransitionHalfBand) { l1 += c.TreeCount; }
                 }
             }
 
@@ -640,17 +663,29 @@ namespace PrimevalWorld.Flora
 
         public void UpdateWeatherAndSeason(ImageTexture weatherTex, float seasonPhase, float globalWindGust)
         {
-            void Apply(ShaderMaterial? mat)
+            void ApplyLeaf(ShaderMaterial? mat)
             {
                 if (mat == null) return;
                 mat.SetShaderParameter("weather_dynamic_tex", weatherTex);
                 mat.SetShaderParameter("season_phase", seasonPhase);
                 mat.SetShaderParameter("global_wind_gust", globalWindGust);
             }
-            Apply(_canopyLod0Mat);
-            Apply(_canopyLod1Mat);
-            Apply(_canopyLod2Mat);
-            Apply(_detailMat);
+            void ApplyBark(ShaderMaterial? mat)
+            {
+                if (mat == null) return;
+                mat.SetShaderParameter("weather_dynamic_tex", weatherTex);
+                mat.SetShaderParameter("global_wind_gust", globalWindGust);
+            }
+            ApplyLeaf(_leafLod0Mat);
+            ApplyLeaf(_leafLod1Mat);
+            ApplyLeaf(_leafLod2Mat);
+            ApplyLeaf(_leafDetailMat);
+            ApplyLeaf(_leafCloseUnderstoryMat);
+
+            ApplyBark(_barkLod0Mat);
+            ApplyBark(_barkLod1Mat);
+            ApplyBark(_barkDetailMat);
+            ApplyBark(_barkCloseUnderstoryMat);
         }
 
         public string GetDominantSpeciesNameAt(float worldX, float worldZ) => _spawner.GetDominantSpeciesNameAt(worldX, worldZ);
@@ -672,6 +707,7 @@ namespace PrimevalWorld.Flora
             MountedLod0NodeCount = 0;
             MountedLod1NodeCount = 0;
             MountedDetailNodeCount = 0;
+            MountedCloseUnderstoryNodeCount = 0;
             Lod2NodeCount = 0;
             BucketActiveLod0Trees = 0;
             BucketActiveLod1Trees = 0;
@@ -683,17 +719,15 @@ namespace PrimevalWorld.Flora
 
         private static CellFloraData BuildPureNearCellData(
             List<FloraInstance>? trees,
-            List<FloraInstance> details,
+            List<FloraInstance> allDetails,
             int nx,
             int nz)
         {
             float sumY = 0.0f;
             int totalCnt = 0;
             if (trees != null)
-            {
                 for (int i = 0; i < trees.Count; i++) { sumY += trees[i].Transform.Origin.Y; totalCnt++; }
-            }
-            for (int i = 0; i < details.Count; i++) { sumY += details[i].Transform.Origin.Y; totalCnt++; }
+            for (int i = 0; i < allDetails.Count; i++) { sumY += allDetails[i].Transform.Origin.Y; totalCnt++; }
 
             Vector3 cellCenter = new Vector3(
                 (nx + 0.5f) * FloraLodConfig.NearCellSize,
@@ -701,7 +735,10 @@ namespace PrimevalWorld.Flora
                 (nz + 0.5f) * FloraLodConfig.NearCellSize
             );
 
+            var tallDetails = new List<FloraInstance>(allDetails.Count / 2);
+            var closeUnderstory = new List<FloraInstance>(allDetails.Count / 2);
             float maxOffSq = 0.0f;
+
             if (trees != null)
             {
                 for (int i = 0; i < trees.Count; i++)
@@ -710,10 +747,15 @@ namespace PrimevalWorld.Flora
                     if (dSq > maxOffSq) maxOffSq = dSq;
                 }
             }
-            for (int i = 0; i < details.Count; i++)
+            for (int i = 0; i < allDetails.Count; i++)
             {
-                float dSq = details[i].Transform.Origin.DistanceSquaredTo(cellCenter);
+                FloraInstance inst = allDetails[i];
+                float dSq = inst.Transform.Origin.DistanceSquaredTo(cellCenter);
                 if (dSq > maxOffSq) maxOffSq = dSq;
+                if (FloraMeshLibrary.IsCloseUnderstorySpecies(inst.Species))
+                    closeUnderstory.Add(inst);
+                else
+                    tallDetails.Add(inst);
             }
 
             float radius3D = MathF.Sqrt(maxOffSq) + 18.0f;
@@ -725,33 +767,37 @@ namespace PrimevalWorld.Flora
                 Center = cellCenter,
                 Radius3D = diagPad,
                 TreeCount = trees?.Count ?? 0,
-                DetailCount = details.Count,
+                DetailCount = tallDetails.Count,
+                CloseUnderstoryCount = closeUnderstory.Count,
                 Lod0VisEnd = FloraLodConfig.Lod0End + FloraLodConfig.TransitionHalfBand + diagPad + margin,
                 Lod1VisEnd = FloraLodConfig.Lod1End + FloraLodConfig.TransitionHalfBand + diagPad + margin,
                 DetailVisEnd = FloraLodConfig.DetailFadeEnd + diagPad + margin,
-                TreeBatches = trees != null && trees.Count > 0 ? GroupBySpecies(trees, cellCenter) : Array.Empty<SpeciesBatchData>(),
-                DetailBatches = details.Count > 0 ? GroupBySpecies(details, cellCenter) : Array.Empty<SpeciesBatchData>(),
+                CloseUnderstoryVisEnd = FloraLodConfig.CloseUnderstoryFadeEnd + diagPad + margin,
+                TreeBatches = trees != null && trees.Count > 0 ? GroupByCanonicalMeshKey(trees, cellCenter) : Array.Empty<VariantBatchData>(),
+                DetailBatches = tallDetails.Count > 0 ? GroupByCanonicalMeshKey(tallDetails, cellCenter) : Array.Empty<VariantBatchData>(),
+                CloseUnderstoryBatches = closeUnderstory.Count > 0 ? GroupByCanonicalMeshKey(closeUnderstory, cellCenter) : Array.Empty<VariantBatchData>(),
             };
         }
 
-        private static SpeciesBatchData[] GroupBySpecies(List<FloraInstance> instances, Vector3 cellCenter)
+        private static VariantBatchData[] GroupByCanonicalMeshKey(List<FloraInstance> instances, Vector3 cellCenter)
         {
-            var bySp = new Dictionary<FloraSpeciesId, List<FloraInstance>>();
+            var byKey = new Dictionary<FloraMeshLibrary.MeshKey, List<FloraInstance>>();
             for (int i = 0; i < instances.Count; i++)
             {
                 var inst = instances[i];
-                if (!bySp.TryGetValue(inst.Species, out var list))
+                var key = FloraMeshLibrary.GetCanonicalMeshKey(inst.Species, inst.Variant);
+                if (!byKey.TryGetValue(key, out var list))
                 {
                     list = new List<FloraInstance>(12);
-                    bySp[inst.Species] = list;
+                    byKey[key] = list;
                 }
                 list.Add(inst);
             }
 
-            var result = new SpeciesBatchData[bySp.Count];
+            var result = new VariantBatchData[byKey.Count];
             int idx = 0;
-            foreach (var kv in bySp)
-                result[idx++] = new SpeciesBatchData(kv.Key, kv.Value, cellCenter);
+            foreach (var kv in byKey)
+                result[idx++] = new VariantBatchData(kv.Key, kv.Value, cellCenter);
             return result;
         }
 
@@ -784,17 +830,16 @@ namespace PrimevalWorld.Flora
             float diagPad = MathF.Max(FloraLodConfig.MinFarCellDiagPad, radius3D);
             float margin = FloraLodConfig.CellHysteresisMargin;
 
-            // Keep LOD2 cell visible across the full 435m..1350m dither window for every tree inside the 600m cell!
             float rawBegin = (FloraLodConfig.Lod2Start - FloraLodConfig.TransitionHalfBand) - diagPad - margin;
             float lod2VisBegin = MathF.Max(0.0f, rawBegin);
             float lod2VisEnd = FloraLodConfig.FarFadeEnd + diagPad + margin;
 
             FloraSpeciesId[] repSpecies =
             {
-                FloraSpeciesId.StarAppleCanopy,  // Broadleaf evergreen dome
-                FloraSpeciesId.BorealSnowPine,   // Conifer spire dome
-                FloraSpeciesId.GinkgoAncientGold,// Deciduous seasonal dome
-                FloraSpeciesId.DragonBloodTree,  // Desert/xeric umbrella dome
+                FloraSpeciesId.StarAppleCanopy,
+                FloraSpeciesId.BorealSnowPine,
+                FloraSpeciesId.GinkgoAncientGold,
+                FloraSpeciesId.DragonBloodTree,
             };
 
             var lod2Nodes = new List<MultiMeshInstance3D>(4);
@@ -803,13 +848,12 @@ namespace PrimevalWorld.Flora
                 var list = byArch[a];
                 if (list == null || list.Count == 0) continue;
 
-                FloraNicheProfile repProf = FloraNicheDatabase.AllSpecies[(int)repSpecies[a]];
                 var mm = new MultiMesh
                 {
                     TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
                     UseColors = false,
                     UseCustomData = true,
-                    Mesh = _meshLib.GetMesh(repProf, 2),
+                    Mesh = _meshLib.GetMesh(repSpecies[a], 0, 2, null, _leafLod2Mat),
                     InstanceCount = list.Count,
                 };
 
@@ -825,8 +869,8 @@ namespace PrimevalWorld.Flora
                     Name = $"Far600_{fx}_{fz}_A{a}_L2",
                     Position = cellCenter,
                     Multimesh = mm,
-                    MaterialOverride = _canopyLod2Mat,
-                    CastShadow = GeometryInstance3D.ShadowCastingSetting.Off, // Mandatory Off for LOD2
+                    MaterialOverride = null,
+                    CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
                     VisibilityRangeBegin = lod2VisBegin,
                     VisibilityRangeBeginMargin = lod2VisBegin > 0.0f ? margin : 0.0f,
                     VisibilityRangeEnd = lod2VisEnd,
@@ -858,13 +902,14 @@ namespace PrimevalWorld.Flora
 
         private void EnsureMaterials(AtmosphereClimate climate)
         {
-            var shader = GD.Load<Shader>("res://shaders/flora_wind.gdshader");
+            var leafShader = GD.Load<Shader>("res://shaders/flora_wind.gdshader");
+            var barkShader = GD.Load<Shader>("res://shaders/bark_moss.gdshader");
             _windDataTex = BuildWindDataTexture(climate);
             var bot = BotanicalTextureGenerator.EnsureAndLoadAll();
 
-            ShaderMaterial BuildOrUpdateMat(ShaderMaterial? existing, int lodLevel)
+            ShaderMaterial BuildLeafMat(ShaderMaterial? existing, int lodLevel)
             {
-                var mat = existing ?? new ShaderMaterial { Shader = shader };
+                var mat = existing ?? new ShaderMaterial { Shader = leafShader };
                 mat.SetShaderParameter("wind_dir_speed_tex", _windDataTex);
                 mat.SetShaderParameter("leaf_broadleaf_tex", bot.BroadleafTex);
                 mat.SetShaderParameter("leaf_conifer_tex", bot.ConiferTex);
@@ -876,10 +921,33 @@ namespace PrimevalWorld.Flora
                 return mat;
             }
 
-            _canopyLod0Mat = BuildOrUpdateMat(_canopyLod0Mat, 0);
-            _canopyLod1Mat = BuildOrUpdateMat(_canopyLod1Mat, 1);
-            _canopyLod2Mat = BuildOrUpdateMat(_canopyLod2Mat, 2);
-            _detailMat = BuildOrUpdateMat(_detailMat, -1);
+            ShaderMaterial BuildBarkMat(ShaderMaterial? existing, int lodLevel)
+            {
+                var mat = existing ?? new ShaderMaterial { Shader = barkShader };
+                mat.SetShaderParameter("wind_dir_speed_tex", _windDataTex);
+                mat.SetShaderParameter("bark_hardwood_albedo", bot.BarkHardwoodAlbedo);
+                mat.SetShaderParameter("bark_hardwood_normal", bot.BarkHardwoodNormal);
+                mat.SetShaderParameter("bark_hardwood_roughness", bot.BarkHardwoodRoughness);
+                mat.SetShaderParameter("bark_conifer_albedo", bot.BarkConiferAlbedo);
+                mat.SetShaderParameter("bark_conifer_normal", bot.BarkConiferNormal);
+                mat.SetShaderParameter("bark_conifer_roughness", bot.BarkConiferRoughness);
+                mat.SetShaderParameter("bark_pale_albedo", bot.BarkPaleTex);
+                mat.SetShaderParameter("moss_albedo", bot.MossAlbedo);
+                mat.SetShaderParameter("moss_normal", bot.MossNormal);
+                FloraLodConfig.ApplyToFloraMaterial(mat, lodLevel, LodDebugEnabled);
+                return mat;
+            }
+
+            _leafLod0Mat = BuildLeafMat(_leafLod0Mat, 0);
+            _leafLod1Mat = BuildLeafMat(_leafLod1Mat, 1);
+            _leafLod2Mat = BuildLeafMat(_leafLod2Mat, 2);
+            _leafDetailMat = BuildLeafMat(_leafDetailMat, -1);
+            _leafCloseUnderstoryMat = BuildLeafMat(_leafCloseUnderstoryMat, -2);
+
+            _barkLod0Mat = BuildBarkMat(_barkLod0Mat, 0);
+            _barkLod1Mat = BuildBarkMat(_barkLod1Mat, 1);
+            _barkDetailMat = BuildBarkMat(_barkDetailMat, -1);
+            _barkCloseUnderstoryMat = BuildBarkMat(_barkCloseUnderstoryMat, -2);
         }
 
         private static ImageTexture BuildWindDataTexture(AtmosphereClimate climate)

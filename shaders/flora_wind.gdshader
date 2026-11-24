@@ -26,6 +26,8 @@ uniform float far_fade_start = 1100.0;
 uniform float far_fade_end = 1350.0;
 uniform float detail_fade_start = 310.0;
 uniform float detail_fade_end = 400.0;
+uniform float close_understory_fade_start = 75.0;
+uniform float close_understory_fade_end = 100.0;
 
 varying vec3 v_color;
 varying vec3 v_inst_tint;
@@ -57,7 +59,9 @@ float bayer4x4(ivec2 p) {
 }
 
 void vertex() {
-	v_color = COLOR.rgb;
+	// For leaf cards (UV2.x >= 0.25), COLOR.r carries per-branch out-of-phase wind offset [0..1]!
+	float branch_phase = UV2.x >= 0.25 ? COLOR.r * 6.28318 : 0.0;
+	v_color = UV2.x >= 0.25 ? vec3(1.0) : COLOR.rgb;
 	v_inst_tint = dot(INSTANCE_CUSTOM.rgb, vec3(1.0)) > 0.02 ? INSTANCE_CUSTOM.rgb : vec3(1.0);
 	v_inst_seed = INSTANCE_CUSTOM.a;
 	v_uv = UV;
@@ -79,6 +83,8 @@ void vertex() {
 		culled_by_lod = (cam_dist <= lod1_start - transition_half_band) || (cam_dist >= lod1_end + transition_half_band);
 	} else if (lod_level == 2) {
 		culled_by_lod = (cam_dist <= lod2_start - transition_half_band) || (cam_dist >= far_fade_end);
+	} else if (lod_level == -2) {
+		culled_by_lod = (cam_dist >= close_understory_fade_end);
 	} else {
 		culled_by_lod = (cam_dist >= detail_fade_end);
 	}
@@ -110,13 +116,15 @@ void vertex() {
 		float flag_lean = smoothstep(11.0, 26.0, local_wind_speed) * clamp(VERTEX.y / 12.0, 0.0, 1.4) * 0.55;
 		VERTEX.xz += local_wind_dir * flag_lean;
 
-		float phase = dot(world_origin.xz, local_wind_dir) * 0.16;
+		float phase = dot(world_origin.xz, local_wind_dir) * 0.16 + branch_phase;
 		float freq = 1.2 + local_wind_speed * 0.12;
 
 		vec2 sway = vec2(0.0);
 		if (stem_flex < 0.22) {
 			float flutter = sin(TIME * (freq * 1.9) + phase + VERTEX.x * 1.3 + VERTEX.z * 1.1);
-			sway = local_wind_dir * flutter * (0.02 + local_wind_speed * 0.012) * stem_flex;
+			float cross_fl = cos(TIME * (freq * 1.45) + phase * 1.37);
+			vec2 perp_dir = vec2(-local_wind_dir.y, local_wind_dir.x);
+			sway = (local_wind_dir * flutter + perp_dir * cross_fl * 0.45) * (0.028 + local_wind_speed * 0.013) * stem_flex;
 		} else if (stem_flex < 0.60) {
 			float h_norm = clamp(VERTEX.y / 6.0, 0.0, 1.4);
 			float arc = h_norm * h_norm;
@@ -161,6 +169,11 @@ void fragment() {
 		if (tfar > dither) {
 			discard;
 		}
+	} else if (lod_level == -2) {
+		float tu = smoothstep(close_understory_fade_start, close_understory_fade_end, v_inst_cam_dist);
+		if (tu > dither) {
+			discard;
+		}
 	} else {
 		float tdet = smoothstep(detail_fade_start, detail_fade_end, v_inst_cam_dist);
 		if (tdet > dither) {
@@ -173,14 +186,16 @@ void fragment() {
 		float canopy_ao = clamp(v_surf_tag, 0.50, 1.10);
 		vec4 leaf_tex;
 		bool is_ginkgo_birch = (v_sub_type >= 1.5 && v_sub_type < 2.5);
+		bool is_palm_fern = (v_sub_type >= 2.5 && v_sub_type < 3.5);
 		bool is_maple = (v_sub_type >= 3.5 && v_sub_type < 4.5);
-		bool is_xeric = (v_sub_type >= 4.5);
+		bool is_xeric = (v_sub_type >= 4.5 && v_sub_type < 5.5);
+		bool is_lush_understory = (v_sub_type >= 5.5);
 
 		if (v_sub_type > 0.5 && v_sub_type < 1.5) {
 			leaf_tex = texture(leaf_conifer_tex, v_uv);
 		} else if (is_ginkgo_birch || is_maple) {
 			leaf_tex = texture(leaf_acacia_tex, v_uv);
-		} else if (v_sub_type >= 2.5 && v_sub_type < 3.5) {
+		} else if (is_palm_fern || is_lush_understory) {
 			leaf_tex = texture(leaf_palm_tex, v_uv);
 		} else {
 			leaf_tex = texture(leaf_broadleaf_tex, v_uv);
@@ -233,9 +248,10 @@ void fragment() {
 		NORMAL = vein_n;
 
 		ALBEDO = col;
-		ROUGHNESS = mix(0.74, 0.88, snow_dust);
-		SPECULAR = 0.22;
-		BACKLIGHT = col * (0.25 * canopy_ao) * (1.0 - snow_dust * 0.65);
+		ROUGHNESS = mix(is_lush_understory ? 0.62 : 0.74, 0.88, snow_dust);
+		SPECULAR = is_lush_understory ? 0.28 : 0.22;
+		float bl_strength = is_lush_understory ? 0.62 : 0.26;
+		BACKLIGHT = col * (bl_strength * canopy_ao) * (1.0 - snow_dust * 0.65);
 	} else if (v_surf_tag > -0.5) {
 		// ===================== WOODY BARK =====================
 		vec3 b_col = (v_sub_type > 0.5 && v_sub_type < 1.5)

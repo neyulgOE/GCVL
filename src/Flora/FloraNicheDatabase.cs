@@ -89,6 +89,10 @@ namespace PrimevalWorld.Flora
         StreamClayDeposit = 33,
         ExposedCopperOre = 34,
         Boulder = 35,
+
+        // Phase 1 Rainforest Understory & Hanging Liana Curtain (2)
+        LianaMossCurtain = 36,
+        LushSwordFern = 37,
     }
 
     /// <summary>
@@ -546,6 +550,28 @@ namespace PrimevalWorld.Flora
                 SoilAffinity = new[] { 0.25f, 0.35f, 0.50f, 0.70f, 0.35f, 1.0f },
                 LightMin = 0.0f, LightMax = 1.0f, CrownRadiusM = 1.3f, HeightMinM = 0.7f, HeightMaxM = 1.7f, WindStiffness = 1.0f,
                 BaseTint = new Color(0.42f, 0.41f, 0.39f), MapColor = new Color(0.42f, 0.41f, 0.39f)
+            },
+
+            // ===================== PHASE 1: HANGING MOSS LIANA & LUSH SWORD FERN =====================
+            new FloraNicheProfile
+            {
+                Id = FloraSpeciesId.LianaMossCurtain, SpeciesKey = "liana_moss_curtain", DisplayName = "Dây Leo Rủ Phủ Rêu",
+                Layer = FloraLayer.HerbGround, Stem = StemGroup.HerbaceousGround, Architecture = FloraArchitecture.ArchSucculentAndGround,
+                IdealTempC = 20.0f, TempToleranceC = 10.0f, IdealMoisture = 0.72f, MoistureTolerance = 0.25f,
+                MinGroundwater = 0.0f, MaxWindSpeedMs = 18.0f, MaxSlopeDeg = 30.0f, MinSoilDepth = 0.10f, SalinityTolerance = 0.15f,
+                SoilAffinity = new[] { 1.0f, 1.0f, 0.15f, 0.0f, 0.02f, 0.05f },
+                LightMin = 0.0f, LightMax = 0.55f, CrownRadiusM = 1.2f, HeightMinM = 4.0f, HeightMaxM = 12.0f, WindStiffness = 0.35f,
+                BaseTint = new Color(0.84f, 0.98f, 0.72f), MapColor = new Color(0.12f, 0.36f, 0.10f)
+            },
+            new FloraNicheProfile
+            {
+                Id = FloraSpeciesId.LushSwordFern, SpeciesKey = "lush_sword_fern", DisplayName = "Dương Xỉ Rừng Xòe Rộng",
+                Layer = FloraLayer.HerbGround, Stem = StemGroup.HerbaceousGround, Architecture = FloraArchitecture.ArchSoftTallHerb,
+                IdealTempC = 18.5f, TempToleranceC = 11.0f, IdealMoisture = 0.68f, MoistureTolerance = 0.28f,
+                MinGroundwater = 0.0f, MaxWindSpeedMs = 19.0f, MaxSlopeDeg = 30.0f, MinSoilDepth = 0.10f, SalinityTolerance = 0.18f,
+                SoilAffinity = new[] { 1.0f, 1.0f, 0.25f, 0.01f, 0.05f, 0.12f },
+                LightMin = 0.0f, LightMax = 0.72f, CrownRadiusM = 1.4f, HeightMinM = 0.8f, HeightMaxM = 1.5f, WindStiffness = 0.30f,
+                BaseTint = new Color(0.92f, 1.08f, 0.84f), MapColor = new Color(0.16f, 0.46f, 0.13f)
             },
         };
     }

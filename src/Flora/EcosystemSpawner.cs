@@ -43,12 +43,14 @@ namespace PrimevalWorld.Flora
     public readonly struct FloraInstance
     {
         public readonly FloraSpeciesId Species;
+        public readonly byte Variant;
         public readonly Transform3D Transform;
         public readonly Color CustomData; // RGB = hue/tint multiplier, A = per-instance phenology seed [0..1]
 
-        public FloraInstance(FloraSpeciesId species, Transform3D transform, Color customData)
+        public FloraInstance(FloraSpeciesId species, Transform3D transform, Color customData, byte variant = 0)
         {
             Species = species;
+            Variant = variant;
             Transform = transform;
             CustomData = customData;
         }
@@ -275,6 +277,9 @@ namespace PrimevalWorld.Flora
                             sc *= 2.8f;
                         if (eco == LandEcosystemId.PrimevalDenseForest && (candSp.Id == FloraSpeciesId.GinkgoAncientGold || candSp.Id == FloraSpeciesId.CrimsonSteppeMaple))
                             sc *= 0.22f; // Keep deciduous Ginkgo/Maple concentrated in Steppe Groves & cool Ecotones
+                        // Intermix 10-20% dark conifers on cool/high Primeval Forest slopes for natural color & silhouette contrast!
+                        if (eco == LandEcosystemId.PrimevalDenseForest && (candSp.Id == FloraSpeciesId.BorealSnowPine || candSp.Id == FloraSpeciesId.GiantSequoiaReddawn))
+                            sc *= (cs.TemperatureC < 17.5f || h > 45.0f) ? 2.2f : 1.15f;
 
                         scores[i] = sc;
                         total += sc;
@@ -380,7 +385,8 @@ namespace PrimevalWorld.Flora
 
                     int mx = Math.Clamp((int)(cand.X / MacroCellSize), 0, MacroCols - 1);
                     int mz = Math.Clamp((int)(cand.Z / MacroCellSize), 0, MacroRows - 1);
-                    MacroCanopyCells[mx, mz].Add(new FloraInstance(cand.Species, xform, cand.CustomData));
+                    byte variant = (byte)((cand.Hash >> 4) & 3);
+                    MacroCanopyCells[mx, mz].Add(new FloraInstance(cand.Species, xform, cand.CustomData, variant));
 
                     int cgx = Math.Clamp((int)(cand.X / Cell), 0, W - 1);
                     int cgz = Math.Clamp((int)(cand.Z / Cell), 0, H - 1);
@@ -407,11 +413,55 @@ namespace PrimevalWorld.Flora
                 CanopyCoverageMap[i] = Math.Clamp(1.0f - light, 0.0f, 1.0f);
             });
 
-            // ===================== SYMBIOTIC ROOT MICRO-CLUSTERS AROUND EMERGENTS =====================
+            // ===================== SYMBIOTIC ROOT MICRO-CLUSTERS, LIANAS & DENSE UNDERSTORY =====================
             for (int i = 0; i < acceptedTrees.Count; i++)
             {
                 CandidateTree tree = acceptedTrees[i];
                 FloraNicheProfile prof = FloraNicheDatabase.AllSpecies[(int)tree.Species];
+                int tgx = Math.Clamp((int)(tree.X / Cell), 0, W - 1);
+                int tgz = Math.Clamp((int)(tree.Z / Cell), 0, H - 1);
+                int tgIdx = tgz * W + tgx;
+                float localMoisture = climate.MoistureMap[tgIdx];
+                float localCanopy = CanopyCoverageMap[tgIdx];
+
+                // Hanging Moss Lianas draping from humid rainforest canopy limbs (Moisture > 0.55 && Canopy > 0.55)
+                if (tree.Eco == LandEcosystemId.PrimevalDenseForest && localMoisture > 0.55f && localCanopy > 0.55f && (tree.Hash & 3) == 0)
+                {
+                    AddDetailInstance(FloraSpeciesId.LianaMossCurtain, tree.X, tree.Z, tree.Y,
+                        0.90f + ((tree.Hash >> 8) & 15) / 40.0f, (tree.Hash & 0xFFF) / 4095.0f * Mathf.Tau,
+                        new Color(0.86f, 1.00f, 0.76f, 0.5f), (byte)((tree.Hash >> 5) & 1));
+                }
+
+                // Dense understory ferns, broadleaf aroids, shrubs & mossy fallen logs around humid forest trunks (0-3.5m eye-level fill!)
+                if ((tree.Eco == LandEcosystemId.PrimevalDenseForest || tree.Eco == LandEcosystemId.WetlandAndDelta) && (tree.Hash & 1) == 0)
+                {
+                    int ringItems = prof.Layer == FloraLayer.Emergent ? 4 : 2;
+                    for (int k = 0; k < ringItems; k++)
+                    {
+                        uint sh = Hash2D(i, k + 11, seed + 1301);
+                        float ang = (sh & 0xFF) / 255.0f * Mathf.Tau;
+                        float dist = 2.2f + ((sh >> 8) & 0xFF) / 255.0f * 5.8f;
+                        float px = tree.X + MathF.Cos(ang) * dist;
+                        float pz = tree.Z + MathF.Sin(ang) * dist;
+                        if (px < 15f || px > WorldPhysicsConfig.WorldWidth - 15f || pz < 15f || pz > WorldPhysicsConfig.WorldDepth - 15f)
+                            continue;
+                        float ph = erosion.SampleHeight(px, pz);
+                        if (ph <= 0.4f || hydrology.SampleWaterDepthAt(px, pz, ph) > 0.30f) continue;
+
+                        uint roll = (sh >> 16) % 10;
+                        FloraSpeciesId uId = roll < 4 ? FloraSpeciesId.LushSwordFern
+                                           : (roll < 6 ? FloraSpeciesId.WildBerryBush
+                                           : (roll < 8 ? FloraSpeciesId.GiantElephantEar
+                                           : FloraSpeciesId.HollowFallenTrunk));
+                        byte uVar = (byte)((sh >> 20) & 1);
+                        float uScale = 0.85f + ((sh >> 22) & 15) / 35.0f;
+                        Color uTint = uId == FloraSpeciesId.HollowFallenTrunk
+                            ? new Color(1.0f, 1.0f, 1.0f, 0.5f)
+                            : new Color(0.90f + (uVar * 0.08f), 1.04f, 0.84f, ((sh >> 4) & 0xFF) / 255.0f);
+                        AddDetailInstance(uId, px, pz, ph, uScale, ang, uTint, uVar);
+                    }
+                }
+
                 if (prof.Layer != FloraLayer.Emergent || tree.Species == FloraSpeciesId.BaobabPrehistoric)
                     continue;
 
@@ -420,7 +470,7 @@ namespace PrimevalWorld.Flora
                 {
                     AddDetailInstance(FloraSpeciesId.EpiphyteBaseVine, tree.X + 0.35f, tree.Z + 0.25f,
                         vineH, 1.05f, (tree.Hash & 0xFFF) / 4095.0f * Mathf.Tau,
-                        new Color(0.92f, 1.04f, 0.86f, 0.5f));
+                        new Color(0.92f, 1.04f, 0.86f, 0.5f), 0);
                 }
 
                 if (tree.Eco != LandEcosystemId.PrimevalDenseForest && tree.Eco != LandEcosystemId.WetlandAndDelta)
@@ -449,7 +499,7 @@ namespace PrimevalWorld.Flora
                     Color symTint = symId == FloraSpeciesId.ArborescentTreeFern || symId == FloraSpeciesId.CycadPrehistoric
                         ? new Color(0.94f, 1.04f, 0.88f, 0.5f)
                         : FloraNicheDatabase.AllSpecies[(int)symId].BaseTint;
-                    AddDetailInstance(symId, px, pz, ph, 0.9f + ((sh >> 20) & 0xF) / 30.0f, ang, symTint);
+                    AddDetailInstance(symId, px, pz, ph, 0.9f + ((sh >> 20) & 0xF) / 30.0f, ang, symTint, (byte)((sh >> 24) & 1));
                 }
             }
 
@@ -598,7 +648,7 @@ namespace PrimevalWorld.Flora
                                     tVar);
                             }
 
-                            cellList.Add(new FloraInstance(chosenSp.Id, xform, custom));
+                            cellList.Add(new FloraInstance(chosenSp.Id, xform, custom, (byte)((hKey >> 2) & 1)));
                         }
                     }
                 }
@@ -797,12 +847,12 @@ namespace PrimevalWorld.Flora
             }
         }
 
-        private void AddDetailInstance(FloraSpeciesId id, float wx, float wz, float h, float scale, float yaw, Color customData)
+        private void AddDetailInstance(FloraSpeciesId id, float wx, float wz, float h, float scale, float yaw, Color customData, byte variant = 0)
         {
             int mx = Math.Clamp((int)(wx / MicroCellSize), 0, MicroCols - 1);
             int mz = Math.Clamp((int)(wz / MicroCellSize), 0, MicroRows - 1);
             var basis = Basis.Identity.Rotated(Vector3.Up, yaw).Scaled(new Vector3(scale, scale, scale));
-            MicroDetailCells[mx, mz].Add(new FloraInstance(id, new Transform3D(basis, new Vector3(wx, h - 0.10f, wz)), customData));
+            MicroDetailCells[mx, mz].Add(new FloraInstance(id, new Transform3D(basis, new Vector3(wx, h - 0.10f, wz)), customData, variant));
         }
 
         private void BuildMegafaunaCorridors(ErosionPhysics erosion, HydrologySolver hydrology, int seed)

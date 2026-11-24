@@ -16,10 +16,11 @@ namespace PrimevalWorld.Flora
         public const int NearCols = (int)(WorldPhysicsConfig.WorldWidth / NearCellSize);  // 64
         public const int NearRows = (int)(WorldPhysicsConfig.WorldDepth / NearCellSize);  // 36
 
-        public const float NearLod0MountRadiusM = 310.0f;   // Only mount LOD0 on 150m cells within 310m
-        public const float NearLod1MountRadiusM = 580.0f;   // Only mount LOD1 on 150m cells within 580m
-        public const float NearDetailMountRadiusM = 420.0f; // Only mount L3..L6 on 150m cells within 420m
-        public const float UnmountHysteresisM = 40.0f;      // Prevents boundary thrashing when walking on cell edges
+        public const float NearLod0MountRadiusM = 275.0f;       // Only mount LOD0 on 150m cells within 275m
+        public const float NearLod1MountRadiusM = 525.0f;       // Only mount LOD1 on 150m cells within 525m
+        public const float NearDetailMountRadiusM = 360.0f;     // Only mount tall L3..L6 on 150m cells within 360m
+        public const float NearUnderstoryMountRadiusM = 170.0f; // Only mount dense close understory (0-100m) within 170m
+        public const float UnmountHysteresisM = 40.0f;          // Prevents boundary thrashing when walking on cell edges
 
         // Macro Far Grid for LOD2: 600m x 600m (16 x 9 = 144 cells) grouped into 4 canopy archetypes
         public const float FarCellSize = 600.0f;
@@ -50,6 +51,8 @@ namespace PrimevalWorld.Flora
         // L3..L6 Understory / Shrub / Herb Dissolve
         public const float DetailFadeStart = 310.0f;
         public const float DetailFadeEnd = 400.0f;
+        public const float CloseUnderstoryFadeStart = 75.0f;
+        public const float CloseUnderstoryFadeEnd = 100.0f;
 
         // VisibilityRange Hysteresis & Minimum Half-Diagonal Cell Safety Padding
         public const float CellHysteresisMargin = 25.0f;
@@ -69,6 +72,8 @@ namespace PrimevalWorld.Flora
             mat.SetShaderParameter("far_fade_end", FarFadeEnd);
             mat.SetShaderParameter("detail_fade_start", DetailFadeStart);
             mat.SetShaderParameter("detail_fade_end", DetailFadeEnd);
+            mat.SetShaderParameter("close_understory_fade_start", CloseUnderstoryFadeStart);
+            mat.SetShaderParameter("close_understory_fade_end", CloseUnderstoryFadeEnd);
         }
 
         public static void ApplyToTerrainMaterial(ShaderMaterial mat)
