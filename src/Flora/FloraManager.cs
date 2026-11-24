@@ -915,7 +915,7 @@ namespace PrimevalWorld.Flora
                 mat.SetShaderParameter("leaf_conifer_tex", bot.ConiferTex);
                 mat.SetShaderParameter("leaf_acacia_tex", bot.AcaciaTex);
                 mat.SetShaderParameter("leaf_palm_tex", bot.PalmFernTex);
-                mat.SetShaderParameter("bark_tex", bot.BarkRoughTex);
+                mat.SetShaderParameter("bark_tex", bot.BarkHardwoodAlbedo);
                 mat.SetShaderParameter("bark_pale_tex", bot.BarkPaleTex);
                 FloraLodConfig.ApplyToFloraMaterial(mat, lodLevel, LodDebugEnabled);
                 return mat;

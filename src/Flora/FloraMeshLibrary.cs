@@ -615,20 +615,33 @@ namespace PrimevalWorld.Flora
 
         private static void AddSolidBoulder(SurfaceTool st, Vector3 center, float radius, float halfHeight, int sides, float phase, Color botCol, Color topCol)
         {
-            Vector3 apex = center + new Vector3(0.0f, halfHeight, 0.0f);
-            Vector3 nadir = center - new Vector3(0.0f, halfHeight * 0.5f, 0.0f);
-            Vector3[] ring = new Vector3[sides];
-            for (int i = 0; i < sides; i++)
+            // Organic weathered rounded boulder (3-ring beveled dome + mossy top tint, eliminating sharp pyramid silhouette!)
+            int n = Math.Max(7, sides);
+            Vector3[] rBot = new Vector3[n];
+            Vector3[] rMid = new Vector3[n];
+            Vector3[] rTop = new Vector3[n];
+            Color mossyTop = topCol.Lerp(new Color(0.24f, 0.34f, 0.18f, 0.0f), 0.45f);
+            Vector3 capCenter = center + new Vector3(0.08f * radius, halfHeight * 0.92f, -0.06f * radius);
+
+            for (int i = 0; i < n; i++)
             {
-                float a = i * Mathf.Tau / sides + phase;
-                float rVar = radius * (0.86f + 0.22f * MathF.Sin(a * 3.0f + phase));
-                ring[i] = center + new Vector3(MathF.Cos(a) * rVar, 0.0f, MathF.Sin(a) * rVar);
+                float a = i * Mathf.Tau / n + phase;
+                float lump = 0.84f + 0.20f * MathF.Sin(a * 2.0f + phase) + 0.12f * MathF.Cos(a * 3.0f - phase * 1.3f);
+                float rM = radius * lump;
+                float yOff = 0.14f * halfHeight * MathF.Sin(a * 3.0f + phase);
+                rBot[i] = center + new Vector3(MathF.Cos(a) * rM * 0.92f, -halfHeight * 0.45f, MathF.Sin(a) * rM * 0.92f);
+                rMid[i] = center + new Vector3(MathF.Cos(a) * rM * 1.04f, halfHeight * 0.18f + yOff * 0.5f, MathF.Sin(a) * rM * 1.04f);
+                rTop[i] = center + new Vector3(MathF.Cos(a) * rM * 0.58f, halfHeight * 0.78f + yOff, MathF.Sin(a) * rM * 0.58f);
             }
-            for (int i = 0; i < sides; i++)
+
+            for (int i = 0; i < n; i++)
             {
-                int next = (i + 1) % sides;
-                AddSolidTriangle(st, apex, ring[next], ring[i], topCol, botCol, botCol);
-                AddSolidTriangle(st, nadir, ring[i], ring[next], botCol, botCol, botCol);
+                int next = (i + 1) % n;
+                AddSolidTriangle(st, rBot[i], rMid[i], rMid[next], botCol, botCol, botCol);
+                AddSolidTriangle(st, rBot[i], rMid[next], rBot[next], botCol, botCol, botCol);
+                AddSolidTriangle(st, rMid[i], rTop[i], rTop[next], botCol, topCol, topCol);
+                AddSolidTriangle(st, rMid[i], rTop[next], rMid[next], botCol, topCol, botCol);
+                AddSolidTriangle(st, capCenter, rTop[next], rTop[i], mossyTop, topCol, topCol);
             }
         }
     }

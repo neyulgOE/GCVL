@@ -16,7 +16,6 @@ namespace PrimevalWorld.Flora
             public ImageTexture ConiferTex { get; set; } = null!;
             public ImageTexture AcaciaTex { get; set; } = null!;
             public ImageTexture PalmFernTex { get; set; } = null!;
-            public ImageTexture BarkRoughTex { get; set; } = null!;
             public ImageTexture BarkPaleTex { get; set; } = null!;
 
             // CC0 1K PBR Bark & Moss maps (Poly Haven: bark_brown_02, pine_bark, moss_01)
@@ -48,7 +47,6 @@ namespace PrimevalWorld.Flora
                 ConiferTex = LoadRgbaPng($"{dir}/leaf_conifer.png"),
                 AcaciaTex = LoadRgbaPng($"{dir}/leaf_acacia.png"),
                 PalmFernTex = LoadRgbaPng($"{dir}/leaf_palm_fern.png"),
-                BarkRoughTex = LoadRgbTex($"{dir}/bark_rough.png"),
                 BarkPaleTex = LoadRgbTex($"{dir}/bark_pale.png"),
 
                 BarkHardwoodAlbedo = LoadRgbTex($"{barkDir}/bark_hardwood_albedo.jpg"),

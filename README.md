@@ -15,44 +15,55 @@ PrimevalWorld/
 ├── run.sh                              # Khởi chạy bằng GPU rời NVIDIA PRIME Offload
 ├── test.sh                             # Smoke Test tự động (dotnet build + godot4 --headless + df)
 ├── assets/
-│   └── maps/
-│       └── primeval_reach_canonical.jpg # Macro Blueprint 4 đại lục gốc
-├── docs/                               # Tài liệu thiết kế (PIPELINE.md, VEGETATION.md, PDF/DOCX)
+│   ├── maps/
+│   │   └── primeval_reach_canonical.jpg # Macro Blueprint 4 đại lục gốc
+│   └── textures/flora/                  # 4 ảnh lá RGBA8 1K + bộ vỏ cây & rêu CC0 1K (Poly Haven)
+├── docs/                                # Tài liệu thiết kế (PIPELINE.md, VEGETATION.md, PDF/DOCX)
 ├── scenes/
-│   └── Main.tscn                       # Scene chính 9.6 × 5.4 km
+│   ├── Main.tscn                        # Scene chính 9.6 × 5.4 km
+│   └── FloraShowcase.tscn               # Phòng lab nghiệm thu cây 10m/100m/500m & Cụm Rừng Mini 25×25m
 ├── shaders/
-│   ├── terrain_triplanar.gdshader      # Triplanar 6 loại đất, tuyết/ẩm động, bóng mây, Beer-Lambert mùn rừng
-│   ├── water_river_ocean.gdshader      # Biển chân trời 48 km, sông dốc, bọt thác, dâng nước & đóng băng hồ
-│   ├── foliage_wind.gdshader           # Gió thực tế theo 3 kiểu thân, đổi màu 4 mùa & tuyết phủ tán
-│   └── cloud_canopy.gdshader           # Mây bão tầng cao (1,380m) trôi theo trường gió
+│   ├── terrain_triplanar.gdshader       # Triplanar chống lặp ô 6 loại đất, tuyết/ẩm động, Beer-Lambert mùn rừng
+│   ├── water_river_ocean.gdshader       # Biển 48 km, sông nội địa UV domain-warped, bọt thác & đóng băng hồ
+│   ├── bark_moss.gdshader               # Vỏ cây PBR 1K (Albedo/Normal/Roughness) + rêu leo hữu cơ 0–4.2m
+│   ├── flora_wind.gdshader              # Tán lá Alpha-Scissor, Bayer 4×4 LOD dither, đổi màu 4 mùa & soi LOD [L]
+│   ├── gpu_grass.gdshader               # Cỏ GPU quanh camera (tự ẩn trong rừng rậm dưới tán)
+│   ├── gpu_fern_carpet.gdshader         # Thảm dương xỉ GPU xuyên sáng phủ nền rừng 0–70m
+│   └── procedural_sky_clouds.gdshader   # Bầu trời & mây thể tích theo chu kỳ 24h và thời tiết
 └── src/
     ├── Core/
-    │   ├── WorldPhysicsConfig.cs       # Hằng số SI (9600x5400m, núi 620m, lưới 1025x577, 32x18 chunks)
-    │   ├── SimulationClock.cs          # Đồng hồ thiên văn 24h & 4 mùa (120 ngày/năm, nghiêng trục 23.4°)
-    │   └── MainController.cs           # Điều phối pipeline, ánh sáng thiên văn, HUD & Bản đồ [M] 8 lớp
+    │   ├── WorldPhysicsConfig.cs        # Hằng số SI (9600x5400m, núi 620m, lưới 1025x577, 32x18 chunks)
+    │   ├── SimulationClock.cs           # Đồng hồ thiên văn 24h & 4 mùa (120 ngày/năm, nghiêng trục 23.4°)
+    │   └── MainController.cs            # Điều phối pipeline, VolumetricFog, HUD telemetry & Bản đồ [M] 9 lớp
     ├── WorldGen/
-    │   ├── TectonicContinentGen.cs     # Khôi phục 4 đại lục gốc + tách Bedrock/Sediment
-    │   ├── ErosionPhysics.cs           # Xói mòn nhiệt (32°/40°/64°), thủy lực 90k giọt & cồn cát gió
-    │   ├── HydrologySolver.cs          # Dòng chảy D8, thủy văn Q = A·v & mạch nước ngầm
-    │   ├── AtmosphereClimate.cs        # Trường gió, nhiệt độ, bóng mưa sườn núi & vi khí hậu
-    │   ├── SoilPedology.cs             # 6 loại đất chuẩn hóa & xuất GPU data textures
-    │   ├── WorldMapVisualizer.cs       # Bản đồ phân tích 8 lớp + Radar thời tiết [M]
-    │   └── FastNoise.cs                # Noise & SmoothStep đa luồng
+    │   ├── TectonicContinentGen.cs      # Khôi phục 4 đại lục gốc + tách Bedrock/Sediment
+    │   ├── ErosionPhysics.cs            # Xói mòn nhiệt (32°/40°/64°), thủy lực 90k giọt & cồn cát gió
+    │   ├── HydrologySolver.cs           # Dòng chảy D8, thủy văn Q = A·v & mạch nước ngầm
+    │   ├── AtmosphereClimate.cs         # Trường gió, nhiệt độ, bóng mưa sườn núi & vi khí hậu
+    │   ├── SoilPedology.cs              # 6 loại đất chuẩn hóa & xuất GPU data textures
+    │   ├── WorldMapVisualizer.cs        # Bản đồ phân tích 9 lớp + Radar thời tiết [M]
+    │   └── FastNoise.cs                 # Noise & SmoothStep đa luồng
     ├── Terrain/
-    │   ├── TerrainChunk.cs             # Chunk 300x300m với LOD (>=8x8, khóa bờ biển LOD1) & Skirt 24m
-    │   ├── TerrainChunkManager.cs      # Quản lý 576 chunks & cập nhật LOD theo camera
-    │   └── WaterSurface.cs             # Biển 48 km & sông/hồ nội địa
+    │   ├── TerrainChunk.cs              # Chunk 300x300m với LOD (>=8x8, khóa bờ biển LOD1) & Skirt 24m
+    │   ├── TerrainChunkManager.cs       # Quản lý 576 chunks & cập nhật LOD theo camera
+    │   └── WaterSurface.cs              # Biển 48 km & sông/hồ nội địa chống lòi mép vách
     ├── Flora/
-    │   ├── FloraNicheDatabase.cs       # 36 loài cổ sinh, 6 tầng tán, 4 nhóm thân, 14 dáng (tỷ lệ 0.65x)
-    │   ├── FloraMeshLibrary.cs         # 14 nguyên mẫu procedural ArrayMesh + ưu tiên nạp .glb
-    │   ├── EcosystemSpawner.cs         # Trồng rừng 2 pha, Self-Thinning, Beer-Lambert LAI & vòng cộng sinh
-    │   └── FloraManager.cs             # Spatial Streaming 2 cấp (16x9 vĩ mô + 64x36 vi mô quanh camera)
+    │   ├── FloraLodConfig.cs            # Cấu hình ngưỡng LOD & Bayer dither thống nhất C#/Shader
+    │   ├── FloraNicheDatabase.cs        # 38 loài cổ sinh, 6 tầng tán, 4 nhóm thân & 7 hệ sinh thái
+    │   ├── ProceduralTreeBuilder.cs     # 4 biến thể lá rộng, 3 biến thể lá kim rủ, tán vòm 3D & LOD2 bồng bềnh
+    │   ├── FloraMeshLibrary.cs          # Mesh 2 surface (Bark PBR + Foliage), dây leo rủ, dương xỉ, bụi & gỗ đổ
+    │   ├── EcosystemSpawner.cs          # Phân cực 7 hệ sinh thái, hành lang di cư thú lớn & Beer-Lambert LAI
+    │   ├── FloraManager.cs              # Dynamic 150m Streaming Pool (< 1,200 nodes), 600m LOD2 & Shadow <= LOD0
+    │   ├── FloraValidationReport.cs     # Kiểm định định lượng Raster Union 2048×1152 CanopyCoverage
+    │   └── GpuGrassRing.cs              # Vành đai cỏ & thảm dương xỉ GPU 0m sai số độ cao
+    ├── Tools/
+    │   └── FloraShowcaseController.cs   # Phòng lab kiểm định cây (--flora-test) phím 1/2/3/4/L/V
     ├── Weather/
-    │   ├── SeasonalState.cs            # Nhiệt tức thời, tích tụ/tan tuyết, độ ẩm mặt, đóng băng & dâng sông
-    │   ├── DynamicWeatherSystem.cs     # Mô phỏng 2 Hz (256x144), 5 xoáy bão trôi theo gió & Orographic Boost
-    │   └── LocalWeatherVfx.cs          # GPUParticles3D cục bộ quanh camera (Mưa / Tuyết / Bão cát đỏ)
+    │   ├── SeasonalState.cs             # Nhiệt tức thời, tích tụ/tan tuyết, độ ẩm mặt, đóng băng & dâng sông
+    │   ├── DynamicWeatherSystem.cs      # Mô phỏng 2 Hz (256x144), 5 xoáy bão trôi theo gió & Orographic Boost
+    │   └── LocalWeatherVfx.cs           # GPUParticles3D cục bộ quanh camera (Mưa / Tuyết / Bão cát đỏ)
     └── Camera/
-        └── SpectatorCamera.cs          # Bay tự do [0] + 3 Góc nhìn Động vật [V]: Sói (0.85m), Bò Rừng (1.65m), Ma Mút (3.6m)
+        └── SpectatorCamera.cs           # Bay tự do [0] + 3 Góc nhìn Động vật [V]: Sói (0.85m), Bò Rừng (1.65m), Ma Mút (3.6m)
 ```
 
 ---

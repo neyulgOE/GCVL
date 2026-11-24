@@ -218,10 +218,10 @@ namespace PrimevalWorld.Flora
 
                         case LandEcosystemId.AlluvialFloodplain:
                             if (isRiparian20m)
-                                ecoTreeGate = 0.20f; // Graceful riverside Willows (<20m of water)
+                                ecoTreeGate = 0.055f; // Graceful riverside Willows (<20m of water)
                             else
                             {
-                                ecoTreeGate = 0.0075f; // Only 1-3% isolated Landmark Trees on wide open green floodplains!
+                                ecoTreeGate = 0.0022f; // Wide open green floodplains (Mean ~0.02-0.03) with rare ancient landmarks
                                 forceAncientLandmark = true;
                             }
                             break;
@@ -237,8 +237,8 @@ namespace PrimevalWorld.Flora
                             break;
 
                         case LandEcosystemId.AridRedDesertOasis:
-                            // 96%+ bare sand/rock (P50 <= 0.01); DragonBlood/Baobab/Acacia strictly in wadis & oasis rims
-                            ecoTreeGate = (flow > 0.34f || gw > 0.38f) ? 0.08f : 0.0004f;
+                            // 97%+ bare red sand/rock (P50 <= 0.01); DragonBlood/Baobab/Acacia strictly in wadis & oasis rims
+                            ecoTreeGate = (flow > 0.42f || gw > 0.46f) ? 0.055f : 0.0f;
                             break;
 
                         case LandEcosystemId.AlpineSnowTundraRock:
@@ -277,6 +277,13 @@ namespace PrimevalWorld.Flora
                             sc *= 2.8f;
                         if (eco == LandEcosystemId.PrimevalDenseForest && (candSp.Id == FloraSpeciesId.GinkgoAncientGold || candSp.Id == FloraSpeciesId.CrimsonSteppeMaple))
                             sc *= 0.22f; // Keep deciduous Ginkgo/Maple concentrated in Steppe Groves & cool Ecotones
+                        // Rebalance WeepingSilverBirch so primeval giants dominate PrimevalDenseForest (not white birches!)
+                        if (candSp.Id == FloraSpeciesId.WeepingSilverBirch)
+                            sc *= (eco == LandEcosystemId.PrimevalDenseForest) ? 0.14f : 0.52f;
+                        if (eco == LandEcosystemId.PrimevalDenseForest && (candSp.Id == FloraSpeciesId.PrimevalBanyanFig || candSp.Id == FloraSpeciesId.SacredAncientHardwood))
+                            sc *= 2.15f;
+                        if (eco == LandEcosystemId.PrimevalDenseForest && candSp.Id == FloraSpeciesId.StarAppleCanopy)
+                            sc *= 1.35f;
                         // Intermix 10-20% dark conifers on cool/high Primeval Forest slopes for natural color & silhouette contrast!
                         if (eco == LandEcosystemId.PrimevalDenseForest && (candSp.Id == FloraSpeciesId.BorealSnowPine || candSp.Id == FloraSpeciesId.GiantSequoiaReddawn))
                             sc *= (cs.TemperatureC < 17.5f || h > 45.0f) ? 2.2f : 1.15f;
@@ -377,7 +384,7 @@ namespace PrimevalWorld.Flora
                     FloraNicheProfile prof = FloraNicheDatabase.AllSpecies[(int)cand.Species];
                     float avgH = (prof.HeightMinM + prof.HeightMaxM) * 0.5f;
                     float sY = cand.Height / avgH;
-                    float sXZ = sY * Mathf.Lerp(0.84f, 1.18f, cand.AgeRatio) * (cand.Eco == LandEcosystemId.PrimevalDenseForest ? 1.12f : 1.0f);
+                    float sXZ = sY * Mathf.Lerp(0.84f, 1.18f, cand.AgeRatio) * (cand.Eco == LandEcosystemId.PrimevalDenseForest ? 1.20f : 1.0f);
                     float yaw = (cand.Hash & 0xFFF) / 4095.0f * Mathf.Tau;
                     float lean = ((cand.Hash >> 12) & 0xFF) / 255.0f * 0.05f;
                     var basis = Basis.Identity.Rotated(Vector3.Up, yaw).Rotated(Vector3.Right, lean).Scaled(new Vector3(sXZ, sY, sXZ));

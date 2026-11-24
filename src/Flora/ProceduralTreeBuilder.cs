@@ -422,7 +422,7 @@ namespace PrimevalWorld.Flora
             AddTaperedCylinder(barkSt, p0, p1, baseR * 1.15f, baseR * 0.52f, sides, barkBot, barkTop, 1, mossMult);
             AddTaperedCylinder(barkSt, p1, p2, baseR * 0.52f, 0.08f, Math.Max(4, sides - 1), barkTop, barkTop, 1, mossMult);
 
-            int tiers = lod == 0 ? (isSequoia ? 9 : (variant == 1 ? 9 : (variant == 2 ? 7 : 8))) : 5;
+            int tiers = lod == 0 ? (isSequoia ? 7 : (variant == 1 ? 7 : (variant == 2 ? 6 : 7))) : 5;
             float startFrac = isSequoia ? 0.34f : (variant == 1 ? 0.20f : (variant == 2 ? 0.34f : 0.24f));
             Vector3 crownCenter = new Vector3(leanX * 0.55f, totalH * 0.58f, 0.0f);
             float crownRad = (isSequoia ? 5.6f : (variant == 1 ? 3.5f : 4.4f)) * sMult;
@@ -433,7 +433,7 @@ namespace PrimevalWorld.Flora
                 float frac = startFrac + (t / (float)(tiers - 1)) * (0.95f - startFrac);
                 Vector3 anchor = frac < 0.50f ? p0.Lerp(p1, (frac + 0.05f) / 0.55f) : p1.Lerp(p2, (frac - 0.50f) / 0.50f);
                 float tierRadius = (1.0f - (t / (float)tiers) * 0.78f) * (isSequoia ? 5.1f : (variant == 1 ? 3.2f : 4.0f)) * sMult;
-                int bCount = lod == 0 ? (t < tiers - 2 ? (variant == 1 ? 4 : 5) : 3) : 3;
+                int bCount = lod == 0 ? (t < tiers - 2 ? (variant == 1 ? 4 : 4) : 3) : 3;
 
                 for (int b = 0; b < bCount; b++)
                 {
@@ -446,19 +446,19 @@ namespace PrimevalWorld.Flora
                     {
                         AddTaperedCylinder(barkSt, anchor, bMid, 0.095f * rMult, 0.055f * rMult, 4, barkTop, barkTop, 1, mossMult);
                         AddTaperedCylinder(barkSt, bMid, bEnd, 0.055f * rMult, 0.025f, 4, barkTop, barkTop, 1, mossMult);
-                        // Clothe BOTH mid-branch and tip with overlapping conifer needle plumes!
+                        // Clothe BOTH mid-branch and tip with overlapping conifer needle plumes (optimized ~1,750 tris!)
                         AddPuffyFoliageDome(leafSt, bMid + Vector3.Down * 0.15f, crownCenter, crownRad, crownHalfH,
-                            1.55f * sMult, 2, leafType: 1, rng, 0.12f, ((t * 0.17f + b * 0.23f) % 1.0f));
+                            1.70f * sMult, 2, leafType: 1, rng, 0.12f, ((t * 0.17f + b * 0.23f) % 1.0f));
                     }
                     else
                     {
                         AddTaperedCylinder(barkSt, anchor, bEnd, 0.09f * rMult, 0.03f, 4, barkTop, barkTop, 1, mossMult);
                     }
                     AddPuffyFoliageDome(leafSt, bEnd, crownCenter, crownRad, crownHalfH,
-                        (lod == 0 ? 1.75f : 2.35f) * sMult, lod == 0 ? 3 : 2, leafType: 1, rng, 0.13f, ((t * 0.13f + b * 0.29f) % 1.0f));
+                        (lod == 0 ? 1.90f : 2.35f) * sMult, 2, leafType: 1, rng, 0.13f, ((t * 0.13f + b * 0.29f) % 1.0f));
                 }
             }
-            AddPuffyFoliageDome(leafSt, p2 + Vector3.Up * 0.5f, crownCenter, crownRad, crownHalfH, 1.75f * sMult, lod == 0 ? 4 : 2, leafType: 1, rng, 0.14f, 0.41f);
+            AddPuffyFoliageDome(leafSt, p2 + Vector3.Up * 0.5f, crownCenter, crownRad, crownHalfH, 1.85f * sMult, lod == 0 ? 3 : 2, leafType: 1, rng, 0.14f, 0.41f);
         }
 
         // =========================================================================

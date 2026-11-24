@@ -28,7 +28,7 @@ namespace PrimevalWorld.Tools
         private ShaderMaterial? _leafLod0Mat;
         private ShaderMaterial? _leafLod1Mat;
         private ShaderMaterial? _leafLod2Mat;
-        private ShaderMaterial? _grassMat;
+        private StandardMaterial3D? _grassMat;
 
         private MultiMeshInstance3D? _grassMmi;
         private Node3D? _treesRoot;
@@ -193,10 +193,14 @@ namespace PrimevalWorld.Tools
                 mm.SetInstanceColor(i, new Color(0.20f * tv, 0.40f * tv, 0.12f * tv));
             }
 
-            _grassMat = new ShaderMaterial { Shader = GD.Load<Shader>("res://shaders/foliage_wind.gdshader") };
+            _grassMat = new StandardMaterial3D
+            {
+                VertexColorUseAsAlbedo = true,
+                CullMode = BaseMaterial3D.CullModeEnum.Disabled,
+                Roughness = 0.88f,
+                Metallic = 0.0f,
+            };
             EnsureSiteTextures();
-            _grassMat.SetShaderParameter("wind_dir_speed_tex", _windTex!);
-            _grassMat.SetShaderParameter("weather_dynamic_tex", _weatherTex!);
 
             _grassMmi = new MultiMeshInstance3D
             {
@@ -370,7 +374,7 @@ namespace PrimevalWorld.Tools
                 m.SetShaderParameter("leaf_conifer_tex", _botTex.ConiferTex);
                 m.SetShaderParameter("leaf_acacia_tex", _botTex.AcaciaTex);
                 m.SetShaderParameter("leaf_palm_tex", _botTex.PalmFernTex);
-                m.SetShaderParameter("bark_tex", _botTex.BarkRoughTex);
+                m.SetShaderParameter("bark_tex", _botTex.BarkHardwoodAlbedo);
                 m.SetShaderParameter("bark_pale_tex", _botTex.BarkPaleTex);
                 FloraLodConfig.ApplyToFloraMaterial(m, lod, _lodDebug);
                 return m;
