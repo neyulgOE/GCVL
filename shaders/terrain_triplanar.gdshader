@@ -70,23 +70,37 @@ float rock_cracks(vec2 p) {
 	return clamp((min_d2 - min_d1) * 2.4, 0.0, 1.0);
 }
 
-float triplanar_fbm(vec3 wp, vec3 blend, float scale) {
-	return fbm3(wp.zy * scale) * blend.x + fbm3(wp.xz * scale) * blend.y + fbm3(wp.xy * scale) * blend.z;
+// 37-degree rotation matrix for Anti-Tiling Dual-Scale Triplanar Blending
+vec2 rot37(vec2 p) {
+	return vec2(p.x * 0.7986355 - p.y * 0.6018150, p.x * 0.6018150 + p.y * 0.7986355);
 }
 
-float triplanar_cracks(vec3 wp, vec3 blend, float scale) {
-	return rock_cracks(wp.zy * scale) * blend.x + rock_cracks(wp.xz * scale) * blend.y + rock_cracks(wp.xy * scale) * blend.z;
+// Anti-tiling dual-scale rotated FBM (non-integer frequency ratio 1.0 : 1.732 + 37 deg rotation + domain warp)
+float triplanar_fbm_antitile(vec3 wp, vec3 blend, float scale) {
+	float s2 = scale * 1.73205;
+	float x_val = fbm3(wp.zy * scale) * 0.58 + fbm3(rot37(wp.zy) * s2 + vec2(13.7, 5.1)) * 0.42;
+	float y_val = fbm3(wp.xz * scale) * 0.58 + fbm3(rot37(wp.xz) * s2 + vec2(7.3, 19.4)) * 0.42;
+	float z_val = fbm3(wp.xy * scale) * 0.58 + fbm3(rot37(wp.xy) * s2 + vec2(21.1, 3.8)) * 0.42;
+	return x_val * blend.x + y_val * blend.y + z_val * blend.z;
 }
 
-// Dual-frequency geological cliff relief: 6m-15m stepped rock strata + 0.7m-1.8m sharp fracture crevices
+float triplanar_cracks_antitile(vec3 wp, vec3 blend, float scale) {
+	float s2 = scale * 1.61803;
+	float x_val = rock_cracks(wp.zy * scale) * 0.55 + rock_cracks(rot37(wp.zy) * s2 + vec2(4.2, 9.8)) * 0.45;
+	float y_val = rock_cracks(wp.xz * scale) * 0.55 + rock_cracks(rot37(wp.xz) * s2 + vec2(11.6, 2.7)) * 0.45;
+	float z_val = rock_cracks(wp.xy * scale) * 0.55 + rock_cracks(rot37(wp.xy) * s2 + vec2(6.9, 15.3)) * 0.45;
+	return x_val * blend.x + y_val * blend.y + z_val * blend.z;
+}
+
+// Dual-frequency anti-tiled geological cliff relief: warped rock strata + rotated fracture blocks
 float cliff_height_field(vec3 wp, vec3 blend) {
-	float warp = fbm3(wp.xz * 0.032 + vec2(wp.y * 0.015));
-	float bed_phase = wp.y * 0.58 + wp.x * 0.06 - wp.z * 0.05 + warp * 5.2;
+	float warp = fbm3(wp.xz * 0.028 + vec2(wp.y * 0.014));
+	float bed_phase = wp.y * 0.55 + wp.x * 0.055 - wp.z * 0.048 + warp * 5.6;
 	float macro_strata = sin(bed_phase) * 0.5 + 0.5;
 	macro_strata = smoothstep(0.18, 0.82, macro_strata) * 0.65 + pow(macro_strata, 3.0) * 0.35;
-	float macro_blocks = triplanar_cracks(wp, blend, 0.095); // ~10.5m rock blocks & vertical joints
-	float fine_fissures = triplanar_cracks(wp, blend, 0.62); // ~1.6m sharp rock cracks & ledges
-	return macro_strata * 0.42 + macro_blocks * 0.34 + fine_fissures * 0.24;
+	float macro_blocks = triplanar_cracks_antitile(wp, blend, 0.088);
+	float fine_fissures = triplanar_cracks_antitile(wp, blend, 0.52);
+	return macro_strata * 0.40 + macro_blocks * 0.34 + fine_fissures * 0.26;
 }
 
 vec3 safe_normalize(vec3 v) {
@@ -103,9 +117,9 @@ void vertex() {
 void fragment() {
 	float h = v_world_pos.y;
 	vec3 wn = safe_normalize(v_world_normal);
-	float slope = 1.0 - clamp(wn.y, 0.0, 1.0); // ~0.134 at 30°, ~0.412 at 54°
+	float slope = 1.0 - clamp(wn.y, 0.0, 1.0); // 15.5 deg = 0.036, 32 deg = 0.152, 35 deg = 0.181, 45 deg = 0.293
 
-	// Domain-warped data UV (+-4.2m) eliminates 9.375m / 37.5m texel boundaries on soil, snow & shores!
+	// Domain-warped data UV (+-4.2m) eliminates 9.375m / 37.5m texel boundaries
 	vec2 uv_warp = vec2(
 		fbm3(v_world_pos.xz * 0.042 + vec2(5.2, 13.7)) - 0.5,
 		fbm3(v_world_pos.xz * 0.042 + vec2(21.4, 8.9)) - 0.5
@@ -138,17 +152,18 @@ void fragment() {
 	tri_blend /= max(dot(tri_blend, vec3(1.0)), 0.0001);
 
 	float cam_dist = length(CAMERA_POSITION_WORLD - v_world_pos);
-	float macro_var = fbm3(v_world_pos.xz * 0.008);
-	float micro_detail = triplanar_fbm(v_world_pos, tri_blend, 0.18);
+	float macro_var = fbm3(v_world_pos.xz * 0.0075);
+	float micro_detail = triplanar_fbm_antitile(v_world_pos, tri_blend, 0.16);
+	float litter_var = fbm3(rot37(v_world_pos.xz) * 0.24 + vec2(macro_var * 2.5));
 	float sand_ripples = sin((v_world_pos.x * 0.82 + v_world_pos.z * 0.57) * 0.45 + fbm3(v_world_pos.xz * 0.03) * 3.0) * 0.5 + 0.5;
 
-	// 6 Physical Soil Colors + Floodplain Meadow & Wetland Peat-Moss enrichment
-	vec3 c_alluvial = mix(vec3(0.15, 0.30, 0.09), vec3(0.11, 0.24, 0.07), moisture);
-	vec3 c_forest = mix(vec3(0.17, 0.29, 0.10), vec3(0.12, 0.22, 0.07), moisture);
-	vec3 c_steppe = mix(vec3(0.58, 0.43, 0.15), vec3(0.42, 0.35, 0.14), moisture);
-	vec3 c_arid = mix(vec3(0.72, 0.36, 0.18), vec3(0.58, 0.29, 0.15), sand_ripples * 0.55 + macro_var * 0.45);
-	vec3 c_coastal = vec3(0.68, 0.60, 0.42);
-	vec3 c_tundra = mix(vec3(0.24, 0.27, 0.22), vec3(0.34, 0.35, 0.30), macro_var);
+	// 6 Physical Soil Colors
+	vec3 c_alluvial = mix(vec3(0.14, 0.28, 0.08), vec3(0.10, 0.22, 0.06), moisture);
+	vec3 c_forest = mix(vec3(0.14, 0.23, 0.08), vec3(0.09, 0.16, 0.05), moisture);
+	vec3 c_steppe = mix(vec3(0.56, 0.41, 0.15), vec3(0.40, 0.33, 0.14), moisture);
+	vec3 c_arid = mix(vec3(0.68, 0.34, 0.17), vec3(0.54, 0.27, 0.14), sand_ripples * 0.55 + macro_var * 0.45);
+	vec3 c_coastal = vec3(0.64, 0.56, 0.39);
+	vec3 c_tundra = mix(vec3(0.20, 0.22, 0.18), vec3(0.28, 0.29, 0.25), macro_var);
 
 	float w_sum = max(w_alluvial + w_forest + w_steppe + w_arid + w_coastal + w_perma, 0.001);
 	vec3 soil_col = (
@@ -161,52 +176,74 @@ void fragment() {
 	) / w_sum;
 
 	// Lush open Alluvial Floodplain meadow grass carpet vs damp mossy-peat Wetland floor
-	vec3 meadow_lush = mix(vec3(0.16, 0.35, 0.10), vec3(0.23, 0.42, 0.12), macro_var);
+	vec3 meadow_lush = mix(vec3(0.15, 0.32, 0.09), vec3(0.21, 0.39, 0.11), macro_var);
 	soil_col = mix(soil_col, meadow_lush, floodplain_mask * 0.72);
-	vec3 wetland_peat = mix(vec3(0.09, 0.14, 0.06), vec3(0.15, 0.24, 0.08), micro_detail);
+	vec3 wetland_peat = mix(vec3(0.08, 0.13, 0.05), vec3(0.13, 0.21, 0.07), micro_detail);
 	soil_col = mix(soil_col, wetland_peat, wetland_mask * 0.78);
 
-	// Synchronized via FloraLodConfig with LOD2 tree FarFade [1100m..1350m] so ground never darkens/pops early!
+	// Synchronized via FloraLodConfig with LOD2 tree FarFade [1100m..1350m]
 	float far_canopy_blend = smoothstep(canopy_ground_blend_start, canopy_ground_blend_end, cam_dist);
-	float crown_dapple = fbm3(v_world_pos.xz * 0.095);
-	vec3 near_humus = vec3(0.06, 0.11, 0.04);
-	vec3 far_canopy_crown = mix(vec3(0.08, 0.18, 0.05), vec3(0.16, 0.31, 0.09), crown_dapple);
-	vec3 canopy_ground_target = mix(near_humus, far_canopy_crown, far_canopy_blend);
-	soil_col = mix(soil_col, canopy_ground_target, smoothstep(0.18, 0.72, canopy_cov) * mix(0.80, 0.92, far_canopy_blend));
-	soil_col *= (0.82 + 0.36 * micro_detail);
+	float crown_dapple = fbm3(rot37(v_world_pos.xz) * 0.092);
+
+	// Deep forest floor under canopy (> 0.35): dark brown humus + fallen dry leaf litter + damp forest moss!
+	vec3 humus_brown = vec3(0.075, 0.055, 0.032);
+	vec3 leaf_litter = vec3(0.125, 0.092, 0.048);
+	vec3 damp_moss = vec3(0.065, 0.135, 0.042);
+	vec3 near_forest_floor = mix(mix(humus_brown, leaf_litter, litter_var), damp_moss, smoothstep(0.35, 0.78, micro_detail * moisture));
+	vec3 far_canopy_crown = mix(vec3(0.07, 0.16, 0.045), vec3(0.15, 0.29, 0.085), crown_dapple);
+	vec3 canopy_ground_target = mix(near_forest_floor, far_canopy_crown, far_canopy_blend);
+
+	float under_canopy_t = smoothstep(0.22, 0.62, canopy_cov);
+	soil_col = mix(soil_col, canopy_ground_target, under_canopy_t * mix(0.86, 0.94, far_canopy_blend));
+	soil_col *= (0.84 + 0.32 * micro_detail);
 
 	// Domain-warped shallow coral reef seabed -> coastal sand -> inland soil
 	float h_warped = h + (micro_detail - 0.5) * 0.65;
-	vec3 reef_bed = vec3(0.14, 0.48, 0.46);
+	vec3 reef_bed = vec3(0.13, 0.45, 0.43);
 	vec3 shore_col = mix(reef_bed, c_coastal * (0.86 + 0.28 * micro_detail), smoothstep(-3.5, 1.2, h_warped));
 	vec3 terrain_col = mix(shore_col, soil_col, smoothstep(1.8, 7.8, h_warped));
 
-	// Natural Point-Bar Sand/Gravel Bars along gentle meandering river bends + Wet riverbanks
+	// Natural Point-Bar Sand/Gravel Bars along gentle meandering river bends + Wet riverbanks (anti-tiled!)
 	float river_bank = smoothstep(0.16, 0.72, river_mask) * (1.0 - wetland_mask * 0.65);
 	float gentle_bar = smoothstep(0.12, 0.03, slope) * smoothstep(0.12, 0.44, river_mask) * (1.0 - smoothstep(0.55, 0.85, river_mask)) * (1.0 - wetland_mask * 0.80);
-	float pebble_tex = triplanar_cracks(v_world_pos, tri_blend, 0.35);
-	vec3 gravel_bar = mix(vec3(0.72, 0.67, 0.54), vec3(0.54, 0.50, 0.42), micro_detail * 0.6 + pebble_tex * 0.4);
-	vec3 river_pebble = mix(vec3(0.34, 0.30, 0.24), vec3(0.22, 0.20, 0.17), pebble_tex * 0.5);
+	float pebble_tex = triplanar_cracks_antitile(v_world_pos, tri_blend, 0.32);
+	vec3 gravel_bar = mix(vec3(0.56, 0.52, 0.42), vec3(0.42, 0.38, 0.32), micro_detail * 0.6 + pebble_tex * 0.4);
+	vec3 river_pebble = mix(vec3(0.26, 0.23, 0.18), vec3(0.18, 0.16, 0.14), pebble_tex * 0.5);
 	terrain_col = mix(terrain_col, river_pebble, river_bank * 0.80);
-	terrain_col = mix(terrain_col, gravel_bar, gentle_bar * 0.75);
+	terrain_col = mix(terrain_col, gravel_bar, gentle_bar * 0.72);
 
-	// Dual-Frequency Triplanar Cliffs (> 28-30°): macro sedimentary/granite strata + fine chiseled rock fissures + crevice AO
+	// Strictly gated Rock Exposure:
+	// - In ForestBrownSoil / AlluvialLoam / Canopy: rock ONLY emerges on truly steep cliffs (> 32-35 deg, slope > 0.152..0.181)!
+	// - Never leaks bright gray bedrock onto gentle 12-26 deg forested hillsides!
+	float forest_alluvial_zone = clamp((w_forest + w_alluvial) / w_sum + floodplain_mask * 0.8 + under_canopy_t * 0.7, 0.0, 1.0);
+	float slope_rock_forest = smoothstep(0.155, 0.285, slope + (micro_detail - 0.5) * 0.025); // ~32.5 deg -> 44.5 deg
+	float slope_rock_open = smoothstep(0.115, 0.240, slope + (micro_detail - 0.5) * 0.035);   // ~27.8 deg -> 40.5 deg
+	float slope_rock = mix(slope_rock_open, slope_rock_forest, forest_alluvial_zone);
+
+	// Suppress bedrock/thin-soil rock bleed on gentle forested slopes (< 30 deg)
+	float non_forest_bedrock = (1.0 - forest_alluvial_zone * 0.92) * smoothstep(0.08, 0.18, slope);
 	float rock_exposure = max(
-		smoothstep(0.095, 0.22, slope + (micro_detail - 0.5) * 0.05),
-		max(smoothstep(0.20, 0.04, soil_depth) * 0.85, smoothstep(0.55, 0.92, bedrock_mask) * 0.65)
+		slope_rock,
+		max(smoothstep(0.16, 0.03, soil_depth) * 0.75, smoothstep(0.62, 0.94, bedrock_mask) * 0.60) * non_forest_bedrock
 	);
-	float cliff_h = cliff_height_field(v_world_pos, tri_blend);
-	float fine_cracks = triplanar_cracks(v_world_pos, tri_blend, 0.62);
-	float crevice_ao = mix(0.64, 1.12, smoothstep(0.08, 0.55, fine_cracks));
 
-	vec3 granite_dark = vec3(0.19, 0.20, 0.22);
-	vec3 granite_light = vec3(0.41, 0.40, 0.37);
-	vec3 granite_rock = mix(granite_dark, granite_light, cliff_h) * crevice_ao;
-	vec3 sandstone_rock = mix(vec3(0.42, 0.23, 0.13), vec3(0.66, 0.41, 0.23), cliff_h) * crevice_ao;
-	vec3 rock_col = mix(granite_rock, sandstone_rock, smoothstep(0.20, 0.65, w_arid)) * (0.84 + 0.32 * micro_detail);
+	// Anti-tiled Dark Damp Brown-Gray Slate Albedo (~0.14..0.24) + Mossy Upward Rock Ledges in humid zones
+	float cliff_h = cliff_height_field(v_world_pos, tri_blend);
+	float fine_cracks = triplanar_cracks_antitile(v_world_pos, tri_blend, 0.52);
+	float crevice_ao = mix(0.68, 1.06, smoothstep(0.10, 0.58, fine_cracks));
+
+	vec3 slate_dark = vec3(0.13, 0.13, 0.125);
+	vec3 slate_mid = vec3(0.23, 0.22, 0.205);
+	vec3 slate_rock = mix(slate_dark, slate_mid, cliff_h) * crevice_ao;
+	vec3 sandstone_rock = mix(vec3(0.36, 0.20, 0.11), vec3(0.54, 0.34, 0.19), cliff_h) * crevice_ao;
+	vec3 rock_col = mix(slate_rock, sandstone_rock, smoothstep(0.22, 0.65, w_arid)) * (0.86 + 0.26 * micro_detail);
+
+	// Dark green moss growing on upward-facing rock ledges (wn.y > 0.45) in humid/forested regions
+	float rock_moss = smoothstep(0.45, 0.76, wn.y) * smoothstep(0.32, 0.65, moisture) * (1.0 - smoothstep(0.15, 0.45, w_arid));
+	rock_col = mix(rock_col, vec3(0.08, 0.16, 0.05) * (0.85 + 0.30 * micro_detail), rock_moss * 0.78);
 	terrain_col = mix(terrain_col, rock_col, rock_exposure);
 
-	// Dynamic Stage 4 Snow Accumulation + High-Altitude Frost (sheds off steep cliffs >40°)
+	// Dynamic Stage 4 Snow Accumulation + High-Altitude Frost (sheds off steep cliffs > 40 deg)
 	vec4 wd = texture(weather_dynamic_tex, uv);
 	float dyn_snow = wd.r;
 	float dyn_wetness = wd.g;
@@ -214,61 +251,60 @@ void fragment() {
 
 	float snow_temp = smoothstep(1.5, -5.0, temp_c + (macro_var - 0.5) * 2.5) * 0.45;
 	float snow_signal = max(snow_temp, dyn_snow);
-	float snow_slope_mask = 1.0 - smoothstep(0.11, 0.26, slope + (cliff_h - 0.5) * 0.05);
+	float snow_slope_mask = 1.0 - smoothstep(0.12, 0.26, slope + (cliff_h - 0.5) * 0.05);
 	float snow_weight = clamp(snow_signal * snow_slope_mask * smoothstep(-0.2, 2.5, h_warped), 0.0, 1.0);
-	vec3 snow_col = vec3(0.88, 0.92, 0.97) * (0.90 + 0.14 * micro_detail);
+	vec3 snow_col = vec3(0.84, 0.89, 0.95) * (0.90 + 0.12 * micro_detail);
 	terrain_col = mix(terrain_col, snow_col, snow_weight);
 
 	// Wetness darkening & Cloud shadow pass
-	terrain_col = mix(terrain_col, terrain_col * 0.64, max(dyn_wetness, wetland_mask * 0.55) * (1.0 - snow_weight) * 0.62);
+	terrain_col = mix(terrain_col, terrain_col * 0.66, max(dyn_wetness, wetland_mask * 0.55) * (1.0 - snow_weight) * 0.60);
 	terrain_col *= (1.0 - dyn_cloud_shadow * 0.36);
 
-	// Dual-Frequency Triplanar Normal Perturbation (eliminates flat gray polygon cliff facets!)
-	float eps_m = 0.65;
+	// Anti-tiled Dual-Frequency Triplanar Normal Perturbation
+	float eps_m = 0.68;
 	float h_c = mix(micro_detail, cliff_h, rock_exposure);
-	float h_x = mix(triplanar_fbm(v_world_pos + vec3(eps_m, 0.0, 0.0), tri_blend, 0.18),
+	float h_x = mix(triplanar_fbm_antitile(v_world_pos + vec3(eps_m, 0.0, 0.0), tri_blend, 0.16),
 	                cliff_height_field(v_world_pos + vec3(eps_m, 0.0, 0.0), tri_blend), rock_exposure);
-	float h_y = mix(triplanar_fbm(v_world_pos + vec3(0.0, eps_m, 0.0), tri_blend, 0.18),
+	float h_y = mix(triplanar_fbm_antitile(v_world_pos + vec3(0.0, eps_m, 0.0), tri_blend, 0.16),
 	                cliff_height_field(v_world_pos + vec3(0.0, eps_m, 0.0), tri_blend), rock_exposure);
-	float h_z = mix(triplanar_fbm(v_world_pos + vec3(0.0, 0.0, eps_m), tri_blend, 0.18),
+	float h_z = mix(triplanar_fbm_antitile(v_world_pos + vec3(0.0, 0.0, eps_m), tri_blend, 0.16),
 	                cliff_height_field(v_world_pos + vec3(0.0, 0.0, eps_m), tri_blend), rock_exposure);
-	vec3 grad_macro = clamp(vec3(h_x - h_c, h_y - h_c, h_z - h_c) / eps_m, vec3(-1.8), vec3(1.8));
+	vec3 grad_macro = clamp(vec3(h_x - h_c, h_y - h_c, h_z - h_c) / eps_m, vec3(-1.6), vec3(1.6));
 
-	// Secondary fine cliff fracture normal within 550m
-	float fine_cliff_fade = rock_exposure * (1.0 - smoothstep(180.0, 580.0, cam_dist));
+	float fine_cliff_fade = rock_exposure * (1.0 - smoothstep(160.0, 520.0, cam_dist));
 	vec3 grad_fine = vec3(0.0);
 	if (fine_cliff_fade > 0.02) {
-		float ef = 0.18;
+		float ef = 0.20;
 		float fc0 = fine_cracks;
-		float fcx = triplanar_cracks(v_world_pos + vec3(ef, 0.0, 0.0), tri_blend, 0.62);
-		float fcy = triplanar_cracks(v_world_pos + vec3(0.0, ef, 0.0), tri_blend, 0.62);
-		float fcz = triplanar_cracks(v_world_pos + vec3(0.0, 0.0, ef), tri_blend, 0.62);
-		grad_fine = clamp(vec3(fcx - fc0, fcy - fc0, fcz - fc0) / ef, vec3(-2.2), vec3(2.2)) * (0.48 * fine_cliff_fade);
+		float fcx = triplanar_cracks_antitile(v_world_pos + vec3(ef, 0.0, 0.0), tri_blend, 0.52);
+		float fcy = triplanar_cracks_antitile(v_world_pos + vec3(0.0, ef, 0.0), tri_blend, 0.52);
+		float fcz = triplanar_cracks_antitile(v_world_pos + vec3(0.0, 0.0, ef), tri_blend, 0.52);
+		grad_fine = clamp(vec3(fcx - fc0, fcy - fc0, fcz - fc0) / ef, vec3(-2.0), vec3(2.0)) * (0.44 * fine_cliff_fade);
 	}
 
-	float bump_strength = mix(0.28, 0.94, rock_exposure);
-	bump_strength = mix(bump_strength, 0.22, snow_weight);
+	float bump_strength = mix(0.26, 0.88, rock_exposure);
+	bump_strength = mix(bump_strength, 0.20, snow_weight);
 
-	// Far-distance canopy crown normal relief so splatted distant forest looks fluffy rather than flat
 	float crown_bump = (crown_dapple - 0.5) * 0.45 * far_canopy_blend * smoothstep(0.25, 0.75, canopy_cov);
 
 	float close_detail_fade = 1.0 - smoothstep(22.0, 68.0, cam_dist);
-	float close_grain = triplanar_fbm(v_world_pos, tri_blend, 1.45) * 0.65 + triplanar_fbm(v_world_pos, tri_blend, 3.80) * 0.35;
-	terrain_col *= mix(1.0, 0.80 + 0.40 * close_grain, close_detail_fade * (1.0 - snow_weight * 0.7));
+	float close_grain = triplanar_fbm_antitile(v_world_pos, tri_blend, 1.35) * 0.65 + triplanar_fbm_antitile(v_world_pos, tri_blend, 3.40) * 0.35;
+	terrain_col *= mix(1.0, 0.82 + 0.36 * close_grain, close_detail_fade * (1.0 - snow_weight * 0.7));
 
-	float bump_fade = 1.0 - smoothstep(650.0, 2800.0, cam_dist);
-	float close_bump = (close_grain - 0.5) * 0.60 * close_detail_fade;
+	float bump_fade = 1.0 - smoothstep(650.0, 2600.0, cam_dist);
+	float close_bump = (close_grain - 0.5) * 0.55 * close_detail_fade;
 	vec3 bumped_world_n = safe_normalize(wn - (grad_macro * bump_strength * bump_fade + grad_fine) + vec3(close_bump + crown_bump, 0.0, -close_bump - crown_bump));
 	NORMAL = safe_normalize((VIEW_MATRIX * vec4(bumped_world_n, 0.0)).xyz);
 
-	// PBR roughness: matte organic soil/rock [0.83..0.96], damp sheen on marshes/wet banks
-	float roughness = mix(0.92, 0.84, rock_exposure);
-	roughness = mix(roughness, 0.64, max(river_bank * 0.60, wetland_mask * 0.65));
-	roughness = mix(roughness, 0.56, smoothstep(0.15, 0.90, dyn_wetness));
-	roughness = mix(roughness, 0.90, snow_weight);
-	roughness = clamp(roughness, 0.52, 0.97);
+	// Lock matte PBR roughness >= 0.86 on dry forest floor/soil/rock (no plastic glare under canopy!)
+	float roughness = mix(0.93, 0.87, rock_exposure);
+	roughness = mix(roughness, 0.91, under_canopy_t);
+	roughness = mix(roughness, 0.68, max(river_bank * 0.55, wetland_mask * 0.60));
+	roughness = mix(roughness, 0.58, smoothstep(0.15, 0.90, dyn_wetness));
+	roughness = mix(roughness, 0.91, snow_weight);
+	roughness = clamp(roughness, 0.56, 0.97);
 
 	ALBEDO = terrain_col;
 	ROUGHNESS = roughness;
-	SPECULAR = mix(0.12, 0.34, max(max(river_bank * 0.5, wetland_mask * 0.55), dyn_wetness * 0.8));
+	SPECULAR = mix(0.10, 0.30, max(max(river_bank * 0.45, wetland_mask * 0.50), dyn_wetness * 0.75));
 }

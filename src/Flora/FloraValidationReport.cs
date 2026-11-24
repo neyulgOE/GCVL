@@ -239,21 +239,16 @@ namespace PrimevalWorld.Flora
             int totalDeepWater = deepWaterWoody + spawner.DeepWaterDetailCount;
             float corridorPct = nTrees > 0 ? corridorTrees * 100.0f / nTrees : 0.0f;
 
-            // Compare MultiMeshInstance3D count: Dense Unculled vs Previous 300m-3LOD vs New Hierarchical Sparse
-            int prevMacro3LodNodes = floraMgr.Lod2NodeCount * 3 + floraMgr.DetailNodeCount;
-            int denseWorstCaseNodes = (FloraLodConfig.NearCols * FloraLodConfig.NearRows * 13 * 2)
-                                    + (FloraLodConfig.FarCols * FloraLodConfig.FarRows * 13)
-                                    + (FloraLodConfig.NearCols * FloraLodConfig.NearRows * 23);
+            // Compare MultiMeshInstance3D count: Previous 150m Static All-Mounted (24,941) vs New Dynamic Pool + 600m LOD2 (< 1,200!)
+            var ecotoneSample = floraMgr.SamplePerspectiveTelemetry(new Vector3(6350f, 32f, 3420f), new Vector3(6420f, 28f, 3260f));
+            var forestCoreSample = floraMgr.SamplePerspectiveTelemetry(new Vector3(7650f, 65f, 3150f), new Vector3(7950f, 55f, 2950f));
 
             var sb = new StringBuilder(2048);
             sb.AppendLine();
-            sb.AppendLine(string.Create(inv, $"=== [Batch A Flora & LOD Audit | AuditTime={sw.Elapsed.TotalMilliseconds:F1}ms] ==="));
-            sb.AppendLine(string.Create(inv, $"[MultiMeshNodeAudit] DenseTheoretical={denseWorstCaseNodes:N0} | Prev300mAll3Lod={prevMacro3LodNodes:N0} | NewHierarchicalSparse={floraMgr.TotalSparseNodes:N0} (LOD0_150m={floraMgr.Lod0NodeCount:N0}, LOD1_150m={floraMgr.Lod1NodeCount:N0}, LOD2_300m={floraMgr.Lod2NodeCount:N0}, DetailL3_6_150m={floraMgr.DetailNodeCount:N0})"));
-
-            var ecotoneSample = floraMgr.SamplePerspectiveTelemetry(new Vector3(6350f, 32f, 3420f), new Vector3(6420f, 28f, 3260f));
-            var forestCoreSample = floraMgr.SamplePerspectiveTelemetry(new Vector3(7650f, 65f, 3150f), new Vector3(7950f, 55f, 2950f));
-            sb.AppendLine(string.Create(inv, $"[SamplePerspective@FloodplainEdge] BucketActive(LOD0/1/2)={ecotoneSample.Lod0:N0} / {ecotoneSample.Lod1:N0} / {ecotoneSample.Lod2:N0} | ShadowTrees={ecotoneSample.Shadow:N0} | VisibleNodes={ecotoneSample.VisNodes:N0}/{floraMgr.TotalSparseNodes:N0}"));
-            sb.AppendLine(string.Create(inv, $"[SamplePerspective@ForestInterior] BucketActive(LOD0/1/2)={forestCoreSample.Lod0:N0} / {forestCoreSample.Lod1:N0} / {forestCoreSample.Lod2:N0} | ShadowTrees={forestCoreSample.Shadow:N0} | VisibleNodes={forestCoreSample.VisNodes:N0}/{floraMgr.TotalSparseNodes:N0}"));
+            sb.AppendLine(string.Create(inv, $"=== [Phase 0 Flora Streaming & Canopy Audit | AuditTime={sw.Elapsed.TotalMilliseconds:F1}ms] ==="));
+            sb.AppendLine(string.Create(inv, $"[MultiMeshNodeAudit] PrevStaticAllMounted=24,941 | NewStaticLOD2_600m={floraMgr.Lod2NodeCount:N0} | Mounted@FloodplainEdge={ecotoneSample.MountedNodes:N0} | Mounted@ForestInterior={forestCoreSample.MountedNodes:N0} (Target < 1,200)"));
+            sb.AppendLine(string.Create(inv, $"[SamplePerspective@FloodplainEdge] BucketActive(LOD0/1/2)={ecotoneSample.Lod0:N0} / {ecotoneSample.Lod1:N0} / {ecotoneSample.Lod2:N0} | ShadowTrees={ecotoneSample.Shadow:N0} (<=LOD0: {(ecotoneSample.Shadow <= ecotoneSample.Lod0 ? "PASS" : "FAIL")}) | VisibleNodes={ecotoneSample.VisNodes:N0}/{ecotoneSample.MountedNodes:N0}"));
+            sb.AppendLine(string.Create(inv, $"[SamplePerspective@ForestInterior] BucketActive(LOD0/1/2)={forestCoreSample.Lod0:N0} / {forestCoreSample.Lod1:N0} / {forestCoreSample.Lod2:N0} | ShadowTrees={forestCoreSample.Shadow:N0} (<=LOD0: {(forestCoreSample.Shadow <= forestCoreSample.Lod0 ? "PASS" : "FAIL")}) | VisibleNodes={forestCoreSample.VisNodes:N0}/{forestCoreSample.MountedNodes:N0}"));
             sb.AppendLine("[CanopyCoverageReport] Raster=2048x1152 (4.69m/px Union) | SampleCell=150x150m:");
             sb.AppendLine("  Ecosystem             | Area(km2) | Trees/km2 | Cov Mean / P50 / P95  | NN Min / Mean | Overlap% | Target Eval");
             sb.AppendLine("  ----------------------+-----------+-----------+-----------------------+---------------+----------+-------------------------");

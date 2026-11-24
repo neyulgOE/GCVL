@@ -88,21 +88,22 @@ namespace PrimevalWorld.Core
                 BackgroundMode = Environment.BGMode.Sky,
                 Sky = sky,
                 AmbientLightSource = Environment.AmbientSource.Sky,
-                AmbientLightSkyContribution = 0.90f,
-                AmbientLightEnergy = 1.25f,
+                AmbientLightSkyContribution = 0.88f,
+                AmbientLightEnergy = 1.05f,
                 TonemapMode = Environment.ToneMapper.Agx,
-                TonemapExposure = 1.05f,
+                TonemapExposure = 1.02f,
                 FogEnabled = true,
                 FogMode = Environment.FogModeEnum.Depth,
                 FogLightColor = horizonColor,
-                FogDensity = 0.00045f,
-                FogDepthBegin = 650.0f,
-                FogDepthEnd = 13500.0f,
-                FogAerialPerspective = 0.72f,
+                FogDensity = 0.00042f,
+                FogDepthBegin = 750.0f,
+                FogDepthEnd = 12500.0f,
+                FogAerialPerspective = 0.78f,
                 SsaoEnabled = true,
-                SsaoRadius = 2.4f,
-                SsaoIntensity = 1.15f,
+                SsaoRadius = 2.0f,
+                SsaoIntensity = 0.95f,
                 SsilEnabled = false,
+                SdfgiEnabled = false,
             };
             _worldEnv = env;
 
@@ -638,8 +639,8 @@ namespace PrimevalWorld.Core
                                         .Lerp(new Color(0.48f, 0.52f, 0.56f), liveW.CloudCover * 0.50f);
 
             _worldEnv.FogLightColor = horizon;
-            _worldEnv.FogDensity = 0.00045f + liveW.RainIntensity * 0.0014f + (liveW.ConditionLabel == "Bão cát đỏ" ? 0.0018f : 0.0f);
-            _worldEnv.AmbientLightSkyContribution = Mathf.Lerp(0.85f, 0.92f, dayT);
+            _worldEnv.FogDensity = 0.00042f + liveW.RainIntensity * 0.0014f + (liveW.ConditionLabel == "Bão cát đỏ" ? 0.0018f : 0.0f);
+            _worldEnv.AmbientLightSkyContribution = Mathf.Lerp(0.84f, 0.88f, dayT);
         }
 
         private void TeleportCloseToGround(float wx, float wz, float heightAboveGround, Vector3 lookTarget)

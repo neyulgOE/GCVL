@@ -28,7 +28,7 @@ namespace PrimevalWorld.Core
         private int _speedIndex = 1; // Default 1x
         private bool _paused;
 
-        public float TimeOfDay { get; private set; } = 10.5f; // 10:30 AM crisp morning light
+        public float TimeOfDay { get; private set; } = 8.75f; // 08:45 AM cinematic oblique sun (~29° elevation)
         public int DayOfYear { get; private set; } = 15;      // Mid-Spring default
         public bool IsPaused => _paused || _speedIndex == 0;
         public float SpeedMultiplier => _paused ? 0.0f : SpeedPresets[_speedIndex];
