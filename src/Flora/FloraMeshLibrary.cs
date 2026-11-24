@@ -11,30 +11,34 @@ namespace PrimevalWorld.Flora
     /// </summary>
     public sealed class FloraMeshLibrary
     {
-        private readonly Dictionary<FloraSpeciesId, Mesh> _cache = new();
+        private readonly Dictionary<(FloraSpeciesId, int), Mesh> _cache = new();
 
-        public Mesh GetMesh(FloraNicheProfile profile)
+        public Mesh GetMesh(FloraNicheProfile profile, int lod = 0)
         {
-            if (_cache.TryGetValue(profile.Id, out Mesh? existing))
+            int clampedLod = profile.Layer <= FloraLayer.Canopy ? Math.Clamp(lod, 0, 2) : 0;
+            if (_cache.TryGetValue((profile.Id, clampedLod), out Mesh? existing))
                 return existing;
 
-            string glbPath = $"res://assets/models/flora/{profile.SpeciesKey}.glb";
-            if (ResourceLoader.Exists(glbPath))
+            if (clampedLod == 0)
             {
-                var packed = GD.Load<PackedScene>(glbPath);
-                if (packed != null)
+                string glbPath = $"res://assets/models/flora/{profile.SpeciesKey}.glb";
+                if (ResourceLoader.Exists(glbPath))
                 {
-                    using Node inst = packed.Instantiate();
-                    if (FindFirstMesh(inst) is Mesh glbMesh)
+                    var packed = GD.Load<PackedScene>(glbPath);
+                    if (packed != null)
                     {
-                        _cache[profile.Id] = glbMesh;
-                        return glbMesh;
+                        using Node inst = packed.Instantiate();
+                        if (FindFirstMesh(inst) is Mesh glbMesh)
+                        {
+                            _cache[(profile.Id, 0)] = glbMesh;
+                            return glbMesh;
+                        }
                     }
                 }
             }
 
-            Mesh built = BuildProceduralMesh(profile);
-            _cache[profile.Id] = built;
+            Mesh built = BuildProceduralMesh(profile, clampedLod);
+            _cache[(profile.Id, clampedLod)] = built;
             return built;
         }
 
@@ -46,10 +50,10 @@ namespace PrimevalWorld.Flora
             return null;
         }
 
-        private static ArrayMesh BuildProceduralMesh(FloraNicheProfile p)
+        private static ArrayMesh BuildProceduralMesh(FloraNicheProfile p, int lod)
         {
             if (p.Layer <= FloraLayer.Canopy || p.Id == FloraSpeciesId.ArborescentTreeFern || p.Id == FloraSpeciesId.NipaWaterPalm)
-                return ProceduralTreeBuilder.BuildTree(p.Id, AgeStage.Mature, 2026);
+                return ProceduralTreeBuilder.BuildTree(p.Id, AgeStage.Mature, 2026, lod);
 
             return p.Architecture switch
             {
@@ -453,19 +457,20 @@ namespace PrimevalWorld.Flora
             Vector2 uv1 = new Vector2(uvRect.End.X, uvRect.End.Y);
             Vector2 uv2 = new Vector2(uvRect.End.X, uvRect.Position.Y);
             Vector2 uv3 = new Vector2(uvRect.Position.X, uvRect.Position.Y);
-            Vector2 leafTag = new Vector2(1.0f, leafType); // UV2.x = 1 -> Leaf Alpha Cutout, UV2.y = leafType
+            Vector2 leafTagBot = new Vector2(0.72f, leafType);
+            Vector2 leafTagTop = new Vector2(1.02f, leafType);
 
-            void Emit(Vector3 p, Color c, Vector2 uv)
+            void Emit(Vector3 p, Color c, Vector2 uv, Vector2 tag)
             {
                 st.SetNormal(radialNormal);
                 st.SetColor(c);
                 st.SetUV(uv);
-                st.SetUV2(leafTag);
+                st.SetUV2(tag);
                 st.AddVertex(p);
             }
 
-            Emit(p0, cBot, uv0); Emit(p1, cBot, uv1); Emit(p2, cTop, uv2);
-            Emit(p0, cBot, uv0); Emit(p2, cTop, uv2); Emit(p3, cTop, uv3);
+            Emit(p0, cBot, uv0, leafTagBot); Emit(p1, cBot, uv1, leafTagBot); Emit(p2, cTop, uv2, leafTagTop);
+            Emit(p0, cBot, uv0, leafTagBot); Emit(p2, cTop, uv2, leafTagTop); Emit(p3, cTop, uv3, leafTagTop);
         }
 
         private static void AddTaperedCylinder(
@@ -518,7 +523,7 @@ namespace PrimevalWorld.Flora
         {
             Vector3 n = (b - a).Cross(c - a).Normalized();
             if (n.LengthSquared() < 0.001f) n = Vector3.Up;
-            Vector2 solidTag = new Vector2(0.0f, 0.0f);
+            Vector2 solidTag = new Vector2(-1.0f, 0.0f); // UV2.x = -1 -> Non-bark solid herb/stone/mushroom
             void Emit(Vector3 p, Color col) { st.SetNormal(n); st.SetColor(col); st.SetUV(Vector2.Zero); st.SetUV2(solidTag); st.AddVertex(p); }
             Emit(a, ca); Emit(b, cb); Emit(c, cc);
         }

@@ -31,7 +31,10 @@ void vertex() {
 	vec4 sa = textureLod(soil_tex_a, world_uv, 0.0);
 	vec4 sb = textureLod(soil_tex_b, world_uv, 0.0);
 	vec4 cl = textureLod(climate_tex, world_uv, 0.0);
-	float canopy = textureLod(canopy_coverage_tex, world_uv, 0.0).r;
+	vec4 eco = textureLod(canopy_coverage_tex, world_uv, 0.0);
+	float canopy = eco.r;
+	float floodplain_mask = eco.g;
+	float wetland_mask = eco.b;
 	vec4 wd = textureLod(weather_dynamic_tex, world_uv, 0.0);
 	vec4 w_data = textureLod(wind_dir_speed_tex, world_uv, 0.0);
 
@@ -70,20 +73,21 @@ void vertex() {
 	float rnd = hash12(floor(inst_world.xz * 2.0));
 	float blade_h = mix(0.45, 1.05, rnd);
 	blade_h = mix(blade_h, 0.38, smoothstep(0.35, 0.85, canopy)); // Shorter fern/shade grass under dense canopy
-	blade_h *= (1.0 + smoothstep(0.35, 0.85, w_steppe) * 0.25);  // Taller steppe grass
+	blade_h *= (1.0 + floodplain_mask * 0.32 + wetland_mask * 0.38 + smoothstep(0.35, 0.85, w_steppe) * 0.25); // Lush tall floodplain/marsh/steppe grass!
 	float final_scale = valid * dist_fade;
 
 	// Ground Color Blending at root -> sunlit tip color
-	vec3 c_alluvial = mix(vec3(0.13, 0.26, 0.08), vec3(0.09, 0.20, 0.06), moisture);
-	vec3 c_forest = mix(vec3(0.18, 0.30, 0.10), vec3(0.13, 0.24, 0.08), moisture);
-	vec3 c_steppe = mix(vec3(0.62, 0.43, 0.14), vec3(0.46, 0.35, 0.14), moisture);
+	vec3 c_alluvial = mix(vec3(0.15, 0.30, 0.09), vec3(0.11, 0.24, 0.07), moisture);
+	vec3 c_forest = mix(vec3(0.17, 0.29, 0.10), vec3(0.12, 0.22, 0.07), moisture);
+	vec3 c_steppe = mix(vec3(0.58, 0.43, 0.15), vec3(0.42, 0.35, 0.14), moisture);
 	vec3 ground_col = (c_alluvial * w_alluvial + c_forest * w_forest + c_steppe * w_steppe + vec3(0.24, 0.27, 0.22) * w_perma)
 	                / max(w_alluvial + w_forest + w_steppe + w_perma, 0.001);
+	ground_col = mix(ground_col, vec3(0.16, 0.35, 0.10), floodplain_mask * 0.70);
 	ground_col = mix(ground_col, vec3(0.06, 0.11, 0.04), smoothstep(0.20, 0.75, canopy) * 0.80);
 
-	vec3 tip_lush = mix(vec3(0.24, 0.46, 0.14), vec3(0.16, 0.34, 0.10), canopy);
-	vec3 tip_steppe = vec3(0.76, 0.58, 0.20);
-	vec3 tip_col = mix(tip_lush, tip_steppe, smoothstep(0.25, 0.75, w_steppe));
+	vec3 tip_lush = mix(vec3(0.24, 0.48, 0.13), vec3(0.16, 0.34, 0.10), canopy);
+	vec3 tip_steppe = vec3(0.72, 0.56, 0.20);
+	vec3 tip_col = mix(tip_lush, tip_steppe, smoothstep(0.28, 0.78, w_steppe) * (1.0 - floodplain_mask));
 
 	// Autumn golden-brown tint + Winter snow dust on grass tips
 	float autumn_t = sin(clamp((season_phase - 0.48) / 0.28, 0.0, 1.0) * 3.14159);

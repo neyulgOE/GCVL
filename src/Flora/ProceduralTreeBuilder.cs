@@ -11,15 +11,17 @@ namespace PrimevalWorld.Flora
     }
 
     /// <summary>
-    /// Biological Recursive Branching Tree Builder (Da Vinci Pipe Rule r_parent^2 = r1^2 + r2^2 + Golden Angle Phyllotaxis 137.5°).
-    /// Produces organic curved trunks, primary/secondary branches with continuous bark UV,
-    /// and compact Curved Leaf Sprigs with Radial Normals (zero giant flat squares!).
+    /// Biological Recursive Branching Tree Builder with 3-Tier LOD (LOD0 full, LOD1 mid, LOD2 far dome)
+    /// and Baked 3D Canopy Ambient Occlusion (Canopy AO stored in UV2.x [0.52..1.08]).
+    /// - UV2.x == 0.0: Woody Bark (UV2.y: 0=mossy forest bark, 1=pale birch bark, 2=dry desert/steppe bark)
+    /// - UV2.x >= 0.50: Botanical Alpha-Cutout Leaf Sprig (UV2.x = CanopyAO, UV2.y = LeafType:
+    ///   0=Evergreen Broadleaf, 1=Conifer, 2=Deciduous Ginkgo/Birch, 3=Palm/Fern/Moss, 4=Deciduous Maple, 5=Xeric Umbrella/Baobab)
     /// </summary>
     public static class ProceduralTreeBuilder
     {
         private const float GoldenAngleRad = 2.39996323f; // 137.508°
 
-        public static ArrayMesh BuildTree(FloraSpeciesId species, AgeStage age, int seed)
+        public static ArrayMesh BuildTree(FloraSpeciesId species, AgeStage age, int seed, int lod = 0)
         {
             var st = new SurfaceTool();
             st.Begin(Mesh.PrimitiveType.Triangles);
@@ -29,263 +31,369 @@ namespace PrimevalWorld.Flora
             float ageSpreadMult = age switch { AgeStage.Young => 0.72f, AgeStage.Mature => 1.0f, _ => 1.30f };
             float ageRadiusMult = age switch { AgeStage.Young => 0.65f, AgeStage.Mature => 1.0f, _ => 1.38f };
 
+            if (lod >= 2 && species != FloraSpeciesId.ArborescentTreeFern && species != FloraSpeciesId.NipaWaterPalm)
+            {
+                BuildFarLod2Tree(st, species, ageHeightMult, ageSpreadMult, ageRadiusMult);
+                return st.Commit();
+            }
+
             switch (species)
             {
                 case FloraSpeciesId.PrimevalBanyanFig:
                 case FloraSpeciesId.SacredAncientHardwood:
-                    BuildButtressBroadleaf(st, rng, age, ageHeightMult, ageSpreadMult, ageRadiusMult, withPropRoots: species == FloraSpeciesId.PrimevalBanyanFig);
+                    BuildButtressBroadleaf(st, rng, age, ageHeightMult, ageSpreadMult, ageRadiusMult,
+                        withPropRoots: species == FloraSpeciesId.PrimevalBanyanFig, lod);
                     break;
 
                 case FloraSpeciesId.GinkgoAncientGold:
+                    BuildDeciduousTree(st, rng, ageHeightMult, ageSpreadMult, ageRadiusMult, leafType: 2, barkMode: 2, lod);
+                    break;
                 case FloraSpeciesId.CrimsonSteppeMaple:
-                    BuildDeciduousTree(st, rng, ageHeightMult, ageSpreadMult, ageRadiusMult, leafType: 2);
+                    BuildDeciduousTree(st, rng, ageHeightMult, ageSpreadMult, ageRadiusMult, leafType: 4, barkMode: 2, lod);
                     break;
                 case FloraSpeciesId.StarAppleCanopy:
-                    BuildDeciduousTree(st, rng, ageHeightMult, ageSpreadMult, ageRadiusMult, leafType: 0);
+                    BuildDeciduousTree(st, rng, ageHeightMult, ageSpreadMult, ageRadiusMult, leafType: 0, barkMode: 0, lod);
                     break;
 
                 case FloraSpeciesId.WeepingRiverWillow:
+                    BuildWeepingTree(st, rng, ageHeightMult, ageSpreadMult, ageRadiusMult, paleBark: false, leafType: 0, lod);
+                    break;
                 case FloraSpeciesId.WeepingSilverBirch:
-                    BuildWeepingTree(st, rng, ageHeightMult, ageSpreadMult, ageRadiusMult, species == FloraSpeciesId.WeepingSilverBirch);
+                    BuildWeepingTree(st, rng, ageHeightMult, ageSpreadMult, ageRadiusMult, paleBark: true, leafType: 2, lod);
                     break;
 
                 case FloraSpeciesId.BorealSnowPine:
                 case FloraSpeciesId.SilverGlacierSpruce:
                 case FloraSpeciesId.GiantSequoiaReddawn:
-                    BuildConiferTree(st, rng, ageHeightMult, ageSpreadMult, ageRadiusMult, isSequoia: species == FloraSpeciesId.GiantSequoiaReddawn);
+                    BuildConiferTree(st, rng, ageHeightMult, ageSpreadMult, ageRadiusMult,
+                        isSequoia: species == FloraSpeciesId.GiantSequoiaReddawn, lod);
                     break;
 
                 case FloraSpeciesId.DragonBloodTree:
                 case FloraSpeciesId.SavannaUmbrellaAcacia:
-                    BuildUmbrellaTree(st, rng, ageHeightMult, ageSpreadMult, ageRadiusMult);
+                    BuildUmbrellaTree(st, rng, ageHeightMult, ageSpreadMult, ageRadiusMult, lod);
                     break;
 
                 case FloraSpeciesId.BaobabPrehistoric:
-                    BuildBaobabTree(st, rng, ageHeightMult, ageSpreadMult, ageRadiusMult);
+                    BuildBaobabTree(st, rng, ageHeightMult, ageSpreadMult, ageRadiusMult, lod);
                     break;
 
                 case FloraSpeciesId.ArborescentTreeFern:
                 case FloraSpeciesId.NipaWaterPalm:
-                    BuildColumnarPalmFern(st, rng, ageHeightMult, isFern: species == FloraSpeciesId.ArborescentTreeFern);
+                    BuildColumnarPalmFern(st, rng, ageHeightMult, isFern: species == FloraSpeciesId.ArborescentTreeFern, lod);
                     break;
 
                 default:
-                    BuildDeciduousTree(st, rng, ageHeightMult, ageSpreadMult, ageRadiusMult, leafType: 0);
+                    BuildDeciduousTree(st, rng, ageHeightMult, ageSpreadMult, ageRadiusMult, leafType: 0, barkMode: 0, lod);
                     break;
             }
 
             return st.Commit();
         }
 
+        // Ultra-light LOD2 (460m - 1350m): 18-22 tris volumetric canopy dome with baked 3D Canopy AO + trunk silhouette
+        private static void BuildFarLod2Tree(SurfaceTool st, FloraSpeciesId sp, float hMult, float sMult, float rMult)
+        {
+            int leafType = sp switch
+            {
+                FloraSpeciesId.BorealSnowPine or FloraSpeciesId.SilverGlacierSpruce or FloraSpeciesId.GiantSequoiaReddawn => 1,
+                FloraSpeciesId.GinkgoAncientGold or FloraSpeciesId.WeepingSilverBirch => 2,
+                FloraSpeciesId.CrimsonSteppeMaple => 4,
+                FloraSpeciesId.DragonBloodTree or FloraSpeciesId.SavannaUmbrellaAcacia or FloraSpeciesId.BaobabPrehistoric => 5,
+                _ => 0,
+            };
+            int barkMode = sp == FloraSpeciesId.WeepingSilverBirch ? 1 : (leafType >= 2 ? 2 : 0);
+
+            bool isEmergent = sp == FloraSpeciesId.PrimevalBanyanFig || sp == FloraSpeciesId.SacredAncientHardwood || sp == FloraSpeciesId.GiantSequoiaReddawn;
+            bool isConifer = leafType == 1;
+            bool isUmbrella = leafType == 5;
+
+            float totalH = (sp == FloraSpeciesId.GiantSequoiaReddawn ? 25.0f : (isEmergent ? 21.0f : (isConifer ? 15.0f : 12.0f))) * hMult;
+            float trunkTopY = isConifer ? totalH * 0.85f : totalH * 0.62f;
+            float baseR = (isEmergent ? 1.05f : (sp == FloraSpeciesId.BaobabPrehistoric ? 1.45f : 0.50f)) * rMult;
+
+            var barkCol = barkMode == 1 ? new Color(0.86f, 0.85f, 0.82f, 0.0f) : new Color(0.32f, 0.23f, 0.16f, 0.0f);
+            AddTaperedCylinder(st, Vector3.Zero, new Vector3(0.0f, trunkTopY, 0.0f), baseR, baseR * 0.35f, 4, barkCol, barkCol, barkMode);
+
+            float crownR = (isEmergent ? 6.8f : (isUmbrella ? 5.6f : (isConifer ? 3.5f : 4.6f))) * sMult;
+            float crownHalfH = (isConifer ? totalH * 0.38f : (isUmbrella ? 1.8f : totalH * 0.28f));
+            Vector3 crownCenter = new Vector3(0.0f, isConifer ? totalH * 0.58f : totalH * 0.72f, 0.0f);
+
+            // 3 crossed + tilted volumetric crown planes (6 triangles total for crown) with deep bottom AO -> sunlit top AO
+            for (int i = 0; i < 3; i++)
+            {
+                float a = i * (Mathf.Pi / 3.0f) + 0.25f;
+                Vector3 right = new Vector3(MathF.Cos(a), 0.0f, MathF.Sin(a)) * crownR;
+                Vector3 tilt = new Vector3(-MathF.Sin(a), 0.0f, MathF.Cos(a)) * (crownR * 0.18f);
+                Vector3 botL = crownCenter - right - new Vector3(0.0f, crownHalfH, 0.0f) - tilt;
+                Vector3 botR = crownCenter + right - new Vector3(0.0f, crownHalfH, 0.0f) - tilt;
+                Vector3 topR = crownCenter + right * (isConifer ? 0.35f : 0.92f) + new Vector3(0.0f, crownHalfH, 0.0f) + tilt;
+                Vector3 topL = crownCenter - right * (isConifer ? 0.35f : 0.92f) + new Vector3(0.0f, crownHalfH, 0.0f) + tilt;
+
+                Vector3 nrm = (new Vector3(-MathF.Sin(a), 0.65f, MathF.Cos(a))).Normalized();
+                var cWhite = new Color(1f, 1f, 1f, 0.12f);
+                AddSprigQuad(st, botL, botR, topR, topL, cWhite, cWhite, nrm, leafType, new Vector2(1.0f, 0.0f), aoBot: 0.56f, aoTop: 1.04f);
+            }
+        }
+
         private static void BuildButtressBroadleaf(
-            SurfaceTool st, Random rng, AgeStage age, float hMult, float sMult, float rMult, bool withPropRoots)
+            SurfaceTool st, Random rng, AgeStage age, float hMult, float sMult, float rMult, bool withPropRoots, int lod)
         {
             var barkBot = new Color(0.28f, 0.21f, 0.14f, 0.0f);
-            var barkTop = new Color(0.35f, 0.26f, 0.18f, 0.02f);
+            var barkTop = new Color(0.36f, 0.27f, 0.18f, 0.02f);
 
-            float trunkH = 11.5f * hMult;
-            float baseR = 1.05f * rMult;
-            float topR = baseR * 0.48f;
+            float trunkH = 11.8f * hMult;
+            float baseR = 1.18f * rMult;
+            float topR = baseR * 0.50f;
 
-            // Organic multi-segment curved trunk
             Vector3 p0 = Vector3.Zero;
-            Vector3 p1 = new Vector3((float)(rng.NextDouble() - 0.5) * 0.8f, trunkH * 0.5f, (float)(rng.NextDouble() - 0.5) * 0.8f);
-            Vector3 p2 = new Vector3((float)(rng.NextDouble() - 0.5) * 1.1f, trunkH, (float)(rng.NextDouble() - 0.5) * 1.1f);
-            AddTaperedCylinder(st, p0, p1, baseR, (baseR + topR) * 0.52f, 7, barkBot, barkTop);
-            AddTaperedCylinder(st, p1, p2, (baseR + topR) * 0.52f, topR, 6, barkBot, barkTop);
+            Vector3 p1 = new Vector3((float)(rng.NextDouble() - 0.5) * 0.85f, trunkH * 0.52f, (float)(rng.NextDouble() - 0.5) * 0.85f);
+            Vector3 p2 = new Vector3((float)(rng.NextDouble() - 0.5) * 1.15f, trunkH, (float)(rng.NextDouble() - 0.5) * 1.15f);
+            int cylSides = lod == 0 ? 7 : 5;
+            AddTaperedCylinder(st, p0, p1, baseR, (baseR + topR) * 0.52f, cylSides, barkBot, barkTop, 0);
+            AddTaperedCylinder(st, p1, p2, (baseR + topR) * 0.52f, topR, cylSides - 1, barkBot, barkTop, 0);
 
-            // Buttress root flanges (stronger in Mature/Ancient)
-            int buttresses = age == AgeStage.Young ? 3 : 5;
+            int buttresses = lod == 0 ? (age == AgeStage.Young ? 3 : 5) : 3;
             for (int r = 0; r < buttresses; r++)
             {
                 float a = r * Mathf.Tau / buttresses + (float)rng.NextDouble() * 0.35f;
-                Vector3 foot = new Vector3(MathF.Cos(a) * (baseR * 2.15f), -0.15f, MathF.Sin(a) * (baseR * 2.15f));
-                Vector3 join = new Vector3(MathF.Cos(a) * (baseR * 0.55f), trunkH * 0.34f, MathF.Sin(a) * (baseR * 0.55f));
-                AddTaperedCylinder(st, foot, join, baseR * 0.36f, baseR * 0.16f, 4, barkBot, barkTop);
+                Vector3 foot = new Vector3(MathF.Cos(a) * (baseR * 2.25f), -0.15f, MathF.Sin(a) * (baseR * 2.25f));
+                Vector3 join = new Vector3(MathF.Cos(a) * (baseR * 0.55f), trunkH * 0.36f, MathF.Sin(a) * (baseR * 0.55f));
+                AddTaperedCylinder(st, foot, join, baseR * 0.38f, baseR * 0.16f, 4, barkBot, barkTop, 0);
             }
 
-            if (withPropRoots && age != AgeStage.Young)
+            if (lod == 0 && withPropRoots && age != AgeStage.Young)
             {
                 for (int r = 0; r < 3; r++)
                 {
                     float a = r * GoldenAngleRad + (float)rng.NextDouble();
-                    float dist = 3.2f * sMult;
+                    float dist = 3.4f * sMult;
                     AddTaperedCylinder(st, new Vector3(MathF.Cos(a) * dist, -0.1f, MathF.Sin(a) * dist),
-                        p2 + new Vector3(MathF.Cos(a) * dist * 0.85f, -1.2f, MathF.Sin(a) * dist * 0.85f),
-                        0.15f, 0.10f, 4, barkBot, barkTop);
+                        p2 + new Vector3(MathF.Cos(a) * dist * 0.82f, -0.6f, MathF.Sin(a) * dist * 0.82f),
+                        0.16f, 0.11f, 4, barkBot, barkTop, 0);
                 }
             }
 
-            // Recursive Phyllotaxis + Da Vinci primary & secondary branches
-            Vector3 crownCenter = p2 + new Vector3(0.0f, 3.8f * hMult, 0.0f);
+            // Wide exposed primary limbs with airy gaps between sub-crowns so dark mossy branches show clearly!
+            Vector3 crownCenter = p2 + new Vector3(0.0f, 4.4f * hMult, 0.0f);
+            float crownRad = 7.4f * sMult;
+            float crownHalfH = 4.6f * hMult;
+
             int primaryCount = age == AgeStage.Young ? 4 : 5;
-            float childR = topR / MathF.Sqrt(primaryCount * 0.72f);
+            float childR = topR / MathF.Sqrt(primaryCount * 0.65f);
 
             for (int i = 0; i < primaryCount; i++)
             {
-                float azim = i * GoldenAngleRad + (float)rng.NextDouble() * 0.3f;
-                float elev = 0.42f + (float)rng.NextDouble() * 0.30f;
+                float azim = i * GoldenAngleRad + (float)rng.NextDouble() * 0.28f;
+                float elev = 0.38f + (i % 2) * 0.18f + (float)rng.NextDouble() * 0.16f;
                 Vector3 dir = new Vector3(MathF.Cos(azim) * MathF.Cos(elev), MathF.Sin(elev), MathF.Sin(azim) * MathF.Cos(elev)).Normalized();
-                float len = (5.8f + (float)rng.NextDouble() * 2.4f) * sMult;
+                float len = (6.2f + (float)rng.NextDouble() * 2.2f) * sMult;
                 Vector3 bEnd = p2 + dir * len;
-                AddTaperedCylinder(st, p2, bEnd, childR, childR * 0.55f, 5, barkTop, barkTop);
+                AddTaperedCylinder(st, p2, bEnd, childR, childR * 0.54f, lod == 0 ? 5 : 4, barkTop, barkTop, 0);
 
-                // Secondary branches + compact curved leaf sprigs (1.25-1.55m, natural airy clusters)
-                float subR = childR * 0.55f / 1.414f;
-                for (int s = 0; s < 3; s++)
+                if (lod == 0)
                 {
-                    float sAz = azim + (s - 1) * 0.85f + (float)(rng.NextDouble() - 0.5) * 0.3f;
-                    Vector3 sDir = new Vector3(MathF.Cos(sAz), 0.35f + (float)rng.NextDouble() * 0.35f, MathF.Sin(sAz)).Normalized();
-                    Vector3 sEnd = bEnd + sDir * (3.2f * sMult);
-                    AddTaperedCylinder(st, bEnd, sEnd, subR, subR * 0.45f, 4, barkTop, barkTop);
-                    AddCurvedLeafSprigCluster(st, sEnd, crownCenter, 1.35f * sMult, 2, leafType: 0, rng, 0.14f);
+                    float subR = childR * 0.44f;
+                    for (int s = 0; s < 2; s++)
+                    {
+                        float sAz = azim + (s == 0 ? -0.72f : 0.72f) + (float)(rng.NextDouble() - 0.5) * 0.25f;
+                        Vector3 sDir = new Vector3(MathF.Cos(sAz), 0.38f + (float)rng.NextDouble() * 0.30f, MathF.Sin(sAz)).Normalized();
+                        Vector3 sEnd = bEnd + sDir * (3.0f * sMult);
+                        AddTaperedCylinder(st, bEnd, sEnd, subR, subR * 0.42f, 4, barkTop, barkTop, 0);
+                        AddCurvedLeafSprigCluster(st, sEnd, crownCenter, crownRad, crownHalfH, 1.48f * sMult, 3, leafType: 0, rng, 0.14f);
+                    }
+                    AddCurvedLeafSprigCluster(st, bEnd + Vector3.Up * 0.5f, crownCenter, crownRad, crownHalfH, 1.55f * sMult, 2, leafType: 0, rng, 0.14f);
+
+                    if (age != AgeStage.Young)
+                    {
+                        Vector3 midLimb = p2.Lerp(bEnd, 0.55f);
+                        float drapeLen = (2.0f + (float)rng.NextDouble() * 1.6f) * hMult;
+                        Vector3 side = new Vector3(-MathF.Sin(azim), 0.0f, MathF.Cos(azim)) * 0.52f;
+                        var cDrape = new Color(0.82f, 0.92f, 0.72f, 0.38f);
+                        AddSprigQuad(st, midLimb - side, midLimb + side, midLimb + side - Vector3.Up * drapeLen, midLimb - side - Vector3.Up * drapeLen,
+                            cDrape, cDrape, Vector3.Up, leafType: 3, new Vector2(0.0f, 1.0f), aoBot: 0.62f, aoTop: 0.78f);
+                    }
                 }
-                AddCurvedLeafSprigCluster(st, bEnd, crownCenter, 1.45f * sMult, 2, leafType: 0, rng, 0.14f);
-
-                // Hanging Moss / Epiphyte Drapes dangling vertically under main rainforest limbs (Hoh Rainforest feel!)
-                if (age != AgeStage.Young)
+                else
                 {
-                    Vector3 midLimb = p2.Lerp(bEnd, 0.58f);
-                    float drapeLen = (2.2f + (float)rng.NextDouble() * 1.8f) * hMult;
-                    Vector3 side = new Vector3(-MathF.Sin(azim), 0.0f, MathF.Cos(azim)) * 0.55f;
-                    var mossTop = new Color(0.58f, 0.72f, 0.42f, 0.25f);
-                    var mossTip = new Color(0.76f, 0.88f, 0.52f, 0.48f);
-                    AddSprigQuad(st, midLimb - side, midLimb + side, midLimb + side - Vector3.Up * drapeLen, midLimb - side - Vector3.Up * drapeLen,
-                        mossTop, mossTip, Vector3.Up, leafType: 3, new Vector2(0.0f, 1.0f));
+                    AddCurvedLeafSprigCluster(st, bEnd + Vector3.Up * 0.6f, crownCenter, crownRad, crownHalfH, 2.25f * sMult, 2, leafType: 0, rng, 0.14f);
                 }
             }
-            AddCurvedLeafSprigCluster(st, crownCenter + Vector3.Up * 1.4f, crownCenter, 1.55f * sMult, 2, leafType: 0, rng, 0.15f);
+            AddCurvedLeafSprigCluster(st, crownCenter + Vector3.Up * (2.0f * hMult), crownCenter, crownRad, crownHalfH,
+                (lod == 0 ? 1.85f : 2.35f) * sMult, lod == 0 ? 3 : 2, leafType: 0, rng, 0.15f);
         }
 
-        private static void BuildDeciduousTree(SurfaceTool st, Random rng, float hMult, float sMult, float rMult, int leafType)
+        private static void BuildDeciduousTree(
+            SurfaceTool st, Random rng, float hMult, float sMult, float rMult, int leafType, int barkMode, int lod)
         {
-            var barkBot = new Color(0.32f, 0.25f, 0.18f, 0.0f);
-            var barkTop = new Color(0.38f, 0.30f, 0.22f, 0.02f);
+            var barkBot = new Color(0.32f, 0.24f, 0.17f, 0.0f);
+            var barkTop = new Color(0.39f, 0.30f, 0.22f, 0.02f);
 
-            float trunkH = 6.2f * hMult;
-            float baseR = 0.48f * rMult;
+            float trunkH = 6.4f * hMult;
+            float baseR = 0.54f * rMult;
             float topR = baseR * 0.54f;
 
-            Vector3 p1 = new Vector3((float)(rng.NextDouble() - 0.5) * 0.5f, trunkH * 0.52f, (float)(rng.NextDouble() - 0.5) * 0.5f);
-            Vector3 p2 = new Vector3((float)(rng.NextDouble() - 0.5) * 0.7f, trunkH, (float)(rng.NextDouble() - 0.5) * 0.7f);
-            AddTaperedCylinder(st, Vector3.Zero, p1, baseR, (baseR + topR) * 0.52f, 6, barkBot, barkTop);
-            AddTaperedCylinder(st, p1, p2, (baseR + topR) * 0.52f, topR, 5, barkBot, barkTop);
+            Vector3 p1 = new Vector3((float)(rng.NextDouble() - 0.5) * 0.55f, trunkH * 0.52f, (float)(rng.NextDouble() - 0.5) * 0.55f);
+            Vector3 p2 = new Vector3((float)(rng.NextDouble() - 0.5) * 0.75f, trunkH, (float)(rng.NextDouble() - 0.5) * 0.75f);
+            AddTaperedCylinder(st, Vector3.Zero, p1, baseR, (baseR + topR) * 0.52f, lod == 0 ? 6 : 4, barkBot, barkTop, barkMode);
+            AddTaperedCylinder(st, p1, p2, (baseR + topR) * 0.52f, topR, lod == 0 ? 5 : 4, barkBot, barkTop, barkMode);
 
-            Vector3 crownCenter = p2 + new Vector3(0.0f, 3.2f * hMult, 0.0f);
+            Vector3 crownCenter = p2 + new Vector3(0.0f, 3.6f * hMult, 0.0f);
+            float crownRad = 5.0f * sMult;
+            float crownHalfH = 3.8f * hMult;
+
             const int branches = 5;
-            float childR = topR / MathF.Sqrt(branches * 0.7f);
+            float childR = topR / MathF.Sqrt(branches * 0.65f);
 
             for (int i = 0; i < branches; i++)
             {
                 float azim = i * GoldenAngleRad + (float)rng.NextDouble() * 0.25f;
-                float elev = 0.52f + (float)rng.NextDouble() * 0.35f;
+                float elev = 0.46f + (i % 2) * 0.18f + (float)rng.NextDouble() * 0.18f;
                 Vector3 dir = new Vector3(MathF.Cos(azim) * MathF.Cos(elev), MathF.Sin(elev), MathF.Sin(azim) * MathF.Cos(elev)).Normalized();
-                Vector3 bEnd = p2 + dir * (4.4f * sMult);
-                AddTaperedCylinder(st, p2, bEnd, childR, childR * 0.50f, 4, barkTop, barkTop);
+                Vector3 bEnd = p2 + dir * (4.5f * sMult);
+                AddTaperedCylinder(st, p2, bEnd, childR, childR * 0.48f, 4, barkTop, barkTop, barkMode);
 
-                for (int s = 0; s < 2; s++)
+                if (lod == 0)
                 {
-                    float sAz = azim + (s == 0 ? -0.65f : 0.65f);
-                    Vector3 sEnd = bEnd + new Vector3(MathF.Cos(sAz), 0.45f, MathF.Sin(sAz)).Normalized() * (2.3f * sMult);
-                    AddTaperedCylinder(st, bEnd, sEnd, childR * 0.45f, childR * 0.20f, 4, barkTop, barkTop);
-                    AddCurvedLeafSprigCluster(st, sEnd, crownCenter, 1.65f * sMult, 2, leafType, rng, 0.15f);
+                    for (int s = 0; s < 2; s++)
+                    {
+                        float sAz = azim + (s == 0 ? -0.68f : 0.68f);
+                        Vector3 sEnd = bEnd + new Vector3(MathF.Cos(sAz), 0.44f, MathF.Sin(sAz)).Normalized() * (2.2f * sMult);
+                        AddTaperedCylinder(st, bEnd, sEnd, childR * 0.46f, childR * 0.20f, 4, barkTop, barkTop, barkMode);
+                        AddCurvedLeafSprigCluster(st, sEnd, crownCenter, crownRad, crownHalfH, 1.55f * sMult, 2, leafType, rng, 0.15f);
+                    }
+                    AddCurvedLeafSprigCluster(st, bEnd + Vector3.Up * 0.4f, crownCenter, crownRad, crownHalfH, 1.60f * sMult, 2, leafType, rng, 0.15f);
                 }
-                AddCurvedLeafSprigCluster(st, bEnd, crownCenter, 1.75f * sMult, 2, leafType, rng, 0.15f);
+                else
+                {
+                    AddCurvedLeafSprigCluster(st, bEnd + dir * (1.2f * sMult), crownCenter, crownRad, crownHalfH, 2.15f * sMult, 2, leafType, rng, 0.15f);
+                }
             }
-            AddCurvedLeafSprigCluster(st, crownCenter + Vector3.Up * 1.4f, crownCenter, 1.9f * sMult, 2, leafType, rng, 0.16f);
+            AddCurvedLeafSprigCluster(st, crownCenter + Vector3.Up * (1.6f * hMult), crownCenter, crownRad, crownHalfH,
+                (lod == 0 ? 1.80f : 2.25f) * sMult, 2, leafType, rng, 0.16f);
         }
 
-        private static void BuildWeepingTree(SurfaceTool st, Random rng, float hMult, float sMult, float rMult, bool paleBark)
+        private static void BuildWeepingTree(
+            SurfaceTool st, Random rng, float hMult, float sMult, float rMult, bool paleBark, int leafType, int lod)
         {
-            var barkBot = paleBark ? new Color(0.84f, 0.83f, 0.80f, 0.0f) : new Color(0.28f, 0.21f, 0.14f, 0.0f);
-            var barkTop = paleBark ? new Color(0.90f, 0.89f, 0.86f, 0.02f) : new Color(0.34f, 0.26f, 0.18f, 0.02f);
+            var barkBot = paleBark ? new Color(0.88f, 0.87f, 0.84f, 0.0f) : new Color(0.29f, 0.22f, 0.15f, 0.0f);
+            var barkTop = paleBark ? new Color(0.94f, 0.93f, 0.90f, 0.02f) : new Color(0.35f, 0.27f, 0.19f, 0.02f);
+            int barkMode = paleBark ? 1 : 0;
 
-            float trunkH = 6.5f * hMult;
-            float baseR = 0.46f * rMult;
-            Vector3 p2 = new Vector3(0.8f * sMult, trunkH, 0.3f * sMult);
-            AddTaperedCylinder(st, Vector3.Zero, p2, baseR, baseR * 0.46f, 6, barkBot, barkTop);
+            float trunkH = 6.6f * hMult;
+            float baseR = 0.50f * rMult;
+            Vector3 p1 = new Vector3(0.35f * sMult, trunkH * 0.5f, 0.12f * sMult);
+            Vector3 p2 = new Vector3(0.85f * sMult, trunkH, 0.30f * sMult);
+            AddTaperedCylinder(st, Vector3.Zero, p1, baseR, baseR * 0.68f, lod == 0 ? 6 : 4, barkBot, barkTop, barkMode);
+            AddTaperedCylinder(st, p1, p2, baseR * 0.68f, baseR * 0.44f, 4, barkBot, barkTop, barkMode);
 
-            Vector3 crownCenter = p2 + new Vector3(0.0f, 2.4f * hMult, 0.0f);
+            Vector3 crownCenter = p2 + new Vector3(0.0f, 2.2f * hMult, 0.0f);
+            float crownRad = 4.6f * sMult;
+            float crownHalfH = 3.4f * hMult;
+
             for (int i = 0; i < 5; i++)
             {
                 float azim = i * GoldenAngleRad;
-                Vector3 bEnd = p2 + new Vector3(MathF.Cos(azim) * 3.4f * sMult, 2.5f * hMult, MathF.Sin(azim) * 3.4f * sMult);
-                AddTaperedCylinder(st, p2, bEnd, baseR * 0.32f, baseR * 0.12f, 4, barkTop, barkTop);
-                AddCurvedLeafSprigCluster(st, bEnd + new Vector3(0, -0.8f, 0), crownCenter, 2.3f * sMult, 2, leafType: 0, rng, 0.17f);
+                Vector3 bArch = p2 + new Vector3(MathF.Cos(azim) * 3.4f * sMult, 2.4f * hMult, MathF.Sin(azim) * 3.4f * sMult);
+                AddTaperedCylinder(st, p2, bArch, baseR * 0.34f, baseR * 0.13f, 4, barkTop, barkTop, barkMode);
+                if (lod == 0)
+                {
+                    Vector3 droop = bArch + new Vector3(MathF.Cos(azim) * 0.9f * sMult, -1.5f * hMult, MathF.Sin(azim) * 0.9f * sMult);
+                    AddTaperedCylinder(st, bArch, droop, baseR * 0.13f, baseR * 0.06f, 3, barkTop, barkTop, barkMode);
+                    AddCurvedLeafSprigCluster(st, droop, crownCenter, crownRad, crownHalfH, 1.85f * sMult, 3, leafType, rng, 0.18f);
+                }
+                else
+                {
+                    AddCurvedLeafSprigCluster(st, bArch + new Vector3(0, -0.8f, 0), crownCenter, crownRad, crownHalfH, 2.25f * sMult, 2, leafType, rng, 0.17f);
+                }
             }
+            AddCurvedLeafSprigCluster(st, crownCenter + Vector3.Up * 1.2f, crownCenter, crownRad, crownHalfH, 1.85f * sMult, 2, leafType, rng, 0.16f);
         }
 
-        private static void BuildConiferTree(SurfaceTool st, Random rng, float hMult, float sMult, float rMult, bool isSequoia)
+        private static void BuildConiferTree(
+            SurfaceTool st, Random rng, float hMult, float sMult, float rMult, bool isSequoia, int lod)
         {
-            var barkBot = isSequoia ? new Color(0.38f, 0.18f, 0.10f, 0.0f) : new Color(0.24f, 0.17f, 0.12f, 0.0f);
-            var barkTop = isSequoia ? new Color(0.42f, 0.22f, 0.13f, 0.03f) : new Color(0.28f, 0.20f, 0.15f, 0.03f);
+            var barkBot = isSequoia ? new Color(0.40f, 0.19f, 0.11f, 0.0f) : new Color(0.25f, 0.18f, 0.13f, 0.0f);
+            var barkTop = isSequoia ? new Color(0.45f, 0.23f, 0.14f, 0.03f) : new Color(0.30f, 0.21f, 0.15f, 0.03f);
 
-            float totalH = (isSequoia ? 24.0f : 15.0f) * hMult;
-            float baseR = (isSequoia ? 1.05f : 0.44f) * rMult;
-            AddTaperedCylinder(st, Vector3.Zero, new Vector3(0.0f, totalH, 0.0f), baseR, 0.07f, 6, barkBot, barkTop);
+            float totalH = (isSequoia ? 24.5f : 15.2f) * hMult;
+            float baseR = (isSequoia ? 1.15f : 0.48f) * rMult;
+            AddTaperedCylinder(st, Vector3.Zero, new Vector3(0.0f, totalH, 0.0f), baseR, 0.08f, lod == 0 ? 6 : 4, barkBot, barkTop, 2);
 
-            int tiers = isSequoia ? 5 : 6;
-            float startFrac = isSequoia ? 0.48f : 0.24f;
-            Vector3 crownCenter = new Vector3(0.0f, totalH * 0.62f, 0.0f);
+            int tiers = lod == 0 ? (isSequoia ? 5 : 6) : 4;
+            float startFrac = isSequoia ? 0.46f : 0.24f;
+            Vector3 crownCenter = new Vector3(0.0f, totalH * 0.60f, 0.0f);
+            float crownRad = (isSequoia ? 5.2f : 3.8f) * sMult;
+            float crownHalfH = totalH * 0.38f;
 
             for (int t = 0; t < tiers; t++)
             {
                 float frac = startFrac + (t / (float)(tiers - 1)) * (0.94f - startFrac);
                 float y = totalH * frac;
-                float tierRadius = (1.0f - (t / (float)tiers) * 0.72f) * (isSequoia ? 4.8f : 3.6f) * sMult;
-                int bCount = t < tiers - 2 ? 4 : 3;
+                float tierRadius = (1.0f - (t / (float)tiers) * 0.72f) * (isSequoia ? 4.9f : 3.6f) * sMult;
+                int bCount = lod == 0 ? (t < tiers - 2 ? 4 : 3) : 3;
                 for (int b = 0; b < bCount; b++)
                 {
                     float a = b * (Mathf.Tau / bCount) + t * GoldenAngleRad;
-                    // Drooping conifer branches
                     Vector3 bStart = new Vector3(0.0f, y, 0.0f);
-                    Vector3 bEnd = new Vector3(MathF.Cos(a) * tierRadius, y - tierRadius * 0.25f, MathF.Sin(a) * tierRadius);
-                    AddTaperedCylinder(st, bStart, bEnd, 0.11f * rMult, 0.04f, 4, barkTop, barkTop);
-                    AddCurvedLeafSprigCluster(st, bEnd, crownCenter, 1.85f * sMult, 2, leafType: 1, rng, 0.14f);
+                    Vector3 bEnd = new Vector3(MathF.Cos(a) * tierRadius, y - tierRadius * 0.24f, MathF.Sin(a) * tierRadius);
+                    if (lod == 0)
+                        AddTaperedCylinder(st, bStart, bEnd, 0.12f * rMult, 0.04f, 4, barkTop, barkTop, 2);
+                    AddCurvedLeafSprigCluster(st, bEnd, crownCenter, crownRad, crownHalfH,
+                        (lod == 0 ? 1.75f : 2.20f) * sMult, lod == 0 ? 2 : 1, leafType: 1, rng, 0.13f);
                 }
             }
-            AddCurvedLeafSprigCluster(st, new Vector3(0.0f, totalH + 0.4f, 0.0f), crownCenter, 1.5f * sMult, 2, leafType: 1, rng, 0.15f);
+            AddCurvedLeafSprigCluster(st, new Vector3(0.0f, totalH + 0.35f, 0.0f), crownCenter, crownRad, crownHalfH, 1.45f * sMult, 2, leafType: 1, rng, 0.14f);
         }
 
-        private static void BuildUmbrellaTree(SurfaceTool st, Random rng, float hMult, float sMult, float rMult)
+        private static void BuildUmbrellaTree(SurfaceTool st, Random rng, float hMult, float sMult, float rMult, int lod)
         {
-            var bark = new Color(0.40f, 0.29f, 0.22f, 0.0f);
-            float trunkH = 5.4f * hMult;
-            float baseR = 0.62f * rMult;
+            var bark = new Color(0.42f, 0.31f, 0.22f, 0.0f);
+            float trunkH = 5.6f * hMult;
+            float baseR = 0.65f * rMult;
             Vector3 fork = new Vector3((float)(rng.NextDouble() - 0.5) * 0.6f, trunkH, (float)(rng.NextDouble() - 0.5) * 0.6f);
-            AddTaperedCylinder(st, Vector3.Zero, fork, baseR, baseR * 0.54f, 6, bark, bark);
+            AddTaperedCylinder(st, Vector3.Zero, fork, baseR, baseR * 0.54f, lod == 0 ? 6 : 4, bark, bark, 2);
 
-            Vector3 crownCenter = fork + new Vector3(0.0f, 2.6f * hMult, 0.0f);
-            for (int i = 0; i < 5; i++)
+            Vector3 crownCenter = fork + new Vector3(0.0f, 2.8f * hMult, 0.0f);
+            float crownRad = 5.6f * sMult;
+            float crownHalfH = 1.9f * hMult;
+
+            int limbs = lod == 0 ? 5 : 4;
+            for (int i = 0; i < limbs; i++)
             {
                 float a = i * GoldenAngleRad + (float)rng.NextDouble() * 0.2f;
-                Vector3 bEnd = fork + new Vector3(MathF.Cos(a) * 3.8f * sMult, 2.8f * hMult, MathF.Sin(a) * 3.8f * sMult);
-                AddTaperedCylinder(st, fork, bEnd, baseR * 0.34f, baseR * 0.12f, 4, bark, bark);
-                AddCurvedLeafSprigCluster(st, bEnd, crownCenter, 2.4f * sMult, 2, leafType: 2, rng, 0.14f);
+                Vector3 bEnd = fork + new Vector3(MathF.Cos(a) * 4.0f * sMult, 2.8f * hMult, MathF.Sin(a) * 4.0f * sMult);
+                AddTaperedCylinder(st, fork, bEnd, baseR * 0.36f, baseR * 0.13f, 4, bark, bark, 2);
+                AddCurvedLeafSprigCluster(st, bEnd, crownCenter, crownRad, crownHalfH, (lod == 0 ? 2.15f : 2.65f) * sMult, 2, leafType: 5, rng, 0.13f);
             }
+            AddCurvedLeafSprigCluster(st, crownCenter + Vector3.Up * 0.6f, crownCenter, crownRad, crownHalfH, 2.2f * sMult, 2, leafType: 5, rng, 0.14f);
         }
 
-        private static void BuildBaobabTree(SurfaceTool st, Random rng, float hMult, float sMult, float rMult)
+        private static void BuildBaobabTree(SurfaceTool st, Random rng, float hMult, float sMult, float rMult, int lod)
         {
-            var bark = new Color(0.48f, 0.35f, 0.25f, 0.0f);
-            float h = 9.5f * hMult;
-            float r = 1.45f * rMult;
+            var bark = new Color(0.48f, 0.36f, 0.26f, 0.0f);
+            float h = 9.6f * hMult;
+            float r = 1.50f * rMult;
             Vector3 mid = new Vector3(0.0f, h * 0.48f, 0.0f);
             Vector3 top = new Vector3(0.0f, h, 0.0f);
-            AddTaperedCylinder(st, Vector3.Zero, mid, r, r * 1.25f, 7, bark, bark);
-            AddTaperedCylinder(st, mid, top, r * 1.25f, r * 0.72f, 7, bark, bark);
+            int sides = lod == 0 ? 7 : 5;
+            AddTaperedCylinder(st, Vector3.Zero, mid, r, r * 1.26f, sides, bark, bark, 2);
+            AddTaperedCylinder(st, mid, top, r * 1.26f, r * 0.72f, sides, bark, bark, 2);
 
-            Vector3 crownCenter = top + new Vector3(0.0f, 2.2f * hMult, 0.0f);
+            Vector3 crownCenter = top + new Vector3(0.0f, 2.3f * hMult, 0.0f);
+            float crownRad = 5.2f * sMult;
+            float crownHalfH = 2.0f * hMult;
+
             for (int i = 0; i < 4; i++)
             {
                 float a = i * GoldenAngleRad + 0.3f;
-                Vector3 tip = top + new Vector3(MathF.Cos(a) * 3.2f * sMult, 2.4f * hMult, MathF.Sin(a) * 3.2f * sMult);
-                AddTaperedCylinder(st, top, tip, r * 0.24f, r * 0.09f, 4, bark, bark);
-                AddCurvedLeafSprigCluster(st, tip, crownCenter, 2.2f * sMult, 2, leafType: 2, rng, 0.14f);
+                Vector3 tip = top + new Vector3(MathF.Cos(a) * 3.4f * sMult, 2.4f * hMult, MathF.Sin(a) * 3.4f * sMult);
+                AddTaperedCylinder(st, top, tip, r * 0.26f, r * 0.10f, 4, bark, bark, 2);
+                AddCurvedLeafSprigCluster(st, tip, crownCenter, crownRad, crownHalfH, (lod == 0 ? 2.0f : 2.5f) * sMult, 2, leafType: 5, rng, 0.13f);
             }
         }
 
-        private static void BuildColumnarPalmFern(SurfaceTool st, Random rng, float hMult, bool isFern)
+        private static void BuildColumnarPalmFern(SurfaceTool st, Random rng, float hMult, bool isFern, int lod)
         {
             float h = (isFern ? 3.5f : 6.2f) * hMult;
             float lean = (isFern ? 0.35f : 0.75f);
@@ -293,12 +401,12 @@ namespace PrimevalWorld.Flora
             Vector3 p1 = new Vector3(lean * 0.35f, h * 0.5f, lean * 0.15f);
             Vector3 p2 = new Vector3(lean, h, lean * 0.35f);
 
-            AddTaperedCylinder(st, p0, p1, isFern ? 0.20f : 0.24f, isFern ? 0.15f : 0.18f, 5,
-                new Color(0.34f, 0.26f, 0.18f, 0.0f), new Color(0.38f, 0.29f, 0.20f, 0.30f));
-            AddTaperedCylinder(st, p1, p2, isFern ? 0.15f : 0.18f, isFern ? 0.10f : 0.12f, 5,
-                new Color(0.38f, 0.29f, 0.20f, 0.30f), new Color(0.40f, 0.31f, 0.21f, 0.46f));
+            AddTaperedCylinder(st, p0, p1, isFern ? 0.20f : 0.25f, isFern ? 0.15f : 0.19f, 5,
+                new Color(0.34f, 0.26f, 0.18f, 0.0f), new Color(0.38f, 0.29f, 0.20f, 0.30f), 2);
+            AddTaperedCylinder(st, p1, p2, isFern ? 0.15f : 0.19f, isFern ? 0.10f : 0.13f, 5,
+                new Color(0.38f, 0.29f, 0.20f, 0.30f), new Color(0.40f, 0.31f, 0.21f, 0.46f), 2);
 
-            int fronds = isFern ? 9 : 10;
+            int fronds = lod == 0 ? (isFern ? 9 : 10) : 6;
             float frondLen = (isFern ? 2.2f : 3.0f) * hMult;
             for (int f = 0; f < fronds; f++)
             {
@@ -308,71 +416,98 @@ namespace PrimevalWorld.Flora
                 Vector3 mid = p2 + dir * (frondLen * 0.52f) + new Vector3(0.0f, 0.65f, 0.0f);
                 Vector3 tip = p2 + dir * frondLen + new Vector3(0.0f, -0.55f, 0.0f);
 
-                var cRoot = new Color(0.75f, 0.85f, 0.70f, 0.44f);
-                var cTip = new Color(1.0f, 1.0f, 0.94f, 0.54f);
-                AddSprigQuad(st, p2 - perp, p2 + perp, mid + perp, mid - perp, cRoot, cTip, Vector3.Up, 3, new Vector2(0.0f, 0.5f));
-                AddSprigQuad(st, mid - perp, mid + perp, tip + perp * 0.6f, tip - perp * 0.6f, cTip, cTip, (dir + Vector3.Up).Normalized(), 3, new Vector2(0.5f, 1.0f));
+                var cRoot = new Color(1f, 1f, 1f, 0.44f);
+                var cTip = new Color(1f, 1f, 1f, 0.54f);
+                AddSprigQuad(st, p2 - perp, p2 + perp, mid + perp, mid - perp, cRoot, cTip, Vector3.Up, 3, new Vector2(0.0f, 0.5f), aoBot: 0.72f, aoTop: 0.96f);
+                AddSprigQuad(st, mid - perp, mid + perp, tip + perp * 0.6f, tip - perp * 0.6f, cTip, cTip, (dir + Vector3.Up).Normalized(), 3, new Vector2(0.5f, 1.0f), aoBot: 0.96f, aoTop: 1.05f);
             }
         }
 
-        // 3D Domed Crossed Botanical Sprigs (each sprig uses full 1024x1024 branch texture with stem anchored at branch tip + Internal Canopy AO)
+        // 3D Domed Botanical Sprigs with Baked 3D Canopy Ambient Occlusion (35-45% darker interior/underside -> sunlit top!)
         private static void AddCurvedLeafSprigCluster(
-            SurfaceTool st, Vector3 pos, Vector3 crownCenter, float radius, int sprigCount, int leafType, Random rng, float windFlex)
+            SurfaceTool st,
+            Vector3 pos,
+            Vector3 crownCenter,
+            float crownRadius,
+            float crownHalfHeight,
+            float sprigRadius,
+            int sprigCount,
+            int leafType,
+            Random rng,
+            float windFlex)
         {
-            Vector3 radialN = (pos - crownCenter + new Vector3(0.0f, 1.0f, 0.0f)).Normalized();
-            int totalPetals = Math.Max(3, sprigCount + 1);
+            Vector3 radialN = (pos - crownCenter + new Vector3(0.0f, 1.1f, 0.0f)).Normalized();
+            int totalPetals = Math.Max(2, sprigCount + 1);
             float baseYaw = (float)(rng.NextDouble() * Mathf.Tau);
 
             for (int i = 0; i < totalPetals; i++)
             {
                 float a = baseYaw + i * (Mathf.Tau / totalPetals) + (float)(rng.NextDouble() - 0.5) * 0.28f;
-                float ao = i == 0 ? 0.74f : 1.04f; // Inner leaf layer slightly shaded for deep 3D canopy volume!
-                var cBot = new Color(0.72f * ao, 0.78f * ao, 0.70f * ao, windFlex * 0.70f);
-                var cTop = new Color(0.98f * ao, 1.00f * ao, 0.94f * ao, windFlex);
+                float innerLayerMul = i == 0 ? 0.84f : 1.0f;
 
-                float w = radius * 0.88f;
-                float len = radius * 1.55f;
-                Vector3 dir = new Vector3(MathF.Cos(a), 0.35f + (i % 2) * 0.28f, MathF.Sin(a)).Normalized();
+                float w = sprigRadius * 0.86f;
+                float len = sprigRadius * 1.50f;
+                Vector3 dir = new Vector3(MathF.Cos(a), 0.34f + (i % 2) * 0.28f, MathF.Sin(a)).Normalized();
                 Vector3 side = new Vector3(-MathF.Sin(a), 0.0f, MathF.Cos(a)) * w;
-                Vector3 archUp = Vector3.Up * (radius * 0.26f);
+                Vector3 archUp = Vector3.Up * (sprigRadius * 0.26f);
 
-                // Stem base anchored near branch tip (V=1.0), arching outward to leaf tips (V=0.0)
-                Vector3 root = pos - dir * (radius * 0.25f);
+                Vector3 root = pos - dir * (sprigRadius * 0.22f);
                 Vector3 mid = root + dir * (len * 0.52f) + archUp;
-                Vector3 tip = root + dir * len - archUp * 0.30f;
+                Vector3 tip = root + dir * len - archUp * 0.28f;
 
-                AddSprigQuad(st, root - side * 0.78f, root + side * 0.78f, mid + side, mid - side, cBot, cTop, radialN, leafType, new Vector2(1.0f, 0.48f));
-                AddSprigQuad(st, mid - side, mid + side, tip + side * 0.85f, tip - side * 0.85f, cTop, cTop, (radialN + dir * 0.4f).Normalized(), leafType, new Vector2(0.48f, 0.0f));
+                float aoRoot = ComputeCanopyAo(root, crownCenter, crownRadius, crownHalfHeight) * innerLayerMul;
+                float aoMid = ComputeCanopyAo(mid, crownCenter, crownRadius, crownHalfHeight) * innerLayerMul;
+                float aoTip = ComputeCanopyAo(tip, crownCenter, crownRadius, crownHalfHeight);
+
+                var cBot = new Color(1.0f, 1.0f, 1.0f, windFlex * 0.70f);
+                var cTop = new Color(1.0f, 1.0f, 1.0f, windFlex);
+
+                AddSprigQuad(st, root - side * 0.76f, root + side * 0.76f, mid + side, mid - side,
+                    cBot, cTop, radialN, leafType, new Vector2(1.0f, 0.48f), aoRoot, aoMid);
+                AddSprigQuad(st, mid - side, mid + side, tip + side * 0.84f, tip - side * 0.84f,
+                    cTop, cTop, (radialN + dir * 0.42f).Normalized(), leafType, new Vector2(0.48f, 0.0f), aoMid, aoTip);
             }
+        }
+
+        private static float ComputeCanopyAo(Vector3 p, Vector3 crownCenter, float crownR, float crownHalfH)
+        {
+            float dx = p.X - crownCenter.X;
+            float dz = p.Z - crownCenter.Z;
+            float horizFrac = Math.Clamp(MathF.Sqrt(dx * dx + dz * dz) / MathF.Max(1.0f, crownR), 0.0f, 1.15f);
+            float vertFrac = Math.Clamp((p.Y - (crownCenter.Y - crownHalfH)) / MathF.Max(1.5f, 2.0f * crownHalfH), 0.0f, 1.0f);
+
+            // Inner/lower canopy = 0.54 (46% shaded), outer/upper crown = 1.06 (sunlit crest)
+            float shell = horizFrac * horizFrac * (3.0f - 2.0f * Math.Clamp(horizFrac, 0.0f, 1.0f));
+            return Math.Clamp(0.54f + 0.26f * shell + 0.26f * vertFrac, 0.54f, 1.06f);
         }
 
         private static void AddSprigQuad(
             SurfaceTool st, Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3,
-            Color cBot, Color cTop, Vector3 radialNormal, int leafType, Vector2 vRange)
+            Color cBot, Color cTop, Vector3 radialNormal, int leafType, Vector2 vRange, float aoBot, float aoTop)
         {
-            // UV2.x = 1.0 -> Leaf Alpha Cutout, UV2.y = leafType (0=Broadleaf, 1=Conifer, 2=Acacia, 3=PalmFern)
-            Vector2 leafTag = new Vector2(1.0f, leafType);
+            Vector2 tagBot = new Vector2(Math.Clamp(aoBot, 0.52f, 1.08f), leafType);
+            Vector2 tagTop = new Vector2(Math.Clamp(aoTop, 0.52f, 1.08f), leafType);
             Vector2 uv0 = new Vector2(0.0f, vRange.X);
             Vector2 uv1 = new Vector2(1.0f, vRange.X);
             Vector2 uv2 = new Vector2(1.0f, vRange.Y);
             Vector2 uv3 = new Vector2(0.0f, vRange.Y);
 
-            void Emit(Vector3 p, Color c, Vector2 uv)
+            void Emit(Vector3 p, Color c, Vector2 uv, Vector2 tag)
             {
                 st.SetNormal(radialNormal);
                 st.SetColor(c);
                 st.SetUV(uv);
-                st.SetUV2(leafTag);
+                st.SetUV2(tag);
                 st.AddVertex(p);
             }
 
-            Emit(p0, cBot, uv0); Emit(p1, cBot, uv1); Emit(p2, cTop, uv2);
-            Emit(p0, cBot, uv0); Emit(p2, cTop, uv2); Emit(p3, cTop, uv3);
+            Emit(p0, cBot, uv0, tagBot); Emit(p1, cBot, uv1, tagBot); Emit(p2, cTop, uv2, tagTop);
+            Emit(p0, cBot, uv0, tagBot); Emit(p2, cTop, uv2, tagTop); Emit(p3, cTop, uv3, tagTop);
         }
 
         private static void AddTaperedCylinder(
             SurfaceTool st, Vector3 botCenter, Vector3 topCenter, float rBot, float rTop, int sides,
-            Color cBot, Color cTop)
+            Color cBot, Color cTop, int barkMode)
         {
             Vector3 axis = (topCenter - botCenter).Normalized();
             if (axis.LengthSquared() < 0.001f) return;
@@ -391,7 +526,7 @@ namespace PrimevalWorld.Flora
                 ringTop[i] = topCenter + dir * rTop;
                 ringNorm[i] = dir;
             }
-            Vector2 barkTag = new Vector2(0.0f, 0.0f);
+            Vector2 barkTag = new Vector2(0.0f, barkMode);
 
             void EmitBark(Vector3 p, Vector3 n, Color c, Vector2 uv)
             {

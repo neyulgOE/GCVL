@@ -14,11 +14,11 @@ namespace PrimevalWorld.Tools
     {
         private static readonly (FloraSpeciesId Id, string NameVi, Color Tint)[] ShowcaseSpecies =
         {
-            (FloraSpeciesId.PrimevalBanyanFig, "Đa Cổ Thụ Nghìn Năm", new Color(0.16f, 0.34f, 0.12f)),
-            (FloraSpeciesId.GinkgoAncientGold, "Bạch Quả Cổ Sinh Lá Vàng", new Color(0.86f, 0.66f, 0.14f)),
-            (FloraSpeciesId.BorealSnowPine, "Thông Tuyết Phương Bắc", new Color(0.13f, 0.28f, 0.22f)),
-            (FloraSpeciesId.DragonBloodTree, "Cây Máu Rồng Tán Ô", new Color(0.24f, 0.35f, 0.15f)),
-            (FloraSpeciesId.ArborescentTreeFern, "Dương Xỉ Thân Gỗ & Dừa Nước", new Color(0.20f, 0.45f, 0.14f)),
+            (FloraSpeciesId.PrimevalBanyanFig, "Đa Cổ Thụ Nghìn Năm", new Color(0.92f, 1.02f, 0.88f, 0.25f)),
+            (FloraSpeciesId.GinkgoAncientGold, "Bạch Quả Cổ Sinh", new Color(0.98f, 1.06f, 0.88f, 0.50f)),
+            (FloraSpeciesId.BorealSnowPine, "Thông Tuyết Phương Bắc", new Color(0.84f, 0.94f, 0.90f, 0.35f)),
+            (FloraSpeciesId.DragonBloodTree, "Cây Máu Rồng Tán Ô", new Color(0.94f, 0.98f, 0.78f, 0.45f)),
+            (FloraSpeciesId.ArborescentTreeFern, "Dương Xỉ Thân Gỗ & Dừa Nước", new Color(0.95f, 1.05f, 0.90f, 0.30f)),
         };
 
         private Camera3D? _cam;
@@ -212,6 +212,7 @@ namespace PrimevalWorld.Tools
             _floraMat.SetShaderParameter("leaf_acacia_tex", _botTex.AcaciaTex);
             _floraMat.SetShaderParameter("leaf_palm_tex", _botTex.PalmFernTex);
             _floraMat.SetShaderParameter("bark_tex", _botTex.BarkRoughTex);
+            _floraMat.SetShaderParameter("bark_pale_tex", _botTex.BarkPaleTex);
 
             AgeStage[] ages = { AgeStage.Young, AgeStage.Mature, AgeStage.Ancient };
             for (int row = 0; row < ShowcaseSpecies.Length; row++)
@@ -234,12 +235,13 @@ namespace PrimevalWorld.Tools
                     var mm = new MultiMesh
                     {
                         TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
-                        UseColors = true,
+                        UseColors = false,
+                        UseCustomData = true,
                         Mesh = mesh,
                         InstanceCount = 1,
                     };
                     mm.SetInstanceTransform(0, new Transform3D(Basis.Identity, new Vector3(x, y - 0.1f, z)));
-                    mm.SetInstanceColor(0, sp.Tint);
+                    mm.SetInstanceCustomData(0, sp.Tint);
 
                     var mmi = new MultiMeshInstance3D
                     {

@@ -23,15 +23,16 @@ namespace PrimevalWorld.WorldGen
             EcosystemSpawner? flora = null,
             DynamicWeatherSystem? weather = null)
         {
-            var textures = new ImageTexture[8];
+            var textures = new ImageTexture[9];
             textures[0] = BuildTerrainHydrologyMap(erosion, hydrology, soil);
             textures[1] = BuildTemperatureMap(climate);
             textures[2] = BuildPrecipitationWindMap(climate);
             textures[3] = BuildMoistureFlowMap(hydrology, climate);
             textures[4] = BuildSoilMap(erosion, soil);
             textures[5] = BuildSlopeSedimentMap(erosion);
-            textures[6] = flora != null ? BuildFloraMap(erosion, hydrology, flora) : textures[0];
-            textures[7] = weather != null ? BuildWeatherRadarMap(erosion, weather) : textures[0];
+            textures[6] = flora != null ? BuildSevenEcosystemsMap(erosion, hydrology, flora) : textures[0];
+            textures[7] = flora != null ? BuildFloraMap(erosion, hydrology, flora) : textures[0];
+            textures[8] = weather != null ? BuildWeatherRadarMap(erosion, weather) : textures[0];
             return textures;
         }
 
@@ -175,6 +176,48 @@ namespace PrimevalWorld.WorldGen
                     Color c = new Color(0.12f + sedT * 0.65f, 0.28f + sedT * 0.30f - slopeT * 0.15f, 0.22f + slopeT * 0.65f);
                     WriteRgb(rgb, py * MapW + px, c);
                 }
+            return ImageTexture.CreateFromImage(Image.CreateFromData(MapW, MapH, false, Image.Format.Rgb8, rgb));
+        }
+
+        private static ImageTexture BuildSevenEcosystemsMap(ErosionPhysics erosion, HydrologySolver hydrology, EcosystemSpawner flora)
+        {
+            byte[] rgb = new byte[MapW * MapH * 3];
+            Vector3 sunDir = new Vector3(-0.55f, 0.65f, -0.52f).Normalized();
+
+            for (int py = 0; py < MapH; py++)
+                for (int px = 0; px < MapW; px++)
+                {
+                    int idx = MapToGridIdx(px, py);
+                    float h = erosion.HeightMap[idx];
+                    LandEcosystemId eco = flora.EcosystemMap[idx];
+                    float shade = 0.68f + 0.36f * Math.Clamp(erosion.NormalMap[idx].Dot(sunDir), 0.0f, 1.0f);
+
+                    Color col;
+                    if (eco == LandEcosystemId.OceanOrLake)
+                    {
+                        col = h < -6.0f
+                            ? new Color(0.04f, 0.14f, 0.28f)
+                            : (h < 0.25f ? new Color(0.10f, 0.50f, 0.62f) : new Color(0.14f, 0.58f, 0.78f));
+                    }
+                    else
+                    {
+                        float cov = flora.CanopyCoverageMap[idx];
+                        col = eco switch
+                        {
+                            LandEcosystemId.PrimevalDenseForest => new Color(0.06f, 0.36f, 0.12f).Lerp(new Color(0.03f, 0.22f, 0.07f), cov * 0.65f),
+                            LandEcosystemId.AlluvialFloodplain => new Color(0.40f, 0.78f, 0.25f),
+                            LandEcosystemId.WetlandAndDelta => new Color(0.12f, 0.58f, 0.52f).Lerp(new Color(0.08f, 0.40f, 0.36f), hydrology.WetlandWaterFactor[idx]),
+                            LandEcosystemId.OpenSteppePlateau => new Color(0.82f, 0.68f, 0.22f).Lerp(new Color(0.32f, 0.56f, 0.18f), cov * 0.60f),
+                            LandEcosystemId.AridRedDesertOasis => new Color(0.84f, 0.38f, 0.18f),
+                            LandEcosystemId.AlpineSnowTundraRock => h > 165.0f ? new Color(0.88f, 0.93f, 0.98f) : new Color(0.56f, 0.62f, 0.70f),
+                            LandEcosystemId.CoastlineSaltDunes => new Color(0.92f, 0.86f, 0.56f),
+                            _ => new Color(0.20f, 0.30f, 0.20f),
+                        };
+                        col = new Color(Math.Clamp(col.R * shade, 0, 1), Math.Clamp(col.G * shade, 0, 1), Math.Clamp(col.B * shade, 0, 1));
+                    }
+                    WriteRgb(rgb, py * MapW + px, col);
+                }
+
             return ImageTexture.CreateFromImage(Image.CreateFromData(MapW, MapH, false, Image.Format.Rgb8, rgb));
         }
 

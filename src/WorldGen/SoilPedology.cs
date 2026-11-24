@@ -116,9 +116,10 @@ namespace PrimevalWorld.WorldGen
                         MathF.Max(FastNoise.SmoothStep(29.0f, 42.0f, slopeDeg), FastNoise.SmoothStep(0.17f, 0.04f, depth))
                     );
 
-                    // Alluvial Loam along rivers, deltas, and very moist low floodplains
-                    float wAlluvial = (FastNoise.SmoothStep(0.58f, 0.88f, moist) * FastNoise.SmoothStep(28.0f, 4.0f, h) * 0.45f
-                                    + flow * 0.85f + riverMask * 1.15f)
+                    // Alluvial Loam along floodplains, deltas, rivers, and moist low basins
+                    float floodBoost = hydrology.FloodplainMask[idx] * 1.45f + hydrology.WetlandMask[idx] * 1.25f;
+                    float wAlluvial = (FastNoise.SmoothStep(0.54f, 0.86f, moist) * FastNoise.SmoothStep(30.0f, 4.0f, h) * 0.45f
+                                    + flow * 0.85f + riverMask * 1.15f + floodBoost)
                                     * (1.0f - wCoastal * 0.65f)
                                     * (1.0f - wPerma * 0.85f);
 

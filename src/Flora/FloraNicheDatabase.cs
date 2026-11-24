@@ -181,11 +181,11 @@ namespace PrimevalWorld.Flora
             {
                 Id = FloraSpeciesId.PrimevalBanyanFig, SpeciesKey = "primeval_banyan_fig", DisplayName = "Đa Cổ Thụ Nghìn Năm",
                 Layer = FloraLayer.Emergent, Stem = StemGroup.WoodyBranching, Architecture = FloraArchitecture.ArchButtressBroadleaf,
-                IdealTempC = 23.0f, TempToleranceC = 7.0f, IdealMoisture = 0.72f, MoistureTolerance = 0.28f,
-                MinGroundwater = 0.08f, MaxWindSpeedMs = 17.5f, MaxSlopeDeg = 22.0f, MinSoilDepth = 0.35f, SalinityTolerance = 0.25f,
+                IdealTempC = 20.0f, TempToleranceC = 9.5f, IdealMoisture = 0.68f, MoistureTolerance = 0.30f,
+                MinGroundwater = 0.04f, MaxWindSpeedMs = 18.5f, MaxSlopeDeg = 23.0f, MinSoilDepth = 0.30f, SalinityTolerance = 0.25f,
                 SoilAffinity = new[] { 1.0f, 0.90f, 0.15f, 0.02f, 0.08f, 0.01f },
                 LightMin = 0.0f, LightMax = 1.0f, CrownRadiusM = 9.5f, HeightMinM = 22.0f, HeightMaxM = 29.0f, WindStiffness = 0.92f,
-                BaseTint = new Color(0.14f, 0.31f, 0.11f), MapColor = new Color(0.06f, 0.26f, 0.08f)
+                BaseTint = new Color(0.84f, 0.98f, 0.82f), MapColor = new Color(0.06f, 0.26f, 0.08f)
             },
             new FloraNicheProfile
             {
@@ -195,7 +195,7 @@ namespace PrimevalWorld.Flora
                 MinGroundwater = 0.05f, MaxWindSpeedMs = 19.0f, MaxSlopeDeg = 26.0f, MinSoilDepth = 0.30f, SalinityTolerance = 0.18f,
                 SoilAffinity = new[] { 0.80f, 1.0f, 0.35f, 0.02f, 0.05f, 0.08f },
                 LightMin = 0.0f, LightMax = 1.0f, CrownRadiusM = 7.2f, HeightMinM = 25.0f, HeightMaxM = 32.0f, WindStiffness = 0.93f,
-                BaseTint = new Color(0.11f, 0.26f, 0.11f), MapColor = new Color(0.07f, 0.24f, 0.11f)
+                BaseTint = new Color(0.76f, 0.92f, 0.78f), MapColor = new Color(0.07f, 0.24f, 0.11f)
             },
             new FloraNicheProfile
             {
@@ -205,7 +205,7 @@ namespace PrimevalWorld.Flora
                 MinGroundwater = 0.0f, MaxWindSpeedMs = 18.0f, MaxSlopeDeg = 24.0f, MinSoilDepth = 0.30f, SalinityTolerance = 0.30f,
                 SoilAffinity = new[] { 0.88f, 1.0f, 0.25f, 0.03f, 0.12f, 0.02f },
                 LightMin = 0.0f, LightMax = 1.0f, CrownRadiusM = 8.8f, HeightMinM = 21.0f, HeightMaxM = 28.0f, WindStiffness = 0.90f,
-                BaseTint = new Color(0.16f, 0.34f, 0.12f), MapColor = new Color(0.09f, 0.30f, 0.10f)
+                BaseTint = new Color(0.90f, 1.04f, 0.84f), MapColor = new Color(0.09f, 0.30f, 0.10f)
             },
             new FloraNicheProfile
             {
@@ -215,7 +215,7 @@ namespace PrimevalWorld.Flora
                 MinGroundwater = 0.0f, MaxWindSpeedMs = 22.0f, MaxSlopeDeg = 20.0f, MinSoilDepth = 0.14f, SalinityTolerance = 0.35f,
                 SoilAffinity = new[] { 0.15f, 0.20f, 0.45f, 1.0f, 0.30f, 0.08f },
                 LightMin = 0.0f, LightMax = 1.0f, CrownRadiusM = 7.5f, HeightMinM = 11.5f, HeightMaxM = 17.0f, WindStiffness = 0.94f,
-                BaseTint = new Color(0.30f, 0.35f, 0.14f), MapColor = new Color(0.46f, 0.44f, 0.18f)
+                BaseTint = new Color(0.94f, 0.96f, 0.74f), MapColor = new Color(0.46f, 0.44f, 0.18f)
             },
 
             // ===================== LAYER 2: CANOPY (10-18m, WoodyBranching) =====================
@@ -227,47 +227,47 @@ namespace PrimevalWorld.Flora
                 MinGroundwater = 0.0f, MaxWindSpeedMs = 18.5f, MaxSlopeDeg = 26.0f, MinSoilDepth = 0.22f, SalinityTolerance = 0.28f,
                 SoilAffinity = new[] { 0.88f, 1.0f, 0.32f, 0.04f, 0.12f, 0.03f },
                 LightMin = 0.0f, LightMax = 1.0f, CrownRadiusM = 5.6f, HeightMinM = 11.0f, HeightMaxM = 17.5f, WindStiffness = 0.88f,
-                BaseTint = new Color(0.18f, 0.37f, 0.13f), MapColor = new Color(0.12f, 0.38f, 0.12f)
+                BaseTint = new Color(0.92f, 1.05f, 0.85f), MapColor = new Color(0.12f, 0.38f, 0.12f)
             },
             new FloraNicheProfile
             {
                 Id = FloraSpeciesId.WeepingRiverWillow, SpeciesKey = "weeping_river_willow", DisplayName = "Liễu Rủ Ven Sông",
                 Layer = FloraLayer.Canopy, Stem = StemGroup.WoodyBranching, Architecture = FloraArchitecture.ArchWeepingTree,
-                IdealTempC = 17.0f, TempToleranceC = 9.0f, IdealMoisture = 0.72f, MoistureTolerance = 0.28f,
-                MinGroundwater = 0.26f, MaxWindSpeedMs = 19.0f, MaxSlopeDeg = 22.0f, MinSoilDepth = 0.18f, SalinityTolerance = 0.35f,
+                IdealTempC = 17.0f, TempToleranceC = 9.5f, IdealMoisture = 0.72f, MoistureTolerance = 0.30f,
+                MinGroundwater = 0.24f, MaxWindSpeedMs = 19.5f, MaxSlopeDeg = 22.0f, MinSoilDepth = 0.16f, SalinityTolerance = 0.35f,
                 SoilAffinity = new[] { 1.0f, 0.75f, 0.35f, 0.15f, 0.25f, 0.05f },
                 LightMin = 0.0f, LightMax = 1.0f, CrownRadiusM = 5.4f, HeightMinM = 10.0f, HeightMaxM = 15.5f, WindStiffness = 0.82f,
-                BaseTint = new Color(0.24f, 0.44f, 0.16f), MapColor = new Color(0.18f, 0.48f, 0.22f)
+                BaseTint = new Color(0.96f, 1.12f, 0.84f), MapColor = new Color(0.18f, 0.48f, 0.22f)
             },
             new FloraNicheProfile
             {
                 Id = FloraSpeciesId.WeepingSilverBirch, SpeciesKey = "weeping_silver_birch", DisplayName = "Bạch Dương Rủ",
                 Layer = FloraLayer.Canopy, Stem = StemGroup.WoodyBranching, Architecture = FloraArchitecture.ArchWeepingTree,
-                IdealTempC = 10.0f, TempToleranceC = 6.5f, IdealMoisture = 0.50f, MoistureTolerance = 0.26f,
-                MinGroundwater = 0.08f, MaxWindSpeedMs = 20.0f, MaxSlopeDeg = 26.0f, MinSoilDepth = 0.16f, SalinityTolerance = 0.20f,
-                SoilAffinity = new[] { 0.65f, 0.85f, 0.90f, 0.04f, 0.06f, 0.25f },
+                IdealTempC = 10.0f, TempToleranceC = 7.5f, IdealMoisture = 0.48f, MoistureTolerance = 0.28f,
+                MinGroundwater = 0.04f, MaxWindSpeedMs = 20.5f, MaxSlopeDeg = 26.0f, MinSoilDepth = 0.14f, SalinityTolerance = 0.20f,
+                SoilAffinity = new[] { 0.65f, 0.85f, 0.95f, 0.04f, 0.06f, 0.28f },
                 LightMin = 0.0f, LightMax = 1.0f, CrownRadiusM = 4.8f, HeightMinM = 10.0f, HeightMaxM = 14.5f, WindStiffness = 0.84f,
-                BaseTint = new Color(0.56f, 0.66f, 0.20f), MapColor = new Color(0.62f, 0.68f, 0.22f)
+                BaseTint = new Color(0.92f, 1.04f, 0.86f), MapColor = new Color(0.36f, 0.66f, 0.26f)
             },
             new FloraNicheProfile
             {
-                Id = FloraSpeciesId.GinkgoAncientGold, SpeciesKey = "ginkgo_ancient_gold", DisplayName = "Bạch Quả Cổ Sinh Lá Vàng",
+                Id = FloraSpeciesId.GinkgoAncientGold, SpeciesKey = "ginkgo_ancient_gold", DisplayName = "Bạch Quả Cổ Sinh",
                 Layer = FloraLayer.Canopy, Stem = StemGroup.WoodyBranching, Architecture = FloraArchitecture.ArchCanopyBroadleaf,
-                IdealTempC = 11.0f, TempToleranceC = 6.2f, IdealMoisture = 0.42f, MoistureTolerance = 0.25f,
-                MinGroundwater = 0.0f, MaxWindSpeedMs = 20.0f, MaxSlopeDeg = 28.0f, MinSoilDepth = 0.18f, SalinityTolerance = 0.20f,
-                SoilAffinity = new[] { 0.45f, 0.78f, 1.0f, 0.06f, 0.05f, 0.10f },
+                IdealTempC = 11.5f, TempToleranceC = 6.8f, IdealMoisture = 0.42f, MoistureTolerance = 0.26f,
+                MinGroundwater = 0.0f, MaxWindSpeedMs = 20.5f, MaxSlopeDeg = 28.0f, MinSoilDepth = 0.16f, SalinityTolerance = 0.20f,
+                SoilAffinity = new[] { 0.40f, 0.76f, 1.0f, 0.06f, 0.05f, 0.12f },
                 LightMin = 0.0f, LightMax = 1.0f, CrownRadiusM = 5.2f, HeightMinM = 11.0f, HeightMaxM = 17.0f, WindStiffness = 0.86f,
-                BaseTint = new Color(0.84f, 0.64f, 0.14f), MapColor = new Color(0.88f, 0.68f, 0.16f)
+                BaseTint = new Color(0.96f, 1.06f, 0.84f), MapColor = new Color(0.46f, 0.68f, 0.20f)
             },
             new FloraNicheProfile
             {
-                Id = FloraSpeciesId.CrimsonSteppeMaple, SpeciesKey = "crimson_steppe_maple", DisplayName = "Phong Cổ Thụ Lá Đỏ Cam",
+                Id = FloraSpeciesId.CrimsonSteppeMaple, SpeciesKey = "crimson_steppe_maple", DisplayName = "Phong Cổ Thụ Thảo Nguyên",
                 Layer = FloraLayer.Canopy, Stem = StemGroup.WoodyBranching, Architecture = FloraArchitecture.ArchCanopyBroadleaf,
-                IdealTempC = 12.0f, TempToleranceC = 5.8f, IdealMoisture = 0.38f, MoistureTolerance = 0.24f,
-                MinGroundwater = 0.0f, MaxWindSpeedMs = 20.5f, MaxSlopeDeg = 28.0f, MinSoilDepth = 0.16f, SalinityTolerance = 0.18f,
-                SoilAffinity = new[] { 0.35f, 0.72f, 1.0f, 0.08f, 0.05f, 0.12f },
+                IdealTempC = 12.0f, TempToleranceC = 6.5f, IdealMoisture = 0.38f, MoistureTolerance = 0.26f,
+                MinGroundwater = 0.0f, MaxWindSpeedMs = 21.0f, MaxSlopeDeg = 28.0f, MinSoilDepth = 0.15f, SalinityTolerance = 0.18f,
+                SoilAffinity = new[] { 0.35f, 0.72f, 1.0f, 0.08f, 0.05f, 0.14f },
                 LightMin = 0.0f, LightMax = 1.0f, CrownRadiusM = 5.0f, HeightMinM = 10.0f, HeightMaxM = 15.5f, WindStiffness = 0.85f,
-                BaseTint = new Color(0.80f, 0.30f, 0.11f), MapColor = new Color(0.82f, 0.32f, 0.12f)
+                BaseTint = new Color(0.88f, 0.98f, 0.82f), MapColor = new Color(0.32f, 0.58f, 0.20f)
             },
             new FloraNicheProfile
             {
@@ -277,7 +277,7 @@ namespace PrimevalWorld.Flora
                 MinGroundwater = 0.0f, MaxWindSpeedMs = 24.0f, MaxSlopeDeg = 32.0f, MinSoilDepth = 0.10f, SalinityTolerance = 0.22f,
                 SoilAffinity = new[] { 0.30f, 0.65f, 0.55f, 0.01f, 0.04f, 1.0f },
                 LightMin = 0.0f, LightMax = 1.0f, CrownRadiusM = 4.2f, HeightMinM = 11.0f, HeightMaxM = 18.0f, WindStiffness = 0.88f,
-                BaseTint = new Color(0.11f, 0.24f, 0.18f), MapColor = new Color(0.12f, 0.34f, 0.32f)
+                BaseTint = new Color(0.78f, 0.90f, 0.86f), MapColor = new Color(0.12f, 0.34f, 0.32f)
             },
             new FloraNicheProfile
             {
@@ -287,7 +287,7 @@ namespace PrimevalWorld.Flora
                 MinGroundwater = 0.0f, MaxWindSpeedMs = 26.0f, MaxSlopeDeg = 34.0f, MinSoilDepth = 0.08f, SalinityTolerance = 0.25f,
                 SoilAffinity = new[] { 0.20f, 0.50f, 0.50f, 0.01f, 0.03f, 1.0f },
                 LightMin = 0.0f, LightMax = 1.0f, CrownRadiusM = 3.8f, HeightMinM = 10.0f, HeightMaxM = 16.0f, WindStiffness = 0.90f,
-                BaseTint = new Color(0.22f, 0.34f, 0.31f), MapColor = new Color(0.22f, 0.44f, 0.45f)
+                BaseTint = new Color(0.92f, 1.02f, 1.04f), MapColor = new Color(0.22f, 0.44f, 0.45f)
             },
             new FloraNicheProfile
             {
@@ -297,7 +297,7 @@ namespace PrimevalWorld.Flora
                 MinGroundwater = 0.0f, MaxWindSpeedMs = 25.0f, MaxSlopeDeg = 28.0f, MinSoilDepth = 0.08f, SalinityTolerance = 0.40f,
                 SoilAffinity = new[] { 0.08f, 0.15f, 0.35f, 1.0f, 0.30f, 0.18f },
                 LightMin = 0.0f, LightMax = 1.0f, CrownRadiusM = 5.4f, HeightMinM = 8.0f, HeightMaxM = 12.5f, WindStiffness = 0.90f,
-                BaseTint = new Color(0.24f, 0.32f, 0.14f), MapColor = new Color(0.42f, 0.46f, 0.18f)
+                BaseTint = new Color(0.90f, 0.94f, 0.72f), MapColor = new Color(0.42f, 0.46f, 0.18f)
             },
             new FloraNicheProfile
             {
@@ -307,7 +307,7 @@ namespace PrimevalWorld.Flora
                 MinGroundwater = 0.0f, MaxWindSpeedMs = 23.0f, MaxSlopeDeg = 22.0f, MinSoilDepth = 0.14f, SalinityTolerance = 0.30f,
                 SoilAffinity = new[] { 0.25f, 0.35f, 0.65f, 0.95f, 0.20f, 0.06f },
                 LightMin = 0.0f, LightMax = 1.0f, CrownRadiusM = 6.0f, HeightMinM = 8.5f, HeightMaxM = 14.0f, WindStiffness = 0.88f,
-                BaseTint = new Color(0.32f, 0.38f, 0.14f), MapColor = new Color(0.48f, 0.48f, 0.16f)
+                BaseTint = new Color(0.96f, 1.00f, 0.74f), MapColor = new Color(0.48f, 0.48f, 0.16f)
             },
 
             // ===================== LAYER 3: COLUMNAR / CAUDEX / CULM + KRUMMHOLZ (2.5-8.5m) =====================
@@ -419,18 +419,18 @@ namespace PrimevalWorld.Flora
             {
                 Id = FloraSpeciesId.RiverbankReedBed, SpeciesKey = "riverbank_reed_bed", DisplayName = "Bãi Sậy Ven Sông",
                 Layer = FloraLayer.HerbGround, Stem = StemGroup.HerbaceousGround, Architecture = FloraArchitecture.ArchSoftTallHerb,
-                IdealTempC = 18.0f, TempToleranceC = 11.0f, IdealMoisture = 0.75f, MoistureTolerance = 0.26f,
-                MinGroundwater = 0.30f, MaxWindSpeedMs = 22.0f, MaxSlopeDeg = 18.0f, MinSoilDepth = 0.10f, SalinityTolerance = 0.65f,
-                SoilAffinity = new[] { 1.0f, 0.55f, 0.25f, 0.10f, 0.60f, 0.04f },
-                LightMin = 0.25f, LightMax = 1.0f, CrownRadiusM = 0.9f, HeightMinM = 1.0f, HeightMaxM = 1.7f, WindStiffness = 0.14f,
+                IdealTempC = 16.5f, TempToleranceC = 12.5f, IdealMoisture = 0.68f, MoistureTolerance = 0.30f,
+                MinGroundwater = 0.16f, MaxWindSpeedMs = 23.0f, MaxSlopeDeg = 18.0f, MinSoilDepth = 0.08f, SalinityTolerance = 0.70f,
+                SoilAffinity = new[] { 1.0f, 0.55f, 0.25f, 0.10f, 0.60f, 0.08f },
+                LightMin = 0.20f, LightMax = 1.0f, CrownRadiusM = 0.9f, HeightMinM = 1.0f, HeightMaxM = 1.7f, WindStiffness = 0.14f,
                 BaseTint = new Color(0.38f, 0.52f, 0.22f), MapColor = new Color(0.32f, 0.54f, 0.24f)
             },
             new FloraNicheProfile
             {
                 Id = FloraSpeciesId.GiantElephantEar, SpeciesKey = "giant_elephant_ear", DisplayName = "Ráy Tai Voi",
                 Layer = FloraLayer.HerbGround, Stem = StemGroup.HerbaceousGround, Architecture = FloraArchitecture.ArchSoftTallHerb,
-                IdealTempC = 22.0f, TempToleranceC = 8.0f, IdealMoisture = 0.72f, MoistureTolerance = 0.25f,
-                MinGroundwater = 0.22f, MaxWindSpeedMs = 15.0f, MaxSlopeDeg = 24.0f, MinSoilDepth = 0.12f, SalinityTolerance = 0.18f,
+                IdealTempC = 19.0f, TempToleranceC = 10.0f, IdealMoisture = 0.66f, MoistureTolerance = 0.28f,
+                MinGroundwater = 0.12f, MaxWindSpeedMs = 17.0f, MaxSlopeDeg = 24.0f, MinSoilDepth = 0.10f, SalinityTolerance = 0.22f,
                 SoilAffinity = new[] { 1.0f, 0.85f, 0.15f, 0.02f, 0.08f, 0.02f },
                 LightMin = 0.04f, LightMax = 0.75f, CrownRadiusM = 1.1f, HeightMinM = 0.8f, HeightMaxM = 1.6f, WindStiffness = 0.24f,
                 BaseTint = new Color(0.16f, 0.44f, 0.12f), MapColor = new Color(0.16f, 0.46f, 0.14f)

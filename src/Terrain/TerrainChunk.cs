@@ -16,6 +16,7 @@ namespace PrimevalWorld.Terrain
         public Vector3 CenterWorld { get; private set; }
         public float MinH { get; private set; }
         public float MaxH { get; private set; }
+        public float MaxSlopeDeg { get; private set; }
         public bool IsCoastline { get; private set; }
         public int CurrentLod => _currentLod;
 
@@ -103,6 +104,7 @@ namespace PrimevalWorld.Terrain
             int[] steps = { 1, 2, 4, 4 };
             float minH = float.MaxValue;
             float maxH = float.MinValue;
+            float maxSlope = 0.0f;
             for (int lod = 0; lod < 4; lod++)
             {
                 int step = steps[lod];
@@ -130,6 +132,8 @@ namespace PrimevalWorld.Terrain
                         {
                             if (h < minH) minH = h;
                             if (h > maxH) maxH = h;
+                            float sl = erosion.SlopeDegMap[gIdx];
+                            if (sl > maxSlope) maxSlope = sl;
                         }
 
                         verts[vIdx] = new Vector3(localX, h, localZ);
@@ -173,12 +177,13 @@ namespace PrimevalWorld.Terrain
 
             MinH = minH;
             MaxH = maxH;
-            IsCoastline = minH < 2.5f && maxH > -2.5f;
+            MaxSlopeDeg = maxSlope;
+            IsCoastline = minH < 2.8f && maxH > -2.8f;
 
             MaterialOverride = material;
             Position = new Vector3(originX, 0.0f, originZ);
             CastShadow = ShadowCastingSetting.On;
-            SetLod(IsCoastline ? 1 : 2);
+            SetLod((IsCoastline || maxSlope > 28.0f) ? 1 : 2);
         }
 
         public void SetLod(int lod)

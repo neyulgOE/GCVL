@@ -124,11 +124,11 @@ namespace PrimevalWorld.WorldGen
                 });
             }
 
-            SmoothGrid(LandMask, 2);
+            SmoothGrid(LandMask, 4);
             SmoothGrid(snowFeature, 3);
             SmoothGrid(ridgeFeature, 4);
-            SmoothGrid(ForestFeature, 2);
-            SmoothGrid(RawWaterMask, 1);
+            SmoothGrid(ForestFeature, 3);
+            SmoothGrid(RawWaterMask, 2);
 
             IsOceanConnected = FloodFillOcean(LandMask);
             CoastDistMeters = ComputeCoastDistanceMeters(LandMask);
@@ -171,11 +171,13 @@ namespace PrimevalWorld.WorldGen
 
                     float totalBedrock = baseLandH + nwLift + swRim + nePlateau + eastRidge;
 
-                    // Shallow coral shelf (-2.4m..0m) -> Deep ocean (-65m)
-                    float shelfT = FastNoise.SmoothStep(0.0f, 180.0f, -dMeters);
+                    // Shallow coral shelf (-2.4m..0m) -> Deep ocean (-65m) with domain-warped shoreline contour
+                    float coastWarp = (FastNoise.Fbm2D(worldX * 0.016f, worldZ * 0.016f, seed + 521, 3) - 0.5f) * 0.16f
+                                    + (FastNoise.Fbm2D(worldX * 0.052f, worldZ * 0.052f, seed + 617, 2) - 0.5f) * 0.07f;
+                    float shelfT = FastNoise.SmoothStep(0.0f, 180.0f, -dMeters + coastWarp * 35.0f);
                     float oceanFloor = Mathf.Lerp(-2.4f, WorldPhysicsConfig.MaxOceanDepth, shelfT) + fbm * 3.0f;
 
-                    float landBlend = FastNoise.SmoothStep(0.24f, 0.56f, land);
+                    float landBlend = FastNoise.SmoothStep(0.24f, 0.58f, land + coastWarp);
                     BedrockHeight[idx] = oceanFloor * (1.0f - landBlend) + totalBedrock * landBlend;
 
                     // Initial loose sediment cover (thick sand in SW desert, moderate loam in valleys, thin on peaks)

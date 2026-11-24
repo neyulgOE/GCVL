@@ -39,7 +39,7 @@ namespace PrimevalWorld.Core
         private Control? _cameraPin;
         private Label? _mapLegendLabel;
 
-        private ImageTexture[] _mapTextures = new ImageTexture[8];
+        private ImageTexture[] _mapTextures = new ImageTexture[9];
         private float _radarRefreshAccum;
         private int _mapMode = 0;
         private int _seed = 2026;
@@ -163,7 +163,7 @@ namespace PrimevalWorld.Core
             newSeedBtn.Pressed += () => RegenerateWorld((int)(GD.Randi() % 90000 + 1000));
             btnRow.AddChild(newSeedBtn);
 
-            var mapBtn = new Button { Text = "Bản đồ 6 Lớp (M)" };
+            var mapBtn = new Button { Text = "Bản đồ 9 Lớp (M)" };
             mapBtn.Pressed += ToggleWorldMap;
             btnRow.AddChild(mapBtn);
 
@@ -177,7 +177,7 @@ namespace PrimevalWorld.Core
 
             var helpLabel = new Label
             {
-                Text = "WASD: Bay/Đi | V: Góc nhìn Thú (0.85/1.65/3.6m) | 1-5: 5 Vùng | M: Bản đồ 8 lớp | F: Cây | Space: Dừng/Nhảy | [/]: Tốc độ | T:+3h | Y: Mùa | P: Thời tiết",
+                Text = "WASD: Bay/Đi | V: Góc nhìn Thú (0.85/1.65/3.6m) | 1-5: 5 Vùng | M: Bản đồ 9 lớp (Phím 7: 7 Hệ sinh thái) | F: Cây | [/]: Tốc độ | T:+3h | Y: Mùa | P: Thời tiết",
             };
             helpLabel.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
             helpLabel.OffsetLeft = 16;
@@ -214,7 +214,7 @@ namespace PrimevalWorld.Core
 
             var title = new Label
             {
-                Text = "BẢN ĐỒ PHÂN TÍCH VẬT LÝ & RADAR 9.6x5.4 KM (Click để bay tới | Phím 1-8 đổi lớp | M để đóng)",
+                Text = "BẢN ĐỒ QUY HOẠCH SINH THÁI & RADAR 9.6x5.4 KM (Click để bay tới | Phím 1-9 đổi lớp | M để đóng)",
                 HorizontalAlignment = HorizontalAlignment.Center,
             };
             title.AddThemeFontSizeOverride("font_size", 13);
@@ -230,8 +230,9 @@ namespace PrimevalWorld.Core
                 "4. Độ ẩm",
                 "5. Thổ nhưỡng",
                 "6. Độ dốc",
-                "7. Thảo mộc",
-                "8. Radar Bão"
+                "7. 7 Hệ sinh thái",
+                "8. Thảo mộc",
+                "9. Radar Bão"
             };
             for (int i = 0; i < modeNames.Length; i++)
             {
@@ -284,8 +285,9 @@ namespace PrimevalWorld.Core
                     3 => "Lớp 4: Độ ẩm đất & Tích tụ dòng chảy D8 (Mạng lưới lưu vực & hành lang ven nước)",
                     4 => "Lớp 5: 6 Loại Đất (Xanh đậm: Phù sa | Xanh rêu: Đất rừng | Vàng: Thảo nguyên | Đỏ: Cát đỏ | Cát biển | Xám: Băng/Đá)",
                     5 => "Lớp 6: Độ dốc & Trầm tích Xói mòn (Kiểm tra Góc nghỉ Cát 32° vs Đất 40° vs Đá gốc 64°)",
-                    6 => "Lớp 7: Hệ Sinh Thái & Tầng Tán Thảo Mộc (Đại ngàn xanh thẫm | Bạch quả/Phong vàng đỏ | Thông tuyết lam | Cọ ốc đảo ngọc)",
-                    _ => "Lớp 8: Radar Thời Tiết & Tuyết Động 2 Hz (Mây bão trôi theo gió | Đẳng nhiệt 0°C xanh lơ | Tuyết phủ trắng)",
+                    6 => "Lớp 7: Quy hoạch 7 Hệ sinh thái (Xanh đậm: Rừng già | Xanh non: Đồng bằng phù sa | Ngọc lam: Đầm lầy | Vàng: Thảo nguyên | Đỏ: Hoang mạc | Xám băng: Núi tuyết | Kem: Bờ biển)",
+                    7 => "Lớp 8: Phân bố 36 Loài Thảo mộc & Độ che phủ Tán rừng Beer-Lambert",
+                    _ => "Lớp 9: Radar Thời Tiết & Tuyết Động 2 Hz (Mây bão trôi theo gió | Đẳng nhiệt 0°C xanh lơ | Tuyết phủ trắng)",
                 };
             }
         }
@@ -324,7 +326,7 @@ namespace PrimevalWorld.Core
 
             if (_floraEnabled && !_floraBuiltForSeed)
             {
-                ImageTexture canopyTex = _floraMgr.BuildFlora(_erosion, _hydrology, _climate, _soil, _seed);
+                ImageTexture canopyTex = _floraMgr.BuildFlora(_tectonic, _erosion, _hydrology, _climate, _soil, _seed);
                 _terrainMgr?.SetCanopyCoverageTexture(canopyTex);
                 if (_grassRing != null && _terrainMgr?.SoilATex != null && _terrainMgr.SoilBTex != null && _terrainMgr.ClimateTex != null && _floraMgr.WindDataTex != null)
                     _grassRing.BindWorldTextures(_erosion, _terrainMgr.SoilATex, _terrainMgr.SoilBTex, _terrainMgr.ClimateTex, canopyTex, _floraMgr.WindDataTex);
@@ -363,12 +365,12 @@ namespace PrimevalWorld.Core
             if (_floraMgr != null)
             {
                 _floraMgr.ClearFlora();
-                ImageTexture emptyCov = _floraMgr.BuildEmptyCoverageTexture();
+                ImageTexture emptyCov = _floraMgr.BuildEmptyCoverageTexture(_hydrology);
                 _terrainMgr?.SetCanopyCoverageTexture(emptyCov);
                 ImageTexture canopyTex = emptyCov;
                 if (_floraEnabled)
                 {
-                    canopyTex = _floraMgr.BuildFlora(_erosion, _hydrology, _climate, _soil, seed);
+                    canopyTex = _floraMgr.BuildFlora(_tectonic, _erosion, _hydrology, _climate, _soil, seed);
                     _terrainMgr?.SetCanopyCoverageTexture(canopyTex);
                     _floraBuiltForSeed = true;
                 }
@@ -411,9 +413,22 @@ namespace PrimevalWorld.Core
             if (_floraMgr != null && _floraBuiltForSeed)
             {
                 var spw = _floraMgr.Spawner;
-                GD.Print($"[Flora6Layers] SpawnTime={spw.LastSpawnMs:0.0}ms | Total={spw.TotalInstances:N0} | " +
+                int eLand = System.Math.Max(1, spw.TotalEmergentLandCells);
+                var inv = System.Globalization.CultureInfo.InvariantCulture;
+                int forestViewTrees = _floraMgr.EstimateActiveTreesAt(new Vector3(6350.0f, 52.0f, 3420.0f));
+                int steppeViewTrees = _floraMgr.EstimateActiveTreesAt(new Vector3(6780.0f, 75.0f, 1620.0f));
+                GD.Print(string.Create(inv, $"[Ecosystem7Budget] LandCells={eLand:N0} | " +
+                         $"1.PrimevalForest={spw.EcosystemLandCounts[1] * 100f / eLand:F1}% | " +
+                         $"2.AlluvialFloodplain={spw.EcosystemLandCounts[2] * 100f / eLand:F1}% | " +
+                         $"3.WetlandDelta={spw.EcosystemLandCounts[3] * 100f / eLand:F1}% | " +
+                         $"4.OpenSteppe={spw.EcosystemLandCounts[4] * 100f / eLand:F1}% | " +
+                         $"5.AridRedDesert={spw.EcosystemLandCounts[5] * 100f / eLand:F1}% | " +
+                         $"6.AlpineSnowRock={spw.EcosystemLandCounts[6] * 100f / eLand:F1}% | " +
+                         $"7.CoastlineDunes={spw.EcosystemLandCounts[7] * 100f / eLand:F1}%"));
+                GD.Print(string.Create(inv, $"[Flora6Layers] SpawnTime={spw.LastSpawnMs:F1}ms | WoodyTrees(L1+L2)={spw.TotalWoodyTrees:N0} | TotalAllLayers={spw.TotalInstances:N0} | " +
+                         $"ActiveTrees(ForestEcotone)={forestViewTrees:N0} | ActiveTrees(Steppe)={steppeViewTrees:N0} | " +
                          $"L1_Emergent={spw.LayerCounts[1]:N0}, L2_Canopy={spw.LayerCounts[2]:N0}, L3_Understory={spw.LayerCounts[3]:N0}, " +
-                         $"L4_Shrub={spw.LayerCounts[4]:N0}, L5_Herb={spw.LayerCounts[5]:N0}, L6_Litter={spw.LayerCounts[6]:N0}");
+                         $"L4_Shrub={spw.LayerCounts[4]:N0}, L5_Herb={spw.LayerCounts[5]:N0}, L6_Litter={spw.LayerCounts[6]:N0}"));
                 GD.Print($"[Flora4StemGroups] WoodyBranching={spw.StemGroupCounts[0]:N0} | DwarfWoodyShrub={spw.StemGroupCounts[1]:N0} | " +
                          $"ColumnarCaudexCulm={spw.StemGroupCounts[2]:N0} | HerbaceousGround={spw.StemGroupCounts[3]:N0}");
                 var parts = new System.Text.StringBuilder("[FloraSpecies] ");
@@ -478,6 +493,9 @@ namespace PrimevalWorld.Core
                     case Key.Key8:
                         if (_worldMapOverlay?.Visible == true) SetMapMode(7);
                         break;
+                    case Key.Key9:
+                        if (_worldMapOverlay?.Visible == true) SetMapMode(8);
+                        break;
                     case Key.Space:
                         if (_camera == null || !_camera.IsAnimalPov)
                             _clock.TogglePause();
@@ -535,7 +553,7 @@ namespace PrimevalWorld.Core
                     int tris = _terrainMgr?.ActiveTriangleEstimate ?? 0;
                     string domSp = _floraEnabled && _floraMgr != null ? _floraMgr.GetDominantSpeciesNameAt(p.X, p.Z) : "Tắt";
                     string floraStr = _floraEnabled
-                        ? $"Cây: {_floraMgr?.TotalInstanceCount ?? 0:N0} (Hiện: {_floraMgr?.VisibleInstanceCount ?? 0:N0}) | Loài: {domSp}"
+                        ? $"Cây gỗ: {_floraMgr?.Spawner.TotalWoodyTrees ?? 0:N0} (Đang vẽ: {_floraMgr?.ActiveTreeCount ?? 0:N0}) | Vùng: {domSp}"
                         : "Cây: Tắt [F]";
 
                     int hh = (int)_clock.TimeOfDay;
@@ -553,13 +571,13 @@ namespace PrimevalWorld.Core
             if (_worldMapOverlay != null && _worldMapOverlay.Visible)
             {
                 UpdateCameraPin();
-                if (_mapMode == 7 && _mapTextures[7] != null)
+                if (_mapMode == 8 && _mapTextures[8] != null)
                 {
                     _radarRefreshAccum += dt;
                     if (_radarRefreshAccum >= 0.5f)
                     {
                         _radarRefreshAccum = 0.0f;
-                        WorldMapVisualizer.RefreshWeatherRadarMap(_mapTextures[7], _erosion, _weather);
+                        WorldMapVisualizer.RefreshWeatherRadarMap(_mapTextures[8], _erosion, _weather);
                     }
                 }
             }

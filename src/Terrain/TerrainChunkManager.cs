@@ -80,7 +80,10 @@ namespace PrimevalWorld.Terrain
                         : (dist < WorldPhysicsConfig.Lod1Dist ? 1
                         : (dist < WorldPhysicsConfig.Lod2Dist ? 2 : 3));
 
-                if (c.IsCoastline && lod > 1)
+                // Prevent cliff faceting (>28°) and coastal grid stair-stepping at near-to-mid distances
+                if (c.MaxSlopeDeg > 34.0f && dist < 2150.0f)
+                    lod = 0;
+                else if ((c.IsCoastline || c.MaxSlopeDeg > 28.0f) && dist < 4800.0f && lod > 1)
                     lod = 1;
 
                 c.SetLod(lod);
