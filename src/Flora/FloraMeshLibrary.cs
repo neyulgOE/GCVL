@@ -62,14 +62,8 @@ namespace PrimevalWorld.Flora
             };
         }
 
-        // Atlas quadrant UV rects: 0=Broadleaf, 1=Conifer, 2=Acacia, 3=PalmFern
-        private static Rect2 GetQuadUv(int quadrant) => quadrant switch
-        {
-            1 => new Rect2(0.52f, 0.02f, 0.46f, 0.46f),
-            2 => new Rect2(0.02f, 0.52f, 0.46f, 0.46f),
-            3 => new Rect2(0.52f, 0.52f, 0.46f, 0.46f),
-            _ => new Rect2(0.02f, 0.02f, 0.46f, 0.46f),
-        };
+        // Full-frame UV rect (each leaf style now has its own dedicated 1024x1024 RGBA8 texture!)
+        private static Rect2 GetQuadUv(int quadrant) => new Rect2(0.0f, 0.0f, 1.0f, 1.0f);
 
         // 1. ArchButtressBroadleaf (~25m, furrowed buttress trunk + 30 crossed leaf cards)
         private static ArrayMesh CreateButtressBroadleafMesh(bool withPropRoots)
@@ -277,8 +271,8 @@ namespace PrimevalWorld.Flora
                 Vector3 tip = p2 + dir * frondLen + new Vector3(0.0f, -0.45f, 0.0f);
                 var cRoot = new Color(0.75f, 0.85f, 0.70f, 0.46f);
                 var cTip = new Color(1.0f, 1.0f, 0.94f, 0.56f);
-                AddLeafQuad(st, p2 - perp, p2 + perp, mid + perp, mid - perp, cRoot, cTip, Vector3.Up, uvR);
-                AddLeafQuad(st, mid - perp, mid + perp, tip + perp * 0.6f, tip - perp * 0.6f, cTip, cTip, (dir + Vector3.Up).Normalized(), uvR);
+                AddLeafQuad(st, p2 - perp, p2 + perp, mid + perp, mid - perp, cRoot, cTip, Vector3.Up, uvR, 3);
+                AddLeafQuad(st, mid - perp, mid + perp, tip + perp * 0.6f, tip - perp * 0.6f, cTip, cTip, (dir + Vector3.Up).Normalized(), uvR, 3);
             }
             return st.Commit();
         }
@@ -296,10 +290,10 @@ namespace PrimevalWorld.Flora
             {
                 float ang = f * Mathf.Tau / 8.0f;
                 Vector3 dir = new Vector3(MathF.Cos(ang), 0.0f, MathF.Sin(ang));
-                Vector3 perp = new Vector3(-dir.Z, 0.0f, dir.X) * 0.38f;
+                Vector3 perp = new Vector3(-dir.Z, 0.0f, dir.X) * 0.65f;
                 Vector3 tip = crown + dir * 1.45f + new Vector3(0.0f, 0.72f, 0.0f);
-                AddLeafQuad(st, crown - perp, crown + perp, tip + perp * 0.5f, tip - perp * 0.5f,
-                    new Color(0.75f, 0.85f, 0.68f, 0.18f), new Color(0.98f, 1.0f, 0.90f, 0.36f), (dir + Vector3.Up).Normalized(), uvR);
+                AddLeafQuad(st, crown - perp, crown + perp, tip + perp, tip - perp,
+                    new Color(0.75f, 0.85f, 0.68f, 0.18f), new Color(0.98f, 1.0f, 0.90f, 0.36f), (dir + Vector3.Up).Normalized(), uvR, 3);
             }
             return st.Commit();
         }
@@ -321,7 +315,7 @@ namespace PrimevalWorld.Flora
                 Vector3 t = new Vector3(MathF.Cos(a) * (r + 0.65f), 5.8f + (i % 3) * 0.55f, MathF.Sin(a) * (r + 0.65f));
                 AddTaperedCylinder(st, b, m, 0.08f, 0.06f, 4, cBot, cMid);
                 AddTaperedCylinder(st, m, t, 0.06f, 0.03f, 4, cMid, cTop);
-                AddLeafCardCluster(st, t, 0.95f, 0.55f, 2, 2, i * 0.8f, 0.52f);
+                AddLeafCardCluster(st, t, 0.95f, 0.55f, 2, 0, i * 0.8f, 0.52f);
             }
             return st.Commit();
         }
@@ -444,22 +438,22 @@ namespace PrimevalWorld.Flora
                 Vector3 up = new Vector3(0.0f, cardH, 0.0f);
 
                 // Crossed Card A
-                AddLeafQuad(st, cPos - right - up, cPos + right - up, cPos + right + up, cPos - right + up, colBot, colTop, radialN, uvR);
+                AddLeafQuad(st, cPos - right - up, cPos + right - up, cPos + right + up, cPos - right + up, colBot, colTop, radialN, uvR, atlasQuad);
                 // Crossed Card B (rotated ~70 deg around Y + tilted)
                 Vector3 rightB = new Vector3(-right.Z, right.Y + cardH * 0.25f, right.X);
-                AddLeafQuad(st, cPos - rightB - up, cPos + rightB - up, cPos + rightB + up, cPos - rightB + up, colBot, colTop, radialN, uvR);
+                AddLeafQuad(st, cPos - rightB - up, cPos + rightB - up, cPos + rightB + up, cPos - rightB + up, colBot, colTop, radialN, uvR, atlasQuad);
             }
         }
 
         private static void AddLeafQuad(
             SurfaceTool st, Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3,
-            Color cBot, Color cTop, Vector3 radialNormal, Rect2 uvRect)
+            Color cBot, Color cTop, Vector3 radialNormal, Rect2 uvRect, int leafType = 0)
         {
             Vector2 uv0 = new Vector2(uvRect.Position.X, uvRect.End.Y);
             Vector2 uv1 = new Vector2(uvRect.End.X, uvRect.End.Y);
             Vector2 uv2 = new Vector2(uvRect.End.X, uvRect.Position.Y);
             Vector2 uv3 = new Vector2(uvRect.Position.X, uvRect.Position.Y);
-            Vector2 leafTag = new Vector2(1.0f, 0.0f); // UV2.x = 1 -> Leaf Atlas + Alpha Scissor
+            Vector2 leafTag = new Vector2(1.0f, leafType); // UV2.x = 1 -> Leaf Alpha Cutout, UV2.y = leafType
 
             void Emit(Vector3 p, Color c, Vector2 uv)
             {

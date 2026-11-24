@@ -1,5 +1,5 @@
 shader_type spatial;
-render_mode blend_mix, depth_draw_opaque, cull_disabled, diffuse_burley, specular_schlick_ggx;
+render_mode blend_mix, depth_draw_opaque, cull_disabled, diffuse_burley, specular_schlick_ggx, alpha_to_coverage;
 
 uniform sampler2D height_tex : filter_linear, repeat_disable;
 uniform sampler2D soil_tex_a : filter_linear, repeat_disable;

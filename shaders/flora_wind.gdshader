@@ -1,5 +1,5 @@
 shader_type spatial;
-render_mode blend_mix, depth_draw_opaque, cull_disabled, diffuse_burley, specular_schlick_ggx;
+render_mode blend_mix, depth_draw_opaque, cull_disabled, diffuse_burley, specular_schlick_ggx, alpha_to_coverage;
 
 uniform sampler2D wind_dir_speed_tex : filter_linear, repeat_disable; // R=dir.x*0.5+0.5, G=dir.z*0.5+0.5, B=speed/30
 uniform sampler2D weather_dynamic_tex : filter_linear, repeat_disable; // R=SnowAccum, G=Wetness, B=Ice, A=CloudShadow
@@ -124,10 +124,15 @@ void fragment() {
 		float snow_dust = smoothstep(0.22, 0.62, v_snow_accum) * smoothstep(0.32, 0.72, v_world_normal.y);
 		col = mix(col, vec3(0.88, 0.93, 0.98), snow_dust * 0.88);
 
+		// Subtle 3D leaf vein normal relief from high-res 1024x1024 botanical texture luminance
+		float lum = dot(leaf_tex.rgb, vec3(0.299, 0.587, 0.114));
+		vec3 vein_n = normalize(NORMAL + vec3(-dFdx(lum), -dFdy(lum), 0.0) * 1.45);
+		NORMAL = vein_n;
+
 		ALBEDO = col;
-		ROUGHNESS = 0.85;
-		SPECULAR = 0.14;
-		BACKLIGHT = col * 0.48 * (1.0 - snow_dust * 0.6);
+		ROUGHNESS = mix(0.72, 0.88, snow_dust);
+		SPECULAR = 0.24;
+		BACKLIGHT = col * 0.52 * (1.0 - snow_dust * 0.6);
 	} else {
 		vec3 b_col = texture(bark_tex, v_uv).rgb;
 		vec3 bark_final = col * mix(vec3(1.0), b_col * 1.35, 0.65);

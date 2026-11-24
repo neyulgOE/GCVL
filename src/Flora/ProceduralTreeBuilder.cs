@@ -315,32 +315,34 @@ namespace PrimevalWorld.Flora
             }
         }
 
-        // Compact Curved Leaf Sprigs (2 angled quads per sprig = subtle 3D arch, low overdraw!)
+        // 3D Domed Crossed Botanical Sprigs (each sprig uses full 1024x1024 branch texture with stem anchored at branch tip + Internal Canopy AO)
         private static void AddCurvedLeafSprigCluster(
             SurfaceTool st, Vector3 pos, Vector3 crownCenter, float radius, int sprigCount, int leafType, Random rng, float windFlex)
         {
-            var cBot = new Color(0.78f, 0.84f, 0.74f, windFlex * 0.75f);
-            var cTop = new Color(1.0f, 1.0f, 0.95f, windFlex);
             Vector3 radialN = (pos - crownCenter + new Vector3(0.0f, 1.0f, 0.0f)).Normalized();
+            int totalPetals = Math.Max(3, sprigCount + 1);
+            float baseYaw = (float)(rng.NextDouble() * Mathf.Tau);
 
-            for (int i = 0; i < sprigCount; i++)
+            for (int i = 0; i < totalPetals; i++)
             {
-                float a = (float)(rng.NextDouble() * Mathf.Tau);
-                float tilt = 0.25f + (float)rng.NextDouble() * 0.45f;
-                Vector3 right = new Vector3(MathF.Cos(a), 0.0f, MathF.Sin(a)) * radius;
-                Vector3 fwd = new Vector3(-MathF.Sin(a), tilt, MathF.Cos(a)).Normalized() * (radius * 0.85f);
-                Vector3 archUp = Vector3.Up * (radius * 0.22f);
+                float a = baseYaw + i * (Mathf.Tau / totalPetals) + (float)(rng.NextDouble() - 0.5) * 0.28f;
+                float ao = i == 0 ? 0.74f : 1.04f; // Inner leaf layer slightly shaded for deep 3D canopy volume!
+                var cBot = new Color(0.72f * ao, 0.78f * ao, 0.70f * ao, windFlex * 0.70f);
+                var cTop = new Color(0.98f * ao, 1.00f * ao, 0.94f * ao, windFlex);
 
-                // Two-segment curved sprig (bends slightly downward at tips)
-                Vector3 pL0 = pos - right - fwd;
-                Vector3 pR0 = pos + right - fwd;
-                Vector3 pLM = pos - right + archUp;
-                Vector3 pRM = pos + right + archUp;
-                Vector3 pL1 = pos - right + fwd - archUp * 0.4f;
-                Vector3 pR1 = pos + right + fwd - archUp * 0.4f;
+                float w = radius * 0.88f;
+                float len = radius * 1.55f;
+                Vector3 dir = new Vector3(MathF.Cos(a), 0.35f + (i % 2) * 0.28f, MathF.Sin(a)).Normalized();
+                Vector3 side = new Vector3(-MathF.Sin(a), 0.0f, MathF.Cos(a)) * w;
+                Vector3 archUp = Vector3.Up * (radius * 0.26f);
 
-                AddSprigQuad(st, pL0, pR0, pRM, pLM, cBot, cTop, radialN, leafType, new Vector2(0.0f, 0.5f));
-                AddSprigQuad(st, pLM, pRM, pR1, pL1, cTop, cBot, radialN, leafType, new Vector2(0.5f, 1.0f));
+                // Stem base anchored near branch tip (V=1.0), arching outward to leaf tips (V=0.0)
+                Vector3 root = pos - dir * (radius * 0.25f);
+                Vector3 mid = root + dir * (len * 0.52f) + archUp;
+                Vector3 tip = root + dir * len - archUp * 0.30f;
+
+                AddSprigQuad(st, root - side * 0.78f, root + side * 0.78f, mid + side, mid - side, cBot, cTop, radialN, leafType, new Vector2(1.0f, 0.48f));
+                AddSprigQuad(st, mid - side, mid + side, tip + side * 0.85f, tip - side * 0.85f, cTop, cTop, (radialN + dir * 0.4f).Normalized(), leafType, new Vector2(0.48f, 0.0f));
             }
         }
 
