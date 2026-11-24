@@ -203,18 +203,19 @@ void fragment() {
 	vec3 final_normal = bark_nrm;
 
 	// World-space organic moss blending:
-	// 1) Thick moss climbing buttress roots & trunk base (0.0m .. 2.8m local Y with noisy organic edge!)
-	// 2) Upward-facing limbs, roots & mossy fallen logs (world_normal.y > 0.25)
+	// 1) Lush emerald-olive moss climbing buttress roots & trunk base (0.0m .. 4.2m local Y with noisy organic edge!)
+	// 2) Upward-facing limbs, roots & mossy fallen logs (world_normal.y > 0.18)
 	vec2 moss_uv = v_world_pos.xz * 0.55 + vec2(v_world_pos.y * 0.35, -v_world_pos.y * 0.25);
-	float moss_noise = value_noise(v_world_pos.xz * 0.85 + vec2(v_world_pos.y * 0.6)) * 0.65
-	                 + value_noise(v_world_pos.xz * 2.40 - vec2(v_world_pos.y * 1.3)) * 0.35;
+	float moss_noise = value_noise(v_world_pos.xz * 0.78 + vec2(v_world_pos.y * 0.55)) * 0.65
+	                 + value_noise(v_world_pos.xz * 2.25 - vec2(v_world_pos.y * 1.25)) * 0.35;
 
-	float organic_climb_h = 2.85 + (moss_noise - 0.5) * 2.1; // organic 1.8m..3.9m creeping edge!
-	float base_moss = smoothstep(organic_climb_h, 0.25, v_local_y) * smoothstep(0.24, 0.66, moss_noise + 0.18);
-	float upward_moss = smoothstep(0.25, 0.68, v_world_normal.y) * smoothstep(0.22, 0.64, moss_noise + 0.14);
-	float moss_weight = clamp(max(base_moss * 0.92, upward_moss * 0.95) * v_moss_mult * v_site_moss, 0.0, 0.92);
+	float organic_climb_h = 3.85 + (moss_noise - 0.5) * 2.6; // organic 2.5m..5.1m creeping rainforest moss edge!
+	float base_moss = smoothstep(organic_climb_h, 0.35, v_local_y) * smoothstep(0.16, 0.56, moss_noise + 0.24);
+	float upward_moss = smoothstep(0.18, 0.58, v_world_normal.y) * smoothstep(0.18, 0.56, moss_noise + 0.20);
+	float moss_weight = clamp(max(base_moss * 0.96, upward_moss * 0.98) * v_moss_mult * v_site_moss, 0.0, 0.96);
 
-	vec3 moss_alb = texture(moss_albedo, moss_uv).rgb * vec3(0.72, 0.88, 0.64);
+	vec3 moss_raw = texture(moss_albedo, moss_uv).rgb;
+	vec3 moss_alb = clamp(moss_raw * vec3(0.86, 1.38, 0.54) + vec3(0.02, 0.06, 0.01), vec3(0.0), vec3(1.0));
 	vec3 moss_nrm = texture(moss_normal, moss_uv).rgb;
 
 	final_albedo = mix(final_albedo, moss_alb, moss_weight);

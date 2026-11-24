@@ -47,8 +47,17 @@ namespace PrimevalWorld.Core
         private bool _floraEnabled = true;
         private bool _floraBuiltForSeed = false;
 
+        private string? _captureDir;
+        private int _captureStep;
+        private int _captureWaitFrames;
+
         public override void _Ready()
         {
+            foreach (string arg in OS.GetCmdlineUserArgs())
+            {
+                if (arg.StartsWith("--capture-dir=", System.StringComparison.Ordinal))
+                    _captureDir = arg.Substring("--capture-dir=".Length);
+            }
             SetupEnvironmentAndLighting();
 
             _terrainMgr = new TerrainChunkManager { Name = "TerrainChunkManager" };
@@ -99,6 +108,12 @@ namespace PrimevalWorld.Core
                 FogDepthBegin = 750.0f,
                 FogDepthEnd = 12500.0f,
                 FogAerialPerspective = 0.78f,
+                VolumetricFogEnabled = true,
+                VolumetricFogDensity = 0.0022f,
+                VolumetricFogAlbedo = new Color(0.86f, 0.91f, 0.94f),
+                VolumetricFogAnisotropy = 0.62f,
+                VolumetricFogLength = 180.0f,
+                VolumetricFogSkyAffect = 0.32f,
                 SsaoEnabled = true,
                 SsaoRadius = 2.0f,
                 SsaoIntensity = 0.95f,
@@ -366,7 +381,7 @@ namespace PrimevalWorld.Core
             double physicsMs = sw.Elapsed.TotalMilliseconds;
 
             _terrainMgr?.BuildTerrain(_erosion, _hydrology, _climate, _soil);
-            _waterSurface?.BuildWater(_hydrology);
+            _waterSurface?.BuildWater(_hydrology, _erosion);
 
             if (_floraMgr != null)
             {
@@ -604,6 +619,45 @@ namespace PrimevalWorld.Core
                         WorldMapVisualizer.RefreshWeatherRadarMap(_mapTextures[8], _erosion, _weather);
                     }
                 }
+            }
+
+            if (!string.IsNullOrEmpty(_captureDir))
+                ProcessAutoCapture();
+        }
+
+        private void ProcessAutoCapture()
+        {
+            if (_camera == null) return;
+            if (_captureStep == 0 && _captureWaitFrames == 0)
+            {
+                // Shot 1: High aerial overlooking Primeval Forest hillside + Alluvial Floodplain river valley
+                float h = Mathf.Max(20.0f, _erosion.SampleHeight(6750.0f, 3620.0f));
+                _camera.SetPovMode(CameraPovMode.FreeFly);
+                _camera.TeleportTo(new Vector3(6750.0f, h + 185.0f, 3620.0f), new Vector3(7450.0f, h + 10.0f, 3050.0f));
+                _hudRefreshAccum = 999.0f;
+            }
+
+            _captureWaitFrames++;
+            if (_captureWaitFrames < 42) return;
+            _captureWaitFrames = 0;
+
+            System.IO.Directory.CreateDirectory(_captureDir!);
+            var img = GetViewport().GetTexture().GetImage();
+            if (_captureStep == 0)
+            {
+                img.SavePng(System.IO.Path.Combine(_captureDir!, "04_main_valley_aerial.png"));
+                // Shot 2: Deep inside Primeval Forest at 0.85m Wolf POV!
+                float fh = Mathf.Max(10.0f, _erosion.SampleHeight(7650.0f, 3150.0f));
+                _camera.TeleportTo(new Vector3(7650.0f, fh + 0.85f, 3150.0f), new Vector3(7710.0f, fh + 3.2f, 3110.0f));
+                _camera.SetPovMode(CameraPovMode.PredatorWolf);
+                _hudRefreshAccum = 999.0f;
+                _captureStep = 1;
+            }
+            else if (_captureStep == 1)
+            {
+                img.SavePng(System.IO.Path.Combine(_captureDir!, "05_main_forest_wolf_pov.png"));
+                GD.Print($"[AutoCapture] Saved 2 Main.tscn screenshots to {_captureDir}");
+                GetTree().Quit(0);
             }
         }
 

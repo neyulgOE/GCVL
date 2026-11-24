@@ -56,8 +56,12 @@ void vertex() {
 	float hU = textureLod(height_tex, world_uv + vec2(0.0, texel.y), 0.0).r;
 	float slope_est = length(vec2(hR - ground_h, hU - ground_h)) / 9.375;
 
-	// Hide grass under water, in rivers, on steep cliffs (>32° ~ tan 0.62), bare rock, or dry red sand
+	// Hide grass under water, in rivers, on steep cliffs (>32° ~ tan 0.62), bare rock, dry red sand,
+	// AND suppress tall meadow grass inside dense forest canopy / dark forest floor (let ferns & moss dominate!)
+	float forest_suppress = (1.0 - smoothstep(0.16, 0.46, canopy))
+	                      * (1.0 - smoothstep(0.42, 0.82, w_forest) * 0.92);
 	float valid = step(0.65, ground_h)
+	            * forest_suppress
 	            * (1.0 - smoothstep(0.32, 0.55, river_mask))
 	            * (1.0 - smoothstep(0.42, 0.65, slope_est))
 	            * (1.0 - smoothstep(0.55, 0.85, bedrock_mask))
@@ -71,9 +75,10 @@ void vertex() {
 	float dist_fade = 1.0 - smoothstep(48.0, 70.0, cam_dist);
 
 	float rnd = hash12(floor(inst_world.xz * 2.0));
-	float blade_h = mix(0.45, 1.05, rnd);
-	blade_h = mix(blade_h, 0.38, smoothstep(0.35, 0.85, canopy)); // Shorter fern/shade grass under dense canopy
-	blade_h *= (1.0 + floodplain_mask * 0.32 + wetland_mask * 0.38 + smoothstep(0.35, 0.85, w_steppe) * 0.25); // Lush tall floodplain/marsh/steppe grass!
+	// Natural waist-to-knee height (0.28..0.60m) so Wolf 0.85m POV looks across meadows rather than staring into flat green spikes!
+	float blade_h = mix(0.28, 0.60, rnd);
+	blade_h = mix(blade_h, 0.20, smoothstep(0.15, 0.48, canopy));
+	blade_h *= (1.0 + floodplain_mask * 0.22 + wetland_mask * 0.24 + smoothstep(0.35, 0.85, w_steppe) * 0.20);
 	float final_scale = valid * dist_fade;
 
 	// Ground Color Blending at root -> sunlit tip color

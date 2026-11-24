@@ -157,7 +157,7 @@ namespace PrimevalWorld.Flora
                     canopySpecies.Add(sp);
             }
 
-            const float step1 = 8.95f;
+            const float step1 = 7.45f;
             int candW = (int)(WorldPhysicsConfig.WorldWidth / step1);
             int candH = (int)(WorldPhysicsConfig.WorldDepth / step1);
             var rowCandidates = new List<CandidateTree>[candH];
@@ -213,32 +213,32 @@ namespace PrimevalWorld.Flora
                     switch (eco)
                     {
                         case LandEcosystemId.PrimevalDenseForest:
-                            ecoTreeGate = 0.76f + ForestMacroMask[gIdx] * 0.22f; // 80-95% closed canopy!
+                            ecoTreeGate = 0.90f + ForestMacroMask[gIdx] * 0.10f; // 80-95% closed billowing canopy ocean!
                             break;
 
                         case LandEcosystemId.AlluvialFloodplain:
                             if (isRiparian20m)
-                                ecoTreeGate = 0.26f; // Graceful riverside Willows (<20m of water)
+                                ecoTreeGate = 0.20f; // Graceful riverside Willows (<20m of water)
                             else
                             {
-                                ecoTreeGate = 0.011f; // Only 1-3% isolated Landmark Trees on wide open green floodplains!
+                                ecoTreeGate = 0.0075f; // Only 1-3% isolated Landmark Trees on wide open green floodplains!
                                 forceAncientLandmark = true;
                             }
                             break;
 
                         case LandEcosystemId.WetlandAndDelta:
                             // Clumped flood-tolerant trees ONLY on dry raised mossy hummocks (15-28%)
-                            ecoTreeGate = groveNoise > 0.50f ? 0.34f : 0.04f;
+                            ecoTreeGate = groveNoise > 0.52f ? 0.28f : 0.03f;
                             break;
 
                         case LandEcosystemId.OpenSteppePlateau:
-                            // 82-86% open feather-grass steppe; woody Ginkgo/Maple/Birch clustered into sheltered Groves!
-                            ecoTreeGate = (groveNoise > 0.61f && slopeDeg < 22.0f) ? 0.44f : 0.003f;
+                            // 84-88% open feather-grass steppe; woody Ginkgo/Maple/Birch clustered into sheltered Groves!
+                            ecoTreeGate = (groveNoise > 0.62f && slopeDeg < 22.0f) ? 0.36f : 0.002f;
                             break;
 
                         case LandEcosystemId.AridRedDesertOasis:
-                            // 95%+ bare sand/rock; DragonBlood/Baobab/Acacia only in wadis & oasis rims
-                            ecoTreeGate = (flow > 0.26f || gw > 0.26f) ? 0.12f : 0.002f;
+                            // 96%+ bare sand/rock (P50 <= 0.01); DragonBlood/Baobab/Acacia strictly in wadis & oasis rims
+                            ecoTreeGate = (flow > 0.34f || gw > 0.38f) ? 0.08f : 0.0004f;
                             break;
 
                         case LandEcosystemId.AlpineSnowTundraRock:
@@ -338,7 +338,7 @@ namespace PrimevalWorld.Flora
                     CandidateTree cand = row[i];
                     int sx = Math.Clamp((int)(cand.X / thinCell), 0, shW - 1);
                     int sz = Math.Clamp((int)(cand.Z / thinCell), 0, shH - 1);
-                    float spacingFactor = cand.Eco == LandEcosystemId.PrimevalDenseForest ? 0.43f : 0.56f;
+                    float spacingFactor = cand.Eco == LandEcosystemId.PrimevalDenseForest ? 0.33f : 0.58f;
 
                     bool crowded = false;
                     for (int dz = -1; dz <= 1 && !crowded; dz++)
@@ -377,7 +377,7 @@ namespace PrimevalWorld.Flora
                     FloraNicheProfile prof = FloraNicheDatabase.AllSpecies[(int)cand.Species];
                     float avgH = (prof.HeightMinM + prof.HeightMaxM) * 0.5f;
                     float sY = cand.Height / avgH;
-                    float sXZ = sY * Mathf.Lerp(0.84f, 1.18f, cand.AgeRatio);
+                    float sXZ = sY * Mathf.Lerp(0.84f, 1.18f, cand.AgeRatio) * (cand.Eco == LandEcosystemId.PrimevalDenseForest ? 1.12f : 1.0f);
                     float yaw = (cand.Hash & 0xFFF) / 4095.0f * Mathf.Tau;
                     float lean = ((cand.Hash >> 12) & 0xFF) / 255.0f * 0.05f;
                     var basis = Basis.Identity.Rotated(Vector3.Up, yaw).Rotated(Vector3.Right, lean).Scaled(new Vector3(sXZ, sY, sXZ));

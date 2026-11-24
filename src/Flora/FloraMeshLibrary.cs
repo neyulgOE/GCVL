@@ -164,15 +164,16 @@ namespace PrimevalWorld.Flora
             int strands = variant == 0 ? 5 : 4;
             for (int s = 0; s < strands; s++)
             {
-                float a = s * Mathf.Tau / strands + (float)rng.NextDouble() * 0.4f;
-                float rOff = 0.25f + (s % 2) * 0.65f;
-                float topY = 7.5f + (float)rng.NextDouble() * 4.5f;
-                float len = 4.2f + (float)rng.NextDouble() * 4.8f;
-                float botY = MathF.Max(0.45f, topY - len);
-                float width = 0.28f + (s % 2) * 0.14f;
+                float a = s * Mathf.Tau / strands + (float)rng.NextDouble() * 0.45f;
+                // Offset outward under the canopy boughs (1.6m..3.6m from trunk) so lianas drape as free curtains, not pasted onto bark!
+                float rOff = 1.65f + (s % 3) * 0.85f;
+                float topY = 9.0f + (float)rng.NextDouble() * 4.5f;
+                float len = 5.2f + (float)rng.NextDouble() * 4.6f;
+                float botY = MathF.Max(1.35f, topY - len);
+                float width = 0.24f + (s % 2) * 0.12f;
 
-                Vector3 side = new Vector3(-MathF.Sin(a), 0.0f, MathF.Cos(a)) * width;
-                Vector3 swayDir = new Vector3(MathF.Cos(a), 0.0f, MathF.Sin(a));
+                Vector3 sideA = new Vector3(-MathF.Sin(a), 0.0f, MathF.Cos(a)) * width;
+                Vector3 sideB = new Vector3(MathF.Cos(a), 0.0f, MathF.Sin(a)) * width;
                 Vector3 topPos = new Vector3(MathF.Cos(a) * rOff, topY, MathF.Sin(a) * rOff);
 
                 const int segs = 4;
@@ -182,17 +183,20 @@ namespace PrimevalWorld.Flora
                     float t1 = (k + 1) / (float)segs;
                     float y0 = Mathf.Lerp(topY, botY, t0);
                     float y1 = Mathf.Lerp(topY, botY, t1);
-                    float bow0 = MathF.Sin(t0 * Mathf.Pi) * 0.42f;
-                    float bow1 = MathF.Sin(t1 * Mathf.Pi) * 0.42f;
+                    float bow0 = MathF.Sin(t0 * Mathf.Pi) * 0.48f;
+                    float bow1 = MathF.Sin(t1 * Mathf.Pi) * 0.48f;
 
-                    Vector3 c0 = new Vector3(topPos.X + swayDir.X * bow0, y0, topPos.Z + swayDir.Z * bow0);
-                    Vector3 c1 = new Vector3(topPos.X + swayDir.X * bow1, y1, topPos.Z + swayDir.Z * bow1);
+                    Vector3 c0 = new Vector3(topPos.X + sideB.X * bow0, y0, topPos.Z + sideB.Z * bow0);
+                    Vector3 c1 = new Vector3(topPos.X + sideB.X * bow1, y1, topPos.Z + sideB.Z * bow1);
 
                     float bp = (s * 0.21f) % 1.0f;
-                    var col0 = new Color(bp, 1f, 1f, 0.28f + t0 * 0.42f);
-                    var col1 = new Color(bp, 1f, 1f, 0.28f + t1 * 0.42f);
-                    AddLeafQuad(st, c0 - side, c0 + side, c1 + side * 0.85f, c1 - side * 0.85f,
-                        col0, col1, Vector3.Up, new Rect2(0, t0, 1, t1 - t0), leafType: 6, aoBot: 0.72f, aoTop: 0.88f);
+                    var col0 = new Color(bp, 1f, 1f, 0.24f + t0 * 0.48f);
+                    var col1 = new Color(bp, 1f, 1f, 0.24f + t1 * 0.48f);
+                    // Crossed perpendicular ribbons so hanging moss curtains look volumetric from every camera angle!
+                    AddLeafQuad(st, c0 - sideA, c0 + sideA, c1 + sideA * 0.82f, c1 - sideA * 0.82f,
+                        col0, col1, Vector3.Up, new Rect2(0, t0, 1, t1 - t0), leafType: 6, aoBot: 0.74f, aoTop: 0.90f);
+                    AddLeafQuad(st, c0 - sideB, c0 + sideB, c1 + sideB * 0.82f, c1 - sideB * 0.82f,
+                        col0, col1, Vector3.Up, new Rect2(0, t0, 1, t1 - t0), leafType: 6, aoBot: 0.74f, aoTop: 0.90f);
                 }
             }
             return st.Commit();

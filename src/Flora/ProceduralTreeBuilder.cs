@@ -422,39 +422,43 @@ namespace PrimevalWorld.Flora
             AddTaperedCylinder(barkSt, p0, p1, baseR * 1.15f, baseR * 0.52f, sides, barkBot, barkTop, 1, mossMult);
             AddTaperedCylinder(barkSt, p1, p2, baseR * 0.52f, 0.08f, Math.Max(4, sides - 1), barkTop, barkTop, 1, mossMult);
 
-            int tiers = lod == 0 ? (isSequoia ? 8 : 8) : 5;
-            float startFrac = isSequoia ? 0.38f : (variant == 1 ? 0.22f : 0.28f);
+            int tiers = lod == 0 ? (isSequoia ? 9 : (variant == 1 ? 9 : (variant == 2 ? 7 : 8))) : 5;
+            float startFrac = isSequoia ? 0.34f : (variant == 1 ? 0.20f : (variant == 2 ? 0.34f : 0.24f));
             Vector3 crownCenter = new Vector3(leanX * 0.55f, totalH * 0.58f, 0.0f);
-            float crownRad = (isSequoia ? 5.4f : 4.1f) * sMult;
-            float crownHalfH = totalH * 0.42f;
+            float crownRad = (isSequoia ? 5.6f : (variant == 1 ? 3.5f : 4.4f)) * sMult;
+            float crownHalfH = totalH * 0.44f;
 
             for (int t = 0; t < tiers; t++)
             {
                 float frac = startFrac + (t / (float)(tiers - 1)) * (0.95f - startFrac);
                 Vector3 anchor = frac < 0.50f ? p0.Lerp(p1, (frac + 0.05f) / 0.55f) : p1.Lerp(p2, (frac - 0.50f) / 0.50f);
-                float tierRadius = (1.0f - (t / (float)tiers) * 0.76f) * (isSequoia ? 5.2f : 3.9f) * sMult;
-                int bCount = lod == 0 ? (t < tiers - 2 ? 5 : 3) : 3;
+                float tierRadius = (1.0f - (t / (float)tiers) * 0.78f) * (isSequoia ? 5.1f : (variant == 1 ? 3.2f : 4.0f)) * sMult;
+                int bCount = lod == 0 ? (t < tiers - 2 ? (variant == 1 ? 4 : 5) : 3) : 3;
 
                 for (int b = 0; b < bCount; b++)
                 {
-                    float a = b * (Mathf.Tau / bCount) + t * GoldenAngleRad + (float)(rng.NextDouble() - 0.5) * 0.22f;
-                    float droop = tierRadius * (variant == 2 ? 0.32f : 0.24f);
-                    Vector3 bMid = anchor + new Vector3(MathF.Cos(a) * tierRadius * 0.55f, -droop * 0.45f, MathF.Sin(a) * tierRadius * 0.55f);
-                    Vector3 bEnd = anchor + new Vector3(MathF.Cos(a) * tierRadius, -droop + 0.25f, MathF.Sin(a) * tierRadius);
+                    float a = b * (Mathf.Tau / bCount) + t * GoldenAngleRad + (float)(rng.NextDouble() - 0.5) * 0.26f;
+                    // Graceful downward arch + upturned tip (eliminates stiff horizontal bicycle-spoke branches!)
+                    float droop = tierRadius * (variant == 2 ? 0.56f : 0.48f);
+                    Vector3 bMid = anchor + new Vector3(MathF.Cos(a) * tierRadius * 0.52f, -droop * 0.72f, MathF.Sin(a) * tierRadius * 0.52f);
+                    Vector3 bEnd = anchor + new Vector3(MathF.Cos(a) * tierRadius, -droop * 0.58f, MathF.Sin(a) * tierRadius);
                     if (lod == 0)
                     {
-                        AddTaperedCylinder(barkSt, anchor, bMid, 0.14f * rMult, 0.08f * rMult, 4, barkTop, barkTop, 1, mossMult);
-                        AddTaperedCylinder(barkSt, bMid, bEnd, 0.08f * rMult, 0.03f, 4, barkTop, barkTop, 1, mossMult);
+                        AddTaperedCylinder(barkSt, anchor, bMid, 0.095f * rMult, 0.055f * rMult, 4, barkTop, barkTop, 1, mossMult);
+                        AddTaperedCylinder(barkSt, bMid, bEnd, 0.055f * rMult, 0.025f, 4, barkTop, barkTop, 1, mossMult);
+                        // Clothe BOTH mid-branch and tip with overlapping conifer needle plumes!
+                        AddPuffyFoliageDome(leafSt, bMid + Vector3.Down * 0.15f, crownCenter, crownRad, crownHalfH,
+                            1.55f * sMult, 2, leafType: 1, rng, 0.12f, ((t * 0.17f + b * 0.23f) % 1.0f));
                     }
                     else
                     {
-                        AddTaperedCylinder(barkSt, anchor, bEnd, 0.12f * rMult, 0.04f, 4, barkTop, barkTop, 1, mossMult);
+                        AddTaperedCylinder(barkSt, anchor, bEnd, 0.09f * rMult, 0.03f, 4, barkTop, barkTop, 1, mossMult);
                     }
                     AddPuffyFoliageDome(leafSt, bEnd, crownCenter, crownRad, crownHalfH,
-                        (lod == 0 ? 1.55f : 2.15f) * sMult, lod == 0 ? 3 : 2, leafType: 1, rng, 0.13f, ((t * 0.13f + b * 0.29f) % 1.0f));
+                        (lod == 0 ? 1.75f : 2.35f) * sMult, lod == 0 ? 3 : 2, leafType: 1, rng, 0.13f, ((t * 0.13f + b * 0.29f) % 1.0f));
                 }
             }
-            AddPuffyFoliageDome(leafSt, p2 + Vector3.Up * 0.5f, crownCenter, crownRad, crownHalfH, 1.55f * sMult, lod == 0 ? 4 : 2, leafType: 1, rng, 0.14f, 0.41f);
+            AddPuffyFoliageDome(leafSt, p2 + Vector3.Up * 0.5f, crownCenter, crownRad, crownHalfH, 1.75f * sMult, lod == 0 ? 4 : 2, leafType: 1, rng, 0.14f, 0.41f);
         }
 
         // =========================================================================
@@ -713,10 +717,10 @@ namespace PrimevalWorld.Flora
                 float a = baseYaw + i * (Mathf.Tau / totalPetals) + (float)(rng.NextDouble() - 0.5) * 0.28f;
                 float innerLayerMul = (i % 3 == 0) ? 0.80f : 1.0f;
 
-                // Vary pitch from upward-domed to outward-draping so the cluster forms a rich 3D ball from ALL angles!
-                float pitch = (i % 4) switch { 0 => 0.68f, 1 => 0.32f, 2 => 0.04f, _ => -0.18f };
-                float w = domeRadius * 0.72f;
-                float len = domeRadius * 1.32f;
+                // Vary pitch from upward-domed to outward-draping so the cluster forms a rich, billowy 3D cloud from ALL angles!
+                float pitch = (i % 4) switch { 0 => 0.72f, 1 => 0.36f, 2 => 0.06f, _ => -0.18f };
+                float w = domeRadius * 0.86f;
+                float len = domeRadius * 1.54f;
                 Vector3 dir = new Vector3(MathF.Cos(a) * MathF.Cos(pitch), MathF.Sin(pitch), MathF.Sin(a) * MathF.Cos(pitch)).Normalized();
                 Vector3 side = new Vector3(-MathF.Sin(a), 0.0f, MathF.Cos(a)) * w;
                 Vector3 archUp = Vector3.Up * (domeRadius * 0.28f);

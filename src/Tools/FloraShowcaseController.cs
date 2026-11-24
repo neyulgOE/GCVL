@@ -55,8 +55,17 @@ namespace PrimevalWorld.Tools
         private bool _lodDebug;
         private bool _showMarkersAndGrass = true;
 
+        private string? _captureDir;
+        private int _captureStep;
+        private int _captureWaitFrames;
+
         public override void _Ready()
         {
+            foreach (string arg in OS.GetCmdlineUserArgs())
+            {
+                if (arg.StartsWith("--capture-dir=", StringComparison.Ordinal))
+                    _captureDir = arg.Substring("--capture-dir=".Length);
+            }
             _botTex = BotanicalTextureGenerator.EnsureAndLoadAll();
             SetupSkyAndLighting();
             BuildGround();
@@ -157,9 +166,9 @@ namespace PrimevalWorld.Tools
                 var cBot = new Color(0.12f, 0.22f, 0.07f, 0.0f);
                 var cMid = new Color(0.19f, 0.38f, 0.11f, 0.48f);
                 var cTip = new Color(0.28f, 0.50f, 0.14f, 1.0f);
-                AddTri(st, root - side * 0.06f, root + side * 0.06f, root + dir * 0.16f + side * 0.04f + new Vector3(0, 0.45f, 0), cBot, cBot, cMid);
-                AddTri(st, root - side * 0.06f, root + dir * 0.16f + side * 0.04f + new Vector3(0, 0.45f, 0), root + dir * 0.16f - side * 0.04f + new Vector3(0, 0.45f, 0), cBot, cMid, cMid);
-                AddTri(st, root + dir * 0.16f - side * 0.04f + new Vector3(0, 0.45f, 0), root + dir * 0.16f + side * 0.04f + new Vector3(0, 0.45f, 0), root + dir * 0.32f + new Vector3(0, 0.85f, 0), cMid, cMid, cTip);
+                AddTri(st, root - side * 0.045f, root + side * 0.045f, root + dir * 0.11f + side * 0.03f + new Vector3(0, 0.19f, 0), cBot, cBot, cMid);
+                AddTri(st, root - side * 0.045f, root + dir * 0.11f + side * 0.03f + new Vector3(0, 0.19f, 0), root + dir * 0.11f - side * 0.03f + new Vector3(0, 0.19f, 0), cBot, cMid, cMid);
+                AddTri(st, root + dir * 0.11f - side * 0.03f + new Vector3(0, 0.19f, 0), root + dir * 0.11f + side * 0.03f + new Vector3(0, 0.19f, 0), root + dir * 0.22f + new Vector3(0, 0.36f, 0), cMid, cMid, cTip);
             }
             st.GenerateNormals();
 
@@ -575,6 +584,37 @@ namespace PrimevalWorld.Tools
                 _hudLabel.Text =
                     $"Flora Showcase Lab (10m/100m/500m) | FPS: {fps:0} | DrawCalls: {drawCalls} | Góc nhìn [V]: {pov}{dbg}\n" +
                     $"Cây gần nhất ({bestD:0.0}m): {nearName} | Tris LOD0/1/2 = {t0:N0} / {t1:N0} / {t2:N0}";
+            }
+
+            if (!string.IsNullOrEmpty(_captureDir))
+                ProcessAutoCapture();
+        }
+
+        private void ProcessAutoCapture()
+        {
+            _captureWaitFrames++;
+            if (_captureWaitFrames < 18) return;
+            _captureWaitFrames = 0;
+
+            System.IO.Directory.CreateDirectory(_captureDir!);
+            var img = GetViewport().GetTexture().GetImage();
+            if (_captureStep == 0)
+            {
+                img.SavePng(System.IO.Path.Combine(_captureDir!, "01_showcase_10m_row1.png"));
+                JumpToMiniGrove();
+                _captureStep = 1;
+            }
+            else if (_captureStep == 1)
+            {
+                img.SavePng(System.IO.Path.Combine(_captureDir!, "02_showcase_mini_grove.png"));
+                JumpToInspectionDistance(100.0f);
+                _captureStep = 2;
+            }
+            else if (_captureStep == 2)
+            {
+                img.SavePng(System.IO.Path.Combine(_captureDir!, "03_showcase_100m_overview.png"));
+                GD.Print($"[AutoCapture] Saved 3 FloraShowcase screenshots to {_captureDir}");
+                GetTree().Quit(0);
             }
         }
 

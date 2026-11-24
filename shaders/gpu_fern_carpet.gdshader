@@ -44,20 +44,23 @@ void vertex() {
 	float temp_c = cl.r * 53.0 - 15.0;
 	float soil_depth = sb.b;
 
-	// Lush fern understory thrives under forest canopy (canopy > 0.20) or moist riverbanks!
-	float forest_niche = max(smoothstep(0.18, 0.52, canopy), smoothstep(0.06, 0.25, river_mask) * (1.0 - smoothstep(0.32, 0.48, river_mask)));
+	// Lush fern understory thrives across the entire forest floor (canopy > 0.12 or ForestBrown soil) & moist riverbanks!
+	float forest_niche = max(
+		max(smoothstep(0.12, 0.42, canopy), smoothstep(0.35, 0.72, sa.g) * 0.90),
+		smoothstep(0.06, 0.25, river_mask) * (1.0 - smoothstep(0.32, 0.48, river_mask))
+	);
 	float valid = step(0.8, ground_h)
 	            * forest_niche
-	            * smoothstep(0.28, 0.52, moisture)
-	            * smoothstep(4.0, 11.0, temp_c)
+	            * smoothstep(0.24, 0.48, moisture)
+	            * smoothstep(3.0, 10.0, temp_c)
 	            * (1.0 - smoothstep(0.35, 0.65, sa.a)) // no arid desert
-	            * smoothstep(0.10, 0.28, soil_depth);
+	            * smoothstep(0.08, 0.25, soil_depth);
 
 	float cam_dist = length(CAMERA_POSITION_WORLD.xz - inst_world.xz);
-	float dist_fade = 1.0 - smoothstep(38.0, 56.0, cam_dist);
+	float dist_fade = 1.0 - smoothstep(48.0, 70.0, cam_dist);
 
 	float rnd = hash12(floor(inst_world.xz * 1.5));
-	float scale_h = mix(0.65, 1.38, rnd);
+	float scale_h = mix(0.52, 1.02, rnd);
 	float final_scale = valid * dist_fade;
 
 	// Dappled rainforest yellow-green sunlight variation

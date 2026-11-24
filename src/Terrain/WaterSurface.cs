@@ -17,7 +17,7 @@ namespace PrimevalWorld.Terrain
         private ShaderMaterial? _oceanMaterial;
         private ShaderMaterial? _riverMaterial;
 
-        public void BuildWater(HydrologySolver hydrology)
+        public void BuildWater(HydrologySolver hydrology, ErosionPhysics? erosion = null)
         {
             if (_oceanMaterial == null)
             {
@@ -34,7 +34,7 @@ namespace PrimevalWorld.Terrain
             }
 
             BuildHorizonOceanPlane();
-            BuildInlandWaterMesh(hydrology);
+            BuildInlandWaterMesh(hydrology, erosion);
         }
 
         public void UpdateWeather(ImageTexture weatherTex, float riverSurgeOffset, float globalWindGust)
@@ -79,7 +79,7 @@ namespace PrimevalWorld.Terrain
             );
         }
 
-        private void BuildInlandWaterMesh(HydrologySolver hydrology)
+        private void BuildInlandWaterMesh(HydrologySolver hydrology, ErosionPhysics? erosion)
         {
             _inlandWaterMesh?.QueueFree();
             _inlandWaterMesh = new MeshInstance3D
@@ -92,6 +92,7 @@ namespace PrimevalWorld.Terrain
             const float cellMeters = WorldPhysicsConfig.CellSize; // Full 9.375m resolution (no 18.75m blocky slabs!)
             int w = WorldPhysicsConfig.VertW;
             int h = WorldPhysicsConfig.VertH;
+            float[]? heightMap = erosion?.HeightMap;
 
             var st = new SurfaceTool();
             st.Begin(Mesh.PrimitiveType.Triangles);
@@ -108,10 +109,10 @@ namespace PrimevalWorld.Terrain
                     int i01 = i00 + w;
                     int i11 = i01 + 1;
 
-                    bool w00 = hydrology.HasInlandWater[i00];
-                    bool w10 = hydrology.HasInlandWater[i10];
-                    bool w01 = hydrology.HasInlandWater[i01];
-                    bool w11 = hydrology.HasInlandWater[i11];
+                    bool w00 = hydrology.HasInlandWater[i00] && hydrology.InlandWaterY[i00] > WorldPhysicsConfig.SeaLevel + 0.12f;
+                    bool w10 = hydrology.HasInlandWater[i10] && hydrology.InlandWaterY[i10] > WorldPhysicsConfig.SeaLevel + 0.12f;
+                    bool w01 = hydrology.HasInlandWater[i01] && hydrology.InlandWaterY[i01] > WorldPhysicsConfig.SeaLevel + 0.12f;
+                    bool w11 = hydrology.HasInlandWater[i11] && hydrology.InlandWaterY[i11] > WorldPhysicsConfig.SeaLevel + 0.12f;
                     if (!w00 && !w10 && !w01 && !w11) continue;
 
                     float avgY = 0.0f;
@@ -122,14 +123,27 @@ namespace PrimevalWorld.Terrain
                     if (w11) { avgY += hydrology.InlandWaterY[i11]; cnt++; }
                     avgY /= cnt;
 
+                    // Skip isolated 1-corner coastal cliff cells where a dry corner plunges below sea level
+                    // (prevents hanging white water triangles jutting out of steep coastal headlands!)
+                    if (heightMap != null && cnt <= 2)
+                    {
+                        float minTerrain = MathF.Min(MathF.Min(heightMap[i00], heightMap[i10]), MathF.Min(heightMap[i01], heightMap[i11]));
+                        if (minTerrain < WorldPhysicsConfig.SeaLevel - 0.5f && avgY > WorldPhysicsConfig.SeaLevel + 1.5f)
+                            continue;
+                    }
+
                     float x0 = gx * cellMeters;
                     float x1 = x0 + cellMeters;
 
-                    // Dry perimeter vertices tuck gently (-0.16m) under the bank with shoreAlpha = 0.0
-                    Vector3 v00 = new Vector3(x0, w00 ? hydrology.InlandWaterY[i00] : avgY - 0.16f, z0);
-                    Vector3 v10 = new Vector3(x1, w10 ? hydrology.InlandWaterY[i10] : avgY - 0.16f, z0);
-                    Vector3 v01 = new Vector3(x0, w01 ? hydrology.InlandWaterY[i01] : avgY - 0.16f, z1);
-                    Vector3 v11 = new Vector3(x1, w11 ? hydrology.InlandWaterY[i11] : avgY - 0.16f, z1);
+                    float DryY(int idx) => heightMap != null
+                        ? MathF.Min(avgY - 0.22f, heightMap[idx] - 0.35f)
+                        : avgY - 0.22f;
+
+                    // Dry perimeter vertices tuck strictly below the bank/terrain with shoreAlpha = 0.0
+                    Vector3 v00 = new Vector3(x0, w00 ? hydrology.InlandWaterY[i00] : DryY(i00), z0);
+                    Vector3 v10 = new Vector3(x1, w10 ? hydrology.InlandWaterY[i10] : DryY(i10), z0);
+                    Vector3 v01 = new Vector3(x0, w01 ? hydrology.InlandWaterY[i01] : DryY(i01), z1);
+                    Vector3 v11 = new Vector3(x1, w11 ? hydrology.InlandWaterY[i11] : DryY(i11), z1);
 
                     Color MakeVertColor(int idx, bool wet) => new Color(
                         Math.Clamp(hydrology.WaterVelocityMap[idx] / 5.5f, 0.0f, 1.0f),
