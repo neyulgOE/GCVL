@@ -342,5 +342,34 @@ namespace PrimevalWorld.WorldGen
         public float SampleRiverMask(float worldX, float worldZ) => SampleBilinear(RiverMaskMap, worldX, worldZ);
         public float SampleFloodplain(float worldX, float worldZ) => SampleBilinear(FloodplainMask, worldX, worldZ);
         public float SampleWetland(float worldX, float worldZ) => SampleBilinear(WetlandMask, worldX, worldZ);
+
+        /// <summary>
+        /// Exact water depth at continuous world coordinates (wx, wz): checks ocean depth below sea level,
+        /// bilinear WaterDepthMap, and all 4 surrounding grid corners so shoreline/river-edge trees never stand in deep water.
+        /// </summary>
+        public float SampleWaterDepthAt(float worldX, float worldZ, float groundH)
+        {
+            float oceanDepth = groundH < 0.0f ? -groundH : 0.0f;
+            float cx = Math.Clamp(worldX / Cell, 0.0f, W - 1.001f);
+            float cz = Math.Clamp(worldZ / Cell, 0.0f, H - 1.001f);
+            int x0 = (int)cx;
+            int z0 = (int)cz;
+            float tx = cx - x0;
+            float tz = cz - z0;
+            int idx = z0 * W + x0;
+
+            float d00 = WaterDepthMap[idx];
+            float d10 = WaterDepthMap[idx + 1];
+            float d01 = WaterDepthMap[idx + W];
+            float d11 = WaterDepthMap[idx + W + 1];
+            float bilin = (d00 * (1.0f - tx) + d10 * tx) * (1.0f - tz)
+                        + (d01 * (1.0f - tx) + d11 * tx) * tz;
+
+            int nearX = Math.Clamp((int)MathF.Round(worldX / Cell), 0, W - 1);
+            int nearZ = Math.Clamp((int)MathF.Round(worldZ / Cell), 0, H - 1);
+            float dNear = WaterDepthMap[nearZ * W + nearX];
+
+            return MathF.Max(oceanDepth, MathF.Max(bilin, dNear));
+        }
     }
 }

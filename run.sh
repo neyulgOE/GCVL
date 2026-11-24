@@ -7,6 +7,7 @@ export __GLX_VENDOR_LIBRARY_NAME=nvidia
 export __VK_LAYER_NV_optimus=NVIDIA_only
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+mkdir -p "${XDG_DATA_HOME:-$HOME/.local/share}/godot/app_userdata/Primeval Reach/logs" 2>/dev/null || true
 
 if [[ "${1:-}" == "--flora-test" ]]; then
     shift

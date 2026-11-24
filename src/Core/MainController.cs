@@ -41,6 +41,7 @@ namespace PrimevalWorld.Core
 
         private ImageTexture[] _mapTextures = new ImageTexture[9];
         private float _radarRefreshAccum;
+        private float _hudRefreshAccum = 999.0f;
         private int _mapMode = 0;
         private int _seed = 2026;
         private bool _floraEnabled = true;
@@ -171,13 +172,17 @@ namespace PrimevalWorld.Core
             floraBtn.Pressed += ToggleFlora;
             btnRow.AddChild(floraBtn);
 
+            var lodDbgBtn = new Button { Text = "Soi LOD (L)" };
+            lodDbgBtn.Pressed += () => { _floraMgr?.ToggleLodDebugMode(); _hudRefreshAccum = 999.0f; };
+            btnRow.AddChild(lodDbgBtn);
+
             var resetCamBtn = new Button { Text = "Toàn cảnh (R)" };
             resetCamBtn.Pressed += () => _camera?.ResetToScenicOverlook();
             btnRow.AddChild(resetCamBtn);
 
             var helpLabel = new Label
             {
-                Text = "WASD: Bay/Đi | V: Góc nhìn Thú (0.85/1.65/3.6m) | 1-5: 5 Vùng | M: Bản đồ 9 lớp (Phím 7: 7 Hệ sinh thái) | F: Cây | [/]: Tốc độ | T:+3h | Y: Mùa | P: Thời tiết",
+                Text = "WASD: Bay/Đi | V: Thú (0.85/1.65/3.6m) | 1-5: 5 Vùng | M: Bản đồ 9 lớp | F: Cây | L: Soi màu LOD (Đỏ/Vàng/Xanh) | [/]: Tốc độ | T:+3h | Y: Mùa | P: Thời tiết",
             };
             helpLabel.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
             helpLabel.OffsetLeft = 16;
@@ -396,8 +401,9 @@ namespace PrimevalWorld.Core
             if (_camera != null)
             {
                 _terrainMgr?.UpdateLod(_camera.Position);
-                if (_floraEnabled) _floraMgr?.UpdateStreaming(_camera.Position);
+                if (_floraEnabled) _floraMgr?.UpdateStreaming(_camera, 1.0f);
             }
+            _hudRefreshAccum = 999.0f;
 
             // Report comprehensive Stage 1+2+3 statistics
             int totalLand = System.Math.Max(1, _soil.TotalLandCells);
@@ -415,8 +421,6 @@ namespace PrimevalWorld.Core
                 var spw = _floraMgr.Spawner;
                 int eLand = System.Math.Max(1, spw.TotalEmergentLandCells);
                 var inv = System.Globalization.CultureInfo.InvariantCulture;
-                int forestViewTrees = _floraMgr.EstimateActiveTreesAt(new Vector3(6350.0f, 52.0f, 3420.0f));
-                int steppeViewTrees = _floraMgr.EstimateActiveTreesAt(new Vector3(6780.0f, 75.0f, 1620.0f));
                 GD.Print(string.Create(inv, $"[Ecosystem7Budget] LandCells={eLand:N0} | " +
                          $"1.PrimevalForest={spw.EcosystemLandCounts[1] * 100f / eLand:F1}% | " +
                          $"2.AlluvialFloodplain={spw.EcosystemLandCounts[2] * 100f / eLand:F1}% | " +
@@ -426,7 +430,7 @@ namespace PrimevalWorld.Core
                          $"6.AlpineSnowRock={spw.EcosystemLandCounts[6] * 100f / eLand:F1}% | " +
                          $"7.CoastlineDunes={spw.EcosystemLandCounts[7] * 100f / eLand:F1}%"));
                 GD.Print(string.Create(inv, $"[Flora6Layers] SpawnTime={spw.LastSpawnMs:F1}ms | WoodyTrees(L1+L2)={spw.TotalWoodyTrees:N0} | TotalAllLayers={spw.TotalInstances:N0} | " +
-                         $"ActiveTrees(ForestEcotone)={forestViewTrees:N0} | ActiveTrees(Steppe)={steppeViewTrees:N0} | " +
+                         $"SparseNodes={_floraMgr.TotalSparseNodes:N0} | " +
                          $"L1_Emergent={spw.LayerCounts[1]:N0}, L2_Canopy={spw.LayerCounts[2]:N0}, L3_Understory={spw.LayerCounts[3]:N0}, " +
                          $"L4_Shrub={spw.LayerCounts[4]:N0}, L5_Herb={spw.LayerCounts[5]:N0}, L6_Litter={spw.LayerCounts[6]:N0}"));
                 GD.Print($"[Flora4StemGroups] WoodyBranching={spw.StemGroupCounts[0]:N0} | DwarfWoodyShrub={spw.StemGroupCounts[1]:N0} | " +
@@ -438,6 +442,7 @@ namespace PrimevalWorld.Core
                         parts.Append($"{FloraNicheDatabase.AllSpecies[s].SpeciesKey}={spw.SpeciesCounts[s]:N0} | ");
                 }
                 GD.Print(parts.ToString());
+                FloraValidationReport.RunAndPrint(_floraMgr, _hydrology);
             }
 
             float sumTempMin = _climate.MinTempC + 9.5f - 5.5f;
@@ -463,6 +468,11 @@ namespace PrimevalWorld.Core
                         break;
                     case Key.F:
                         ToggleFlora();
+                        _hudRefreshAccum = 999.0f;
+                        break;
+                    case Key.L:
+                        _floraMgr?.ToggleLodDebugMode();
+                        _hudRefreshAccum = 999.0f;
                         break;
                     case Key.Key1:
                         if (_worldMapOverlay?.Visible == true) SetMapMode(0);
@@ -536,7 +546,7 @@ namespace PrimevalWorld.Core
                 _terrainMgr?.UpdateLod(_camera.Position);
                 if (_floraEnabled)
                 {
-                    _floraMgr?.UpdateStreaming(_camera.Position);
+                    _floraMgr?.UpdateStreaming(_camera, dt);
                     _grassRing?.UpdateDynamicState(_camera.Position, _weather.WeatherDynamicTex, _clock.SeasonPhase, _weather.GlobalWindGust);
                 }
 
@@ -544,27 +554,40 @@ namespace PrimevalWorld.Core
                 _weatherVfx?.UpdateForCamera(_camera.Position, liveW);
                 UpdateSkyAndLighting(liveW);
 
-                if (_telemetryLabel != null)
+                _hudRefreshAccum += dt;
+                if (_telemetryLabel != null && _hudRefreshAccum >= 0.25f)
                 {
+                    _hudRefreshAccum = 0.0f;
+                    var inv = System.Globalization.CultureInfo.InvariantCulture;
                     Vector3 p = _camera.Position;
                     float h = _erosion.SampleHeight(p.X, p.Z);
                     float slope = _erosion.SampleSlopeDeg(p.X, p.Z);
                     SoilSample ss = _soil.SampleSoil(p.X, p.Z);
-                    int tris = _terrainMgr?.ActiveTriangleEstimate ?? 0;
+
+                    double fps = Engine.GetFramesPerSecond();
+                    double cpuMs = Performance.GetMonitor(Performance.Monitor.TimeProcess) * 1000.0;
+                    ulong drawCalls = RenderingServer.GetRenderingInfo(RenderingServer.RenderingInfo.TotalDrawCallsInFrame);
+                    ulong totalPrims = RenderingServer.GetRenderingInfo(RenderingServer.RenderingInfo.TotalPrimitivesInFrame);
+
                     string domSp = _floraEnabled && _floraMgr != null ? _floraMgr.GetDominantSpeciesNameAt(p.X, p.Z) : "Tắt";
-                    string floraStr = _floraEnabled
-                        ? $"Cây gỗ: {_floraMgr?.Spawner.TotalWoodyTrees ?? 0:N0} (Đang vẽ: {_floraMgr?.ActiveTreeCount ?? 0:N0}) | Vùng: {domSp}"
-                        : "Cây: Tắt [F]";
+                    string lodBadge = (_floraMgr != null && _floraMgr.LodDebugEnabled)
+                        ? " | [SOI LOD (L): ĐỎ=LOD0 | VÀNG=LOD1 | XANH=LOD2]"
+                        : "";
+
+                    string floraTelemetryLine = _floraEnabled && _floraMgr != null
+                        ? string.Create(inv, $"Bucket Active (LOD0/1/2): {_floraMgr.BucketActiveLod0Trees:N0} / {_floraMgr.BucketActiveLod1Trees:N0} / {_floraMgr.BucketActiveLod2Trees:N0} | Shadow Trees: {_floraMgr.ShadowTrees:N0} | Flora Nodes: {_floraMgr.VisibleMultiMeshNodes:N0}/{_floraMgr.TotalSparseNodes:N0} | Vùng: {domSp}")
+                        : "Flora: Tắt [F]";
 
                     int hh = (int)_clock.TimeOfDay;
                     int mm = (int)((_clock.TimeOfDay - hh) * 60.0f);
                     string speedStr = _clock.IsPaused ? "Dừng" : $"x{_clock.SpeedMultiplier:0}";
                     string warnStr = string.IsNullOrEmpty(_camera.MovementWarning) ? "" : $" | [!] {_camera.MovementWarning}";
 
-                    _telemetryLabel.Text =
-                        $"Primeval Reach 9.6x5.4 km | FPS: {Engine.GetFramesPerSecond():0} | Tris: {tris:N0} | Góc nhìn [V]: {_camera.PovLabel}{warnStr}\n" +
-                        $"Ngày {_clock.DayOfYear + 1} | Mùa {_clock.SeasonNameVi} | {hh:00}:{mm:00} ({speedStr}) | {liveW.ConditionLabel} | Nhiệt: {liveW.LiveTempC:0.0}°C | Tuyết: {liveW.SnowAccum * 100f:0}% | Ẩm mặt: {liveW.Wetness * 100f:0}% | {floraStr}\n" +
-                        $"Cao độ: {h:0.0}m | Dốc: {slope:0.0}° | Gió: {liveW.LiveWindSpeed:0.0}m/s | Mây: {liveW.CloudCover * 100f:0}% | Đất: {FormatSoil(ss.DominantSoil)}";
+                    _telemetryLabel.Text = string.Create(inv,
+                        $"Primeval Reach 9.6x5.4 km | FPS: {fps:F0} (CPU: {cpuMs:F2}ms) | DrawCalls: {drawCalls:N0} | Prims: {totalPrims:N0} | Góc nhìn [V]: {_camera.PovLabel}{warnStr}{lodBadge}\n" +
+                        $"Ngày {_clock.DayOfYear + 1} | Mùa {_clock.SeasonNameVi} | {hh:00}:{mm:00} ({speedStr}) | {liveW.ConditionLabel} | Nhiệt: {liveW.LiveTempC:F1}°C | Tuyết: {liveW.SnowAccum * 100f:F0}% | Ẩm mặt: {liveW.Wetness * 100f:F0}%\n" +
+                        $"{floraTelemetryLine}\n" +
+                        $"Cao độ: {h:F1}m | Dốc: {slope:F1}° | Gió: {liveW.LiveWindSpeed:F1}m/s | Mây: {liveW.CloudCover * 100f:F0}% | Đất: {FormatSoil(ss.DominantSoil)}");
                 }
             }
 
@@ -595,7 +618,7 @@ namespace PrimevalWorld.Core
 
             Vector3 activeDir = elev > 0.0f ? sunDir : new Vector3(-sunDir.X, Mathf.Max(0.22f, -sunDir.Y), -sunDir.Z).Normalized();
             _sunLight.LookAtFromPosition(activeDir * 100.0f, Vector3.Zero, Vector3.Up);
-            _sunLight.DirectionalShadowMaxDistance = (_camera != null && _camera.IsAnimalPov) ? 260.0f : 900.0f;
+            _sunLight.DirectionalShadowMaxDistance = (_camera != null && _camera.IsAnimalPov) ? 230.0f : 380.0f;
 
             Color dayCol = new Color(1.0f, 0.94f, 0.86f);
             Color goldenCol = new Color(1.0f, 0.64f, 0.34f);

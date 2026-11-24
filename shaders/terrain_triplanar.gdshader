@@ -8,6 +8,8 @@ uniform sampler2D canopy_coverage_tex : filter_linear, repeat_disable; // R=Cano
 uniform sampler2D weather_dynamic_tex : filter_linear, repeat_disable; // R=SnowAccum, G=Wetness, B=SurfaceIce, A=CloudShadow
 
 uniform vec2 world_size = vec2(9600.0, 5400.0);
+uniform float canopy_ground_blend_start = 1100.0;
+uniform float canopy_ground_blend_end = 1350.0;
 
 varying vec3 v_world_pos;
 varying vec3 v_world_normal;
@@ -164,9 +166,8 @@ void fragment() {
 	vec3 wetland_peat = mix(vec3(0.09, 0.14, 0.06), vec3(0.15, 0.24, 0.08), micro_detail);
 	soil_col = mix(soil_col, wetland_peat, wetland_mask * 0.78);
 
-	// Near-to-mid (< 1150m): dark mossy humus under closed forest canopy
-	// Far (> 1150m..1560m): Canopy Ground Splatting seamlessly replaces faded LOD2 trees!
-	float far_canopy_blend = smoothstep(1150.0, 1560.0, cam_dist);
+	// Synchronized via FloraLodConfig with LOD2 tree FarFade [1100m..1350m] so ground never darkens/pops early!
+	float far_canopy_blend = smoothstep(canopy_ground_blend_start, canopy_ground_blend_end, cam_dist);
 	float crown_dapple = fbm3(v_world_pos.xz * 0.095);
 	vec3 near_humus = vec3(0.06, 0.11, 0.04);
 	vec3 far_canopy_crown = mix(vec3(0.08, 0.18, 0.05), vec3(0.16, 0.31, 0.09), crown_dapple);

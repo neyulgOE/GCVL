@@ -213,6 +213,7 @@ namespace PrimevalWorld.Tools
             _floraMat.SetShaderParameter("leaf_palm_tex", _botTex.PalmFernTex);
             _floraMat.SetShaderParameter("bark_tex", _botTex.BarkRoughTex);
             _floraMat.SetShaderParameter("bark_pale_tex", _botTex.BarkPaleTex);
+            FloraLodConfig.ApplyToFloraMaterial(_floraMat, 0, false);
 
             AgeStage[] ages = { AgeStage.Young, AgeStage.Mature, AgeStage.Ancient };
             for (int row = 0; row < ShowcaseSpecies.Length; row++)

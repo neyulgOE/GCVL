@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 using PrimevalWorld.Core;
+using PrimevalWorld.Flora;
 using PrimevalWorld.WorldGen;
 
 namespace PrimevalWorld.Terrain
@@ -42,6 +43,7 @@ namespace PrimevalWorld.Terrain
             _terrainMaterial.SetShaderParameter("soil_tex_a", soilA);
             _terrainMaterial.SetShaderParameter("soil_tex_b", soilB);
             _terrainMaterial.SetShaderParameter("climate_tex", climateTex);
+            FloraLodConfig.ApplyToTerrainMaterial(_terrainMaterial);
 
             for (int cz = 0; cz < WorldPhysicsConfig.ChunksZ; cz++)
             {

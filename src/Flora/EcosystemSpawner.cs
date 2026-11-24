@@ -20,6 +20,26 @@ namespace PrimevalWorld.Flora
         CoastlineSaltDunes = 7,    // 7. Bờ biển, Đầm mặn & Cồn cát (4-6%)
     }
 
+    public readonly struct WoodyTreeRecord
+    {
+        public readonly float X;
+        public readonly float Z;
+        public readonly float ActualCrownRadiusM;
+        public readonly LandEcosystemId Ecosystem;
+        public readonly float CorridorValue;
+        public readonly float WaterDepthM;
+
+        public WoodyTreeRecord(float x, float z, float actualCrownRadiusM, LandEcosystemId eco, float corridorValue, float waterDepthM)
+        {
+            X = x;
+            Z = z;
+            ActualCrownRadiusM = actualCrownRadiusM;
+            Ecosystem = eco;
+            CorridorValue = corridorValue;
+            WaterDepthM = waterDepthM;
+        }
+    }
+
     public readonly struct FloraInstance
     {
         public readonly FloraSpeciesId Species;
@@ -70,6 +90,8 @@ namespace PrimevalWorld.Flora
 
         public List<FloraInstance>[,] MacroCanopyCells { get; } = new List<FloraInstance>[MacroCols, MacroRows];
         public List<FloraInstance>[,] MicroDetailCells { get; } = new List<FloraInstance>[MicroCols, MicroRows];
+        public List<WoodyTreeRecord> AcceptedWoodyRecords { get; } = new(64000);
+        public int DeepWaterDetailCount { get; private set; }
 
         public int[] LayerCounts { get; } = new int[7];     // indices 1..6
         public int[] StemGroupCounts { get; } = new int[4]; // indices 0..3
@@ -110,6 +132,8 @@ namespace PrimevalWorld.Flora
             Array.Clear(SpeciesCounts, 0, SpeciesCounts.Length);
             Array.Fill(GroundLightMap, 1.0f);
             Array.Fill(DominantSpeciesMap, (sbyte)-1);
+            AcceptedWoodyRecords.Clear();
+            DeepWaterDetailCount = 0;
             TotalInstances = 0;
 
             for (int z = 0; z < MacroRows; z++)
@@ -154,6 +178,9 @@ namespace PrimevalWorld.Flora
 
                     float h = erosion.SampleHeight(wx, wz);
                     if (h <= 0.40f) continue;
+
+                    // Strict deep-water gate: 0 woody trees allowed where water_depth > 0.30m!
+                    if (hydrology.SampleWaterDepthAt(wx, wz, h) > 0.30f) continue;
 
                     int gx = Math.Clamp((int)(wx / Cell), 0, W - 1);
                     int gz = Math.Clamp((int)(wz / Cell), 0, H - 1);
@@ -355,6 +382,13 @@ namespace PrimevalWorld.Flora
                     int mz = Math.Clamp((int)(cand.Z / MacroCellSize), 0, MacroRows - 1);
                     MacroCanopyCells[mx, mz].Add(new FloraInstance(cand.Species, xform, cand.CustomData));
 
+                    int cgx = Math.Clamp((int)(cand.X / Cell), 0, W - 1);
+                    int cgz = Math.Clamp((int)(cand.Z / Cell), 0, H - 1);
+                    float actualCrownR = prof.CrownRadiusM * sXZ;
+                    float wDepth = hydrology.SampleWaterDepthAt(cand.X, cand.Z, cand.Y);
+                    AcceptedWoodyRecords.Add(new WoodyTreeRecord(
+                        cand.X, cand.Z, actualCrownR, cand.Eco, CorridorMask[cgz * W + cgx], wDepth));
+
                     LayerCounts[(int)prof.Layer]++;
                     StemGroupCounts[(int)prof.Stem]++;
                     SpeciesCounts[(int)cand.Species]++;
@@ -381,9 +415,13 @@ namespace PrimevalWorld.Flora
                 if (prof.Layer != FloraLayer.Emergent || tree.Species == FloraSpeciesId.BaobabPrehistoric)
                     continue;
 
-                AddDetailInstance(FloraSpeciesId.EpiphyteBaseVine, tree.X + 0.35f, tree.Z + 0.25f,
-                    erosion.SampleHeight(tree.X + 0.35f, tree.Z + 0.25f), 1.05f, (tree.Hash & 0xFFF) / 4095.0f * Mathf.Tau,
-                    new Color(0.92f, 1.04f, 0.86f, 0.5f));
+                float vineH = erosion.SampleHeight(tree.X + 0.35f, tree.Z + 0.25f);
+                if (vineH > 0.35f && hydrology.SampleWaterDepthAt(tree.X + 0.35f, tree.Z + 0.25f, vineH) <= 0.30f)
+                {
+                    AddDetailInstance(FloraSpeciesId.EpiphyteBaseVine, tree.X + 0.35f, tree.Z + 0.25f,
+                        vineH, 1.05f, (tree.Hash & 0xFFF) / 4095.0f * Mathf.Tau,
+                        new Color(0.92f, 1.04f, 0.86f, 0.5f));
+                }
 
                 if (tree.Eco != LandEcosystemId.PrimevalDenseForest && tree.Eco != LandEcosystemId.WetlandAndDelta)
                     continue;
@@ -405,7 +443,7 @@ namespace PrimevalWorld.Flora
                     if (px < 15f || px > WorldPhysicsConfig.WorldWidth - 15f || pz < 15f || pz > WorldPhysicsConfig.WorldDepth - 15f)
                         continue;
                     float ph = erosion.SampleHeight(px, pz);
-                    if (ph <= 0.4f) continue;
+                    if (ph <= 0.4f || hydrology.SampleWaterDepthAt(px, pz, ph) > 0.30f) continue;
 
                     FloraSpeciesId symId = symbiotes[(sh >> 16) % (uint)symbiotes.Length];
                     Color symTint = symId == FloraSpeciesId.ArborescentTreeFern || symId == FloraSpeciesId.CycadPrehistoric
@@ -448,13 +486,13 @@ namespace PrimevalWorld.Flora
                                 continue;
 
                             float h = erosion.SampleHeight(wx, wz);
-                            if (h <= 0.22f) continue;
+                            if (h <= 0.22f || hydrology.SampleWaterDepthAt(wx, wz, h) > 0.30f) continue;
 
                             int gx = Math.Clamp((int)(wx / Cell), 0, W - 1);
                             int gz = Math.Clamp((int)(wz / Cell), 0, H - 1);
                             int gIdx = gz * W + gx;
 
-                            if (hydrology.RiverMaskMap[gIdx] > 0.45f && hydrology.WaterDepthMap[gIdx] > 0.55f) continue;
+                            if (hydrology.RiverMaskMap[gIdx] > 0.45f && hydrology.WaterDepthMap[gIdx] > 0.30f) continue;
 
                             LandEcosystemId eco = EcosystemMap[gIdx];
                             float slopeDeg = erosion.SlopeDegMap[gIdx];
@@ -576,6 +614,9 @@ namespace PrimevalWorld.Flora
                     {
                         FloraSpeciesId sp = list[i].Species;
                         FloraNicheProfile prof = FloraNicheDatabase.AllSpecies[(int)sp];
+                        Vector3 o = list[i].Transform.Origin;
+                        if (hydrology.SampleWaterDepthAt(o.X, o.Z, o.Y + 0.10f) > 0.30f)
+                            DeepWaterDetailCount++;
                         LayerCounts[(int)prof.Layer]++;
                         StemGroupCounts[(int)prof.Stem]++;
                         SpeciesCounts[(int)sp]++;
