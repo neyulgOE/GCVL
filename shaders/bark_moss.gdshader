@@ -1,7 +1,7 @@
 shader_type spatial;
 render_mode blend_mix, depth_draw_opaque, cull_back, diffuse_burley, specular_schlick_ggx;
 
-// Dedicated Surface 0 PBR Bark + Organic World-Space Moss Shader (CC0 1K Poly Haven PBR maps)
+// Dedicated Surface 0 PBR Bark + Organic World-Space Moss Shader (4 Seamless 1K PBR Bark Sets + CC0 Moss)
 // Synchronized 100% with FloraLodConfig.cs Bayer 4x4 LOD crossfade & [L] LOD Debug View.
 
 uniform sampler2D bark_hardwood_albedo : source_color, filter_linear_mipmap, repeat_enable;
@@ -12,7 +12,14 @@ uniform sampler2D bark_conifer_albedo : source_color, filter_linear_mipmap, repe
 uniform sampler2D bark_conifer_normal : hint_normal, filter_linear_mipmap, repeat_enable;
 uniform sampler2D bark_conifer_roughness : filter_linear_mipmap, repeat_enable;
 
-uniform sampler2D bark_pale_albedo : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D bark_ancient_mossy_albedo : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D bark_ancient_mossy_normal : hint_normal, filter_linear_mipmap, repeat_enable;
+uniform sampler2D bark_ancient_mossy_roughness : filter_linear_mipmap, repeat_enable;
+
+uniform sampler2D bark_sequoia_conifer_albedo : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D bark_sequoia_conifer_normal : hint_normal, filter_linear_mipmap, repeat_enable;
+uniform sampler2D bark_sequoia_conifer_roughness : filter_linear_mipmap, repeat_enable;
+
 uniform sampler2D moss_albedo : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D moss_normal : hint_normal, filter_linear_mipmap, repeat_enable;
 
@@ -36,18 +43,18 @@ uniform float far_fade_start = 1100.0;
 uniform float far_fade_end = 1350.0;
 uniform float detail_fade_start = 310.0;
 uniform float detail_fade_end = 400.0;
-uniform float close_understory_fade_start = 75.0;
-uniform float close_understory_fade_end = 100.0;
+uniform float close_understory_fade_start = 115.0;
+uniform float close_understory_fade_end = 145.0;
 
 varying vec3 v_color;
 varying vec3 v_world_pos;
 varying vec3 v_world_normal;
 varying vec2 v_uv;
-varying float v_bark_style;   // UV2.x: 0=Hardwood, 1=Conifer, 2=PaleBirch, 3=DryDesert
-varying float v_moss_mult;    // UV2.y: moss multiplier (1.0=forest/log, 0.35=conifer/steppe, 0.05=desert)
+varying float v_bark_style;   // UV2.x: 0=Hardwood, 1=Conifer, 2=PaleBirch, 3=DryDesert, 4=AncientMossy, 5=SequoiaConifer, 6=ColumnarCactus
+varying float v_moss_mult;    // UV2.y: moss multiplier (0.0=cactus/desert, 1.0=forest/log)
 varying float v_local_y;
 varying float v_snow_accum;
-varying float v_site_moss;    // moisture + canopy_coverage boost
+varying float v_site_moss;
 varying float v_inst_cam_dist;
 
 vec2 hash21_v(vec2 p) {
@@ -126,7 +133,7 @@ void vertex() {
 		vec2 local_wind_dir = normalize(vec2(w_data.r * 2.0 - 1.0, w_data.g * 2.0 - 1.0) + vec2(0.0001));
 		float local_wind_speed = w_data.b * 30.0 * global_wind_gust;
 
-		// Identical per-instance twist & aspect deformation as flora_wind.gdshader so bark & leaves stay 100% locked!
+		// Identical per-instance twist & aspect deformation as flora_wind.gdshader
 		vec2 inst_rnd = hash21_v(floor(world_origin.xz * 0.5));
 		float twist_ang = (inst_rnd.x - 0.5) * 0.42 * clamp(VERTEX.y / 14.0, 0.0, 1.0);
 		float c_tw = cos(twist_ang);
@@ -137,12 +144,11 @@ void vertex() {
 		VERTEX.x = rx * aspect_var;
 		VERTEX.z = rz * aspect_var;
 
-		float flag_lean = smoothstep(11.0, 26.0, local_wind_speed) * clamp(VERTEX.y / 12.0, 0.0, 1.4) * 0.55;
-		VERTEX.xz += local_wind_dir * flag_lean;
-
-		float phase = dot(world_origin.xz, local_wind_dir) * 0.16;
-		float freq = 1.2 + local_wind_speed * 0.12;
 		if (stem_flex > 0.005) {
+			float flag_lean = smoothstep(11.0, 26.0, local_wind_speed) * clamp(VERTEX.y / 12.0, 0.0, 1.4) * 0.55;
+			VERTEX.xz += local_wind_dir * flag_lean;
+			float phase = dot(world_origin.xz, local_wind_dir) * 0.16;
+			float freq = 1.2 + local_wind_speed * 0.12;
 			float h_norm = clamp(VERTEX.y / 8.0, 0.0, 1.5);
 			float sway_mag = sin(TIME * freq + phase) * (0.04 + local_wind_speed * 0.012) * stem_flex * h_norm;
 			VERTEX.xz += local_wind_dir * sway_mag;
@@ -154,7 +160,6 @@ void vertex() {
 }
 
 void fragment() {
-	// 100% synchronized Bayer 4x4 LOD crossfade with flora_wind.gdshader!
 	float dither = bayer4x4(ivec2(FRAGCOORD.xy));
 	if (lod_level == 0) {
 		float t01 = smoothstep(lod0_end - transition_half_band, lod0_end + transition_half_band, v_inst_cam_dist);
@@ -180,57 +185,72 @@ void fragment() {
 	vec3 bark_alb;
 	vec3 bark_nrm;
 	float bark_rgh;
+	bool is_cactus = (v_bark_style >= 5.5);
 
-	if (v_bark_style > 0.5 && v_bark_style < 1.5) {
-		// Conifer / Sequoia furrowed pine bark
+	if (v_bark_style >= 3.5 && v_bark_style < 4.5) {
+		// Primeval Ancient Mossy Giant Bark (Banyan, Sacred Hardwood, Steppe Oak, Bald Cypress, Mangrove)
+		bark_alb = texture(bark_ancient_mossy_albedo, v_uv).rgb;
+		bark_nrm = texture(bark_ancient_mossy_normal, v_uv).rgb;
+		bark_rgh = texture(bark_ancient_mossy_roughness, v_uv).r;
+	} else if (v_bark_style >= 4.5 && v_bark_style < 5.5) {
+		// Sequoia / Araucaria / Boreal Conifer Red-Brown Furrowed Bark
+		bark_alb = texture(bark_sequoia_conifer_albedo, v_uv).rgb;
+		bark_nrm = texture(bark_sequoia_conifer_normal, v_uv).rgb;
+		bark_rgh = texture(bark_sequoia_conifer_roughness, v_uv).r;
+	} else if (v_bark_style >= 0.5 && v_bark_style < 1.5) {
+		// Standard Conifer Bark
 		bark_alb = texture(bark_conifer_albedo, v_uv).rgb;
 		bark_nrm = texture(bark_conifer_normal, v_uv).rgb;
 		bark_rgh = texture(bark_conifer_roughness, v_uv).r;
 	} else if (v_bark_style >= 1.5 && v_bark_style < 2.5) {
-		// Silver Birch pale bark
-		bark_alb = texture(bark_pale_albedo, v_uv).rgb;
+		// Silver Birch Pale Bark with dark horizontal lenticel bands (procedural over hardwood normal)
+		float lenticel = smoothstep(0.58, 0.78, value_noise(vec2(v_uv.x * 4.5, v_uv.y * 28.0)));
+		bark_alb = mix(vec3(0.84, 0.82, 0.77), vec3(0.28, 0.25, 0.22), lenticel * 0.72);
 		bark_nrm = texture(bark_hardwood_normal, v_uv).rgb;
-		bark_rgh = texture(bark_hardwood_roughness, v_uv).r;
+		bark_rgh = max(texture(bark_hardwood_roughness, v_uv).r, 0.82);
+	} else if (is_cactus) {
+		// Columnar Euphorbia Cactus: waxy ribbed green succulent stem (moss_mult = 0)
+		bark_alb = v_color * (0.85 + 0.15 * texture(bark_hardwood_roughness, v_uv).r);
+		bark_nrm = texture(bark_hardwood_normal, v_uv * vec2(2.0, 0.5)).rgb;
+		bark_rgh = 0.68;
 	} else {
-		// Primeval Hardwood / Buttress / Desert bark
+		// Mid-canopy Hardwood / Fallen Logs / Desert Bark
 		bark_alb = texture(bark_hardwood_albedo, v_uv).rgb;
 		bark_nrm = texture(bark_hardwood_normal, v_uv).rgb;
 		bark_rgh = texture(bark_hardwood_roughness, v_uv).r;
 	}
 
-	// Blend vertex bark tint softly so real CC0 bark crevices & grain stay crisp
-	vec3 final_albedo = bark_alb * mix(vec3(1.0), v_color * 2.1, 0.42);
+	vec3 final_albedo = is_cactus ? bark_alb : bark_alb * mix(vec3(1.0), v_color * 2.0, 0.36);
 	vec3 final_normal = bark_nrm;
 
-	// World-space organic moss blending:
-	// 1) Lush emerald-olive moss climbing buttress roots & trunk base (0.0m .. 4.2m local Y with noisy organic edge!)
-	// 2) Upward-facing limbs, roots & mossy fallen logs (world_normal.y > 0.18)
-	vec2 moss_uv = v_world_pos.xz * 0.55 + vec2(v_world_pos.y * 0.35, -v_world_pos.y * 0.25);
-	float moss_noise = value_noise(v_world_pos.xz * 0.78 + vec2(v_world_pos.y * 0.55)) * 0.65
-	                 + value_noise(v_world_pos.xz * 2.25 - vec2(v_world_pos.y * 1.25)) * 0.35;
+	float moss_weight = 0.0;
+	vec3 moss_alb = vec3(0.18, 0.32, 0.11);
+	if (v_moss_mult > 0.01 && !is_cactus) {
+		vec2 moss_uv = v_world_pos.xz * 0.55 + vec2(v_world_pos.y * 0.35, -v_world_pos.y * 0.25);
+		float moss_noise = value_noise(v_world_pos.xz * 0.78 + vec2(v_world_pos.y * 0.55)) * 0.65
+		                 + value_noise(v_world_pos.xz * 2.25 - vec2(v_world_pos.y * 1.25)) * 0.35;
 
-	float organic_climb_h = 3.85 + (moss_noise - 0.5) * 2.6; // organic 2.5m..5.1m creeping rainforest moss edge!
-	float base_moss = smoothstep(organic_climb_h, 0.35, v_local_y) * smoothstep(0.16, 0.56, moss_noise + 0.24);
-	float upward_moss = smoothstep(0.18, 0.58, v_world_normal.y) * smoothstep(0.18, 0.56, moss_noise + 0.20);
-	float moss_weight = clamp(max(base_moss * 0.96, upward_moss * 0.98) * v_moss_mult * v_site_moss, 0.0, 0.96);
+		float organic_climb_h = 3.85 + (moss_noise - 0.5) * 2.6;
+		float base_moss = smoothstep(organic_climb_h, 0.35, v_local_y) * smoothstep(0.16, 0.56, moss_noise + 0.24);
+		float upward_moss = smoothstep(0.18, 0.58, v_world_normal.y) * smoothstep(0.18, 0.56, moss_noise + 0.20);
+		moss_weight = clamp(max(base_moss * 0.96, upward_moss * 0.98) * v_moss_mult * v_site_moss, 0.0, 0.95);
 
-	vec3 moss_raw = texture(moss_albedo, moss_uv).rgb;
-	vec3 moss_alb = clamp(moss_raw * vec3(0.86, 1.38, 0.54) + vec3(0.02, 0.06, 0.01), vec3(0.0), vec3(1.0));
-	vec3 moss_nrm = texture(moss_normal, moss_uv).rgb;
+		vec3 moss_raw = texture(moss_albedo, moss_uv).rgb;
+		moss_alb = clamp(moss_raw * vec3(0.86, 1.38, 0.54) + vec3(0.02, 0.06, 0.01), vec3(0.0), vec3(1.0));
+		vec3 moss_nrm = texture(moss_normal, moss_uv).rgb;
 
-	final_albedo = mix(final_albedo, moss_alb, moss_weight);
-	final_normal = mix(final_normal, moss_nrm, moss_weight * 0.85);
+		final_albedo = mix(final_albedo, moss_alb, moss_weight);
+		final_normal = mix(final_normal, moss_nrm, moss_weight * 0.85);
+	}
 
-	// Winter snow dusting on top of horizontal branches & logs
 	float snow_dust = smoothstep(0.26, 0.65, v_snow_accum) * smoothstep(0.36, 0.78, v_world_normal.y);
 	final_albedo = mix(final_albedo, vec3(0.86, 0.91, 0.96), snow_dust * 0.82);
 
 	ALBEDO = final_albedo;
 	NORMAL_MAP = final_normal;
-	NORMAL_MAP_DEPTH = 1.15;
-	// Strictly lock ROUGHNESS >= 0.80 so trunks never shine like wet plastic!
-	ROUGHNESS = clamp(mix(max(bark_rgh, 0.82), 0.94, max(moss_weight, snow_dust)), 0.80, 0.97);
-	SPECULAR = 0.08;
+	NORMAL_MAP_DEPTH = is_cactus ? 0.55 : 1.15;
+	ROUGHNESS = is_cactus ? 0.68 : clamp(mix(max(bark_rgh, 0.82), 0.94, max(moss_weight, snow_dust)), 0.80, 0.97);
+	SPECULAR = is_cactus ? 0.24 : 0.08;
 	BACKLIGHT = moss_alb * (0.14 * moss_weight);
 
 	if (lod_debug_mode == 1) {

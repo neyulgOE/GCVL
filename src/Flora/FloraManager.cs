@@ -29,8 +29,10 @@ namespace PrimevalWorld.Flora
         private sealed class VariantBatchData
         {
             public readonly FloraMeshLibrary.MeshKey Key;
+            public readonly bool IsAtlasBucket;
             public readonly Transform3D[] LocalTransforms;
             public readonly Color[] CustomDatas;
+            public readonly Color[]? InstanceColors;
             public MultiMesh? CachedLod0Mm;
             public MultiMesh? CachedLod1Mm;
             public MultiMesh? CachedDetailMm;
@@ -38,14 +40,26 @@ namespace PrimevalWorld.Flora
             public VariantBatchData(FloraMeshLibrary.MeshKey key, List<FloraInstance> src, Vector3 cellCenter)
             {
                 Key = key;
+                IsAtlasBucket = FloraMeshLibrary.IsAtlasBucketedKey(key);
                 int n = src.Count;
                 LocalTransforms = new Transform3D[n];
                 CustomDatas = new Color[n];
+                if (IsAtlasBucket) InstanceColors = new Color[n];
+
                 for (int i = 0; i < n; i++)
                 {
                     Transform3D w = src[i].Transform;
                     LocalTransforms[i] = new Transform3D(w.Basis, w.Origin - cellCenter);
-                    CustomDatas[i] = src[i].CustomData;
+                    if (IsAtlasBucket && FloraMeshLibrary.TryGetAtlasBucketInfo(src[i].Species, out Rect2 uvRect, out float flexScale))
+                    {
+                        CustomDatas[i] = new Color(uvRect.Position.X, uvRect.Position.Y, uvRect.Size.X, uvRect.Size.Y);
+                        Color t = src[i].CustomData;
+                        InstanceColors![i] = new Color(t.R, t.G, t.B, flexScale);
+                    }
+                    else
+                    {
+                        CustomDatas[i] = src[i].CustomData;
+                    }
                 }
             }
 
@@ -79,7 +93,7 @@ namespace PrimevalWorld.Flora
                 var mm = new MultiMesh
                 {
                     TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
-                    UseColors = false,
+                    UseColors = IsAtlasBucket,
                     UseCustomData = true,
                     Mesh = mesh,
                     InstanceCount = n,
@@ -88,6 +102,8 @@ namespace PrimevalWorld.Flora
                 {
                     mm.SetInstanceTransform(i, LocalTransforms[i]);
                     mm.SetInstanceCustomData(i, CustomDatas[i]);
+                    if (IsAtlasBucket && InstanceColors != null)
+                        mm.SetInstanceColor(i, InstanceColors[i]);
                 }
                 return mm;
             }
@@ -894,9 +910,12 @@ namespace PrimevalWorld.Flora
 
         private static Lod2Archetype GetLod2Archetype(FloraSpeciesId sp) => sp switch
         {
-            FloraSpeciesId.GiantSequoiaReddawn or FloraSpeciesId.BorealSnowPine or FloraSpeciesId.SilverGlacierSpruce => Lod2Archetype.Conifer,
-            FloraSpeciesId.GinkgoAncientGold or FloraSpeciesId.CrimsonSteppeMaple or FloraSpeciesId.WeepingSilverBirch => Lod2Archetype.Deciduous,
-            FloraSpeciesId.DragonBloodTree or FloraSpeciesId.SavannaUmbrellaAcacia or FloraSpeciesId.BaobabPrehistoric => Lod2Archetype.DesertUmbrella,
+            FloraSpeciesId.GiantSequoiaReddawn or FloraSpeciesId.BorealSnowPine or FloraSpeciesId.SilverGlacierSpruce or
+            FloraSpeciesId.AraucariaMonkeyPuzzle or FloraSpeciesId.TwistedSubalpineLarch => Lod2Archetype.Conifer,
+            FloraSpeciesId.GinkgoAncientGold or FloraSpeciesId.CrimsonSteppeMaple or FloraSpeciesId.WeepingSilverBirch or
+            FloraSpeciesId.PrimevalBeechGold => Lod2Archetype.Deciduous,
+            FloraSpeciesId.DragonBloodTree or FloraSpeciesId.SavannaUmbrellaAcacia or FloraSpeciesId.BaobabPrehistoric or
+            FloraSpeciesId.OasisDatePalm => Lod2Archetype.DesertUmbrella,
             _ => Lod2Archetype.Broadleaf,
         };
 
@@ -913,10 +932,15 @@ namespace PrimevalWorld.Flora
                 mat.SetShaderParameter("wind_dir_speed_tex", _windDataTex);
                 mat.SetShaderParameter("leaf_broadleaf_tex", bot.BroadleafTex);
                 mat.SetShaderParameter("leaf_conifer_tex", bot.ConiferTex);
-                mat.SetShaderParameter("leaf_acacia_tex", bot.AcaciaTex);
+                mat.SetShaderParameter("leaf_autumn_tex", bot.AutumnTex);
                 mat.SetShaderParameter("leaf_palm_tex", bot.PalmFernTex);
+                mat.SetShaderParameter("flora_liana_tex", bot.LianaMossTex);
+                mat.SetShaderParameter("leaf_araucaria_cypress_tex", bot.AraucariaCypressTex);
+                mat.SetShaderParameter("leaf_willow_acacia_berry_tex", bot.WillowAcaciaBerryTex);
+                mat.SetShaderParameter("leaf_agave_bamboo_tex", bot.AgaveBambooTex);
+                mat.SetShaderParameter("specialty_atlas_a_tex", bot.SpecialtyAtlasATex);
+                mat.SetShaderParameter("specialty_atlas_b_tex", bot.SpecialtyAtlasBTex);
                 mat.SetShaderParameter("bark_tex", bot.BarkHardwoodAlbedo);
-                mat.SetShaderParameter("bark_pale_tex", bot.BarkPaleTex);
                 FloraLodConfig.ApplyToFloraMaterial(mat, lodLevel, LodDebugEnabled);
                 return mat;
             }
@@ -931,7 +955,12 @@ namespace PrimevalWorld.Flora
                 mat.SetShaderParameter("bark_conifer_albedo", bot.BarkConiferAlbedo);
                 mat.SetShaderParameter("bark_conifer_normal", bot.BarkConiferNormal);
                 mat.SetShaderParameter("bark_conifer_roughness", bot.BarkConiferRoughness);
-                mat.SetShaderParameter("bark_pale_albedo", bot.BarkPaleTex);
+                mat.SetShaderParameter("bark_ancient_mossy_albedo", bot.BarkAncientMossyAlbedo);
+                mat.SetShaderParameter("bark_ancient_mossy_normal", bot.BarkAncientMossyNormal);
+                mat.SetShaderParameter("bark_ancient_mossy_roughness", bot.BarkAncientMossyRoughness);
+                mat.SetShaderParameter("bark_sequoia_conifer_albedo", bot.BarkSequoiaConiferAlbedo);
+                mat.SetShaderParameter("bark_sequoia_conifer_normal", bot.BarkSequoiaConiferNormal);
+                mat.SetShaderParameter("bark_sequoia_conifer_roughness", bot.BarkSequoiaConiferRoughness);
                 mat.SetShaderParameter("moss_albedo", bot.MossAlbedo);
                 mat.SetShaderParameter("moss_normal", bot.MossNormal);
                 FloraLodConfig.ApplyToFloraMaterial(mat, lodLevel, LodDebugEnabled);

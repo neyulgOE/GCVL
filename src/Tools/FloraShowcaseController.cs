@@ -294,6 +294,49 @@ namespace PrimevalWorld.Tools
                 SpawnSingleSpecimen(id, i & 1, new Vector3(gx, gy, gz), sc, yaw, new Color(0.92f, 1.06f, 0.85f, 0.4f));
             }
 
+            // ===================== EXTENDED 6 ECOLOGICAL VIGNETTES (55+ SPECIES SHOWCASE, Z = +54m) =====================
+            // 1) Wetland Delta Vignette: Bald Cypress + Horsetail + Cattail + Marsh Iris + Water Lily
+            float vx = -40.0f, vz = 54.0f;
+            Spawn3LodSpecimen(FloraSpeciesId.SwampBaldCypress, 0, new Vector3(vx, SampleGroundHeight(vx, vz), vz), new Color(0.94f, 1.02f, 0.90f, 0.3f), "Vignette 1 (Đầm Lầy): Bụt Mọc Đầm Lầy");
+            SpawnSingleSpecimen(FloraSpeciesId.GiantHorsetailEquisetum, 0, new Vector3(vx - 4.5f, SampleGroundHeight(vx - 4.5f, vz + 3.5f), vz + 3.5f), 3.0f, 0.4f, Colors.White);
+            SpawnSingleSpecimen(FloraSpeciesId.CattailMarshReed, 0, new Vector3(vx + 4.2f, SampleGroundHeight(vx + 4.2f, vz + 4.0f), vz + 4.0f), 2.0f, 1.2f, Colors.White);
+            SpawnSingleSpecimen(FloraSpeciesId.MarshWildIris, 0, new Vector3(vx - 2.0f, SampleGroundHeight(vx - 2.0f, vz + 5.0f), vz + 5.0f), 1.1f, 2.1f, Colors.White);
+            SpawnSingleSpecimen(FloraSpeciesId.PrimevalWaterLily, 0, new Vector3(vx + 2.2f, SampleGroundHeight(vx + 2.2f, vz + 5.8f) + 0.08f, vz + 5.8f), 1.4f, 0.7f, Colors.White);
+
+            // 2) Primeval Ancient Forest Vignette: Araucaria + Magnolia + Wild Banana + Birdnest Fern + Shelf Fungi
+            vx = -14.0f;
+            Spawn3LodSpecimen(FloraSpeciesId.AraucariaMonkeyPuzzle, 0, new Vector3(vx, SampleGroundHeight(vx, vz), vz), new Color(0.95f, 1.00f, 0.92f, 0.2f), "Vignette 2 (Đại Ngàn): Bách Tán Cổ Sinh");
+            Spawn3LodSpecimen(FloraSpeciesId.PrimevalMagnolia, 1, new Vector3(vx + 9.0f, SampleGroundHeight(vx + 9.0f, vz - 3.0f), vz - 3.0f), new Color(1.00f, 1.00f, 0.98f, 0.4f), "Vignette 2 (Đại Ngàn): Mộc Lan Cổ Đại");
+            SpawnSingleSpecimen(FloraSpeciesId.WildBananaRavenala, 0, new Vector3(vx + 4.0f, SampleGroundHeight(vx + 4.0f, vz + 4.5f), vz + 4.5f), 3.4f, 0.9f, Colors.White);
+            SpawnSingleSpecimen(FloraSpeciesId.EpiphyteBirdnestFern, 0, new Vector3(vx + 0.9f, SampleGroundHeight(vx, vz) + 4.2f, vz + 0.5f), 1.0f, 0.5f, Colors.White);
+            SpawnSingleSpecimen(FloraSpeciesId.GiantShelfFungi, 0, new Vector3(vx - 0.9f, SampleGroundHeight(vx, vz) + 0.65f, vz + 0.8f), 0.75f, 1.8f, Colors.White);
+
+            // 3) Floodplain & Steppe Vignette: Ancient Steppe Oak + Beech Gold + Wildflower Meadow + Briar Rose
+            vx = 18.0f;
+            Spawn3LodSpecimen(FloraSpeciesId.AncientSteppeOak, 0, new Vector3(vx, SampleGroundHeight(vx, vz), vz), new Color(0.94f, 1.00f, 0.88f, 0.3f), "Vignette 3 (Đồng Bằng): Sồi Cổ Thụ Đồng Bằng");
+            Spawn3LodSpecimen(FloraSpeciesId.PrimevalBeechGold, 0, new Vector3(vx + 11.0f, SampleGroundHeight(vx + 11.0f, vz - 4.0f), vz - 4.0f), new Color(1.02f, 0.96f, 0.84f, 0.5f), "Vignette 3 (Thảo Nguyên): Dẻ Gai Vàng");
+            SpawnSingleSpecimen(FloraSpeciesId.SteppeWildflowerMeadow, 0, new Vector3(vx - 3.5f, SampleGroundHeight(vx - 3.5f, vz + 5.5f), vz + 5.5f), 0.75f, 0.3f, Colors.White);
+            SpawnSingleSpecimen(FloraSpeciesId.WildBriarRoseThicket, 0, new Vector3(vx + 5.0f, SampleGroundHeight(vx + 5.0f, vz + 5.0f), vz + 5.0f), 1.6f, 1.4f, Colors.White);
+
+            // 4) Arid Red Desert Vignette: Columnar Cactus + Silver Sagebrush + Spinifex + Oasis Date Palm
+            vx = 48.0f;
+            Spawn3LodSpecimen(FloraSpeciesId.OasisDatePalm, 0, new Vector3(vx, SampleGroundHeight(vx, vz), vz), new Color(0.96f, 1.02f, 0.86f, 0.2f), "Vignette 4 (Hoang Mạc): Cọ Ốc Đảo Cổ Sinh");
+            Spawn3LodSpecimen(FloraSpeciesId.ColumnarEuphorbiaCactus, 0, new Vector3(vx + 6.5f, SampleGroundHeight(vx + 6.5f, vz + 2.0f), vz + 2.0f), Colors.White, "Vignette 4 (Hoang Mạc): Đại Kích Cột");
+            SpawnSingleSpecimen(FloraSpeciesId.DesertSilverSagebrush, 0, new Vector3(vx - 3.5f, SampleGroundHeight(vx - 3.5f, vz + 4.5f), vz + 4.5f), 1.3f, 0.8f, Colors.White);
+            SpawnSingleSpecimen(FloraSpeciesId.RedSandSpinifexTussock, 0, new Vector3(vx + 2.5f, SampleGroundHeight(vx + 2.5f, vz + 5.5f), vz + 5.5f), 0.75f, 2.2f, Colors.White);
+
+            // 5) Coastline & Estuary Vignette: Mangrove Stilt + Pandanus + Morning Glory + Sea Kelp
+            vx = 72.0f;
+            Spawn3LodSpecimen(FloraSpeciesId.CoastalMangroveStilt, 0, new Vector3(vx, SampleGroundHeight(vx, vz), vz), new Color(0.90f, 1.00f, 0.86f, 0.3f), "Vignette 5 (Bờ Biển): Đước Rễ Chống");
+            Spawn3LodSpecimen(FloraSpeciesId.CoastalPandanusScrewpine, 0, new Vector3(vx + 8.0f, SampleGroundHeight(vx + 8.0f, vz + 1.0f), vz + 1.0f), Colors.White, "Vignette 5 (Bờ Biển): Dứa Dại Rễ Chống");
+            SpawnSingleSpecimen(FloraSpeciesId.CoastalDuneMorningGlory, 0, new Vector3(vx - 3.0f, SampleGroundHeight(vx - 3.0f, vz + 5.0f), vz + 5.0f), 0.70f, 0.6f, Colors.White);
+            SpawnSingleSpecimen(FloraSpeciesId.ShallowSeaKelp, 0, new Vector3(vx + 3.5f, SampleGroundHeight(vx + 3.5f, vz + 5.5f), vz + 5.5f), 1.8f, 1.5f, Colors.White);
+
+            // 6) Alpine & Sub-Alpine Vignette: Twisted Subalpine Larch + Alpine Heather Cushion
+            vx = 96.0f;
+            Spawn3LodSpecimen(FloraSpeciesId.TwistedSubalpineLarch, 0, new Vector3(vx, SampleGroundHeight(vx, vz), vz), new Color(1.04f, 0.98f, 0.82f, 0.6f), "Vignette 6 (Đài Nguyên): Thông Rụng Lá Cận Tuyết");
+            SpawnSingleSpecimen(FloraSpeciesId.AlpineHeatherCushion, 0, new Vector3(vx - 3.0f, SampleGroundHeight(vx - 3.0f, vz + 4.5f), vz + 4.5f), 0.65f, 1.1f, new Color(1.06f, 0.84f, 1.14f, 0.5f));
+
             _markersRoot.Visible = _showMarkersAndGrass;
         }
 
@@ -339,17 +382,27 @@ namespace PrimevalWorld.Tools
 
         private void SpawnSingleSpecimen(FloraSpeciesId sp, int variant, Vector3 pos, float scale, float yaw, Color tint)
         {
-            ArrayMesh m = _meshLib.GetMesh(sp, variant, 0, _barkLod0Mat, _leafLod0Mat);
+            var key = FloraMeshLibrary.GetCanonicalMeshKey(sp, (byte)variant);
+            bool isAtlas = FloraMeshLibrary.IsAtlasBucketedKey(key);
+            ArrayMesh m = _meshLib.GetMesh(isAtlas ? key.CanonicalSpecies : sp, isAtlas ? key.Variant : variant, 0, _barkLod0Mat, _leafLod0Mat);
             var mm = new MultiMesh
             {
                 TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
-                UseColors = false,
+                UseColors = isAtlas,
                 UseCustomData = true,
                 Mesh = m,
                 InstanceCount = 1,
             };
             mm.SetInstanceTransform(0, new Transform3D(Basis.Identity.Rotated(Vector3.Up, yaw).Scaled(new Vector3(scale, scale, scale)), Vector3.Zero));
-            mm.SetInstanceCustomData(0, tint);
+            if (isAtlas && FloraMeshLibrary.TryGetAtlasBucketInfo(sp, out Rect2 uvRect, out float flexScale))
+            {
+                mm.SetInstanceCustomData(0, new Color(uvRect.Position.X, uvRect.Position.Y, uvRect.Size.X, uvRect.Size.Y));
+                mm.SetInstanceColor(0, new Color(tint.R, tint.G, tint.B, flexScale));
+            }
+            else
+            {
+                mm.SetInstanceCustomData(0, tint);
+            }
 
             _treesRoot!.AddChild(new MultiMeshInstance3D
             {
@@ -372,10 +425,15 @@ namespace PrimevalWorld.Tools
                 m.SetShaderParameter("weather_dynamic_tex", _weatherTex!);
                 m.SetShaderParameter("leaf_broadleaf_tex", _botTex!.BroadleafTex);
                 m.SetShaderParameter("leaf_conifer_tex", _botTex.ConiferTex);
-                m.SetShaderParameter("leaf_acacia_tex", _botTex.AcaciaTex);
+                m.SetShaderParameter("leaf_autumn_tex", _botTex.AutumnTex);
                 m.SetShaderParameter("leaf_palm_tex", _botTex.PalmFernTex);
+                m.SetShaderParameter("flora_liana_tex", _botTex.LianaMossTex);
+                m.SetShaderParameter("leaf_araucaria_cypress_tex", _botTex.AraucariaCypressTex);
+                m.SetShaderParameter("leaf_willow_acacia_berry_tex", _botTex.WillowAcaciaBerryTex);
+                m.SetShaderParameter("leaf_agave_bamboo_tex", _botTex.AgaveBambooTex);
+                m.SetShaderParameter("specialty_atlas_a_tex", _botTex.SpecialtyAtlasATex);
+                m.SetShaderParameter("specialty_atlas_b_tex", _botTex.SpecialtyAtlasBTex);
                 m.SetShaderParameter("bark_tex", _botTex.BarkHardwoodAlbedo);
-                m.SetShaderParameter("bark_pale_tex", _botTex.BarkPaleTex);
                 FloraLodConfig.ApplyToFloraMaterial(m, lod, _lodDebug);
                 return m;
             }
@@ -393,7 +451,12 @@ namespace PrimevalWorld.Tools
                 m.SetShaderParameter("bark_conifer_albedo", _botTex.BarkConiferAlbedo);
                 m.SetShaderParameter("bark_conifer_normal", _botTex.BarkConiferNormal);
                 m.SetShaderParameter("bark_conifer_roughness", _botTex.BarkConiferRoughness);
-                m.SetShaderParameter("bark_pale_albedo", _botTex.BarkPaleTex);
+                m.SetShaderParameter("bark_ancient_mossy_albedo", _botTex.BarkAncientMossyAlbedo);
+                m.SetShaderParameter("bark_ancient_mossy_normal", _botTex.BarkAncientMossyNormal);
+                m.SetShaderParameter("bark_ancient_mossy_roughness", _botTex.BarkAncientMossyRoughness);
+                m.SetShaderParameter("bark_sequoia_conifer_albedo", _botTex.BarkSequoiaConiferAlbedo);
+                m.SetShaderParameter("bark_sequoia_conifer_normal", _botTex.BarkSequoiaConiferNormal);
+                m.SetShaderParameter("bark_sequoia_conifer_roughness", _botTex.BarkSequoiaConiferRoughness);
                 m.SetShaderParameter("moss_albedo", _botTex.MossAlbedo);
                 m.SetShaderParameter("moss_normal", _botTex.MossNormal);
                 FloraLodConfig.ApplyToFloraMaterial(m, lod, _lodDebug);

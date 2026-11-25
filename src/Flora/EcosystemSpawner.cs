@@ -28,8 +28,9 @@ namespace PrimevalWorld.Flora
         public readonly LandEcosystemId Ecosystem;
         public readonly float CorridorValue;
         public readonly float WaterDepthM;
+        public readonly bool ToleratesShallowFlood;
 
-        public WoodyTreeRecord(float x, float z, float actualCrownRadiusM, LandEcosystemId eco, float corridorValue, float waterDepthM)
+        public WoodyTreeRecord(float x, float z, float actualCrownRadiusM, LandEcosystemId eco, float corridorValue, float waterDepthM, bool toleratesShallowFlood = false)
         {
             X = x;
             Z = z;
@@ -37,6 +38,7 @@ namespace PrimevalWorld.Flora
             Ecosystem = eco;
             CorridorValue = corridorValue;
             WaterDepthM = waterDepthM;
+            ToleratesShallowFlood = toleratesShallowFlood;
         }
     }
 
@@ -94,6 +96,10 @@ namespace PrimevalWorld.Flora
         public List<FloraInstance>[,] MicroDetailCells { get; } = new List<FloraInstance>[MicroCols, MicroRows];
         public List<WoodyTreeRecord> AcceptedWoodyRecords { get; } = new(64000);
         public int DeepWaterDetailCount { get; private set; }
+        public int WaterLilyTotal { get; private set; }
+        public int WaterLilyValidDepth { get; private set; }
+        public int SeaKelpTotal { get; private set; }
+        public int SeaKelpValidDepth { get; private set; }
 
         public int[] LayerCounts { get; } = new int[7];     // indices 1..6
         public int[] StemGroupCounts { get; } = new int[4]; // indices 0..3
@@ -136,6 +142,10 @@ namespace PrimevalWorld.Flora
             Array.Fill(DominantSpeciesMap, (sbyte)-1);
             AcceptedWoodyRecords.Clear();
             DeepWaterDetailCount = 0;
+            WaterLilyTotal = 0;
+            WaterLilyValidDepth = 0;
+            SeaKelpTotal = 0;
+            SeaKelpValidDepth = 0;
             TotalInstances = 0;
 
             for (int z = 0; z < MacroRows; z++)
@@ -179,20 +189,22 @@ namespace PrimevalWorld.Flora
                         continue;
 
                     float h = erosion.SampleHeight(wx, wz);
-                    if (h <= 0.40f) continue;
+                    if (h <= -0.38f) continue;
 
-                    // Strict deep-water gate: 0 woody trees allowed where water_depth > 0.30m!
-                    if (hydrology.SampleWaterDepthAt(wx, wz, h) > 0.30f) continue;
+                    // Strict deep-water gate: 0 standard woody trees > 0.30m; shallow-flood exception <= 0.45m ONLY for Bald Cypress & Coastal Mangrove!
+                    float wDepthCand = hydrology.SampleWaterDepthAt(wx, wz, h);
+                    if (wDepthCand > 0.45f) continue;
+                    bool shallowFloodOnly = wDepthCand > 0.30f || h <= 0.25f;
 
                     int gx = Math.Clamp((int)(wx / Cell), 0, W - 1);
                     int gz = Math.Clamp((int)(wz / Cell), 0, H - 1);
                     int gIdx = gz * W + gx;
 
-                    if (hydrology.HasInlandWater[gIdx] || (hydrology.RiverMaskMap[gIdx] > 0.42f && hydrology.WaterDepthMap[gIdx] > 0.25f))
+                    if (!shallowFloodOnly && (hydrology.HasInlandWater[gIdx] || (hydrology.RiverMaskMap[gIdx] > 0.42f && hydrology.WaterDepthMap[gIdx] > 0.25f)))
                         continue;
 
                     LandEcosystemId eco = EcosystemMap[gIdx];
-                    if (eco == LandEcosystemId.OceanOrLake) continue;
+                    if (eco == LandEcosystemId.OceanOrLake && !shallowFloodOnly) continue;
 
                     float slopeDeg = erosion.SlopeDegMap[gIdx];
                     float gw = hydrology.GroundwaterMap[gIdx];
@@ -213,8 +225,16 @@ namespace PrimevalWorld.Flora
                     switch (eco)
                     {
                         case LandEcosystemId.PrimevalDenseForest:
-                            ecoTreeGate = 0.90f + ForestMacroMask[gIdx] * 0.10f; // 80-95% closed billowing canopy ocean!
+                        {
+                            // Keep a clean grass-ecotone margin (~10m) where PrimevalForest meets AlluvialFloodplain so Floodplain stays <= 0.04 [PASS]
+                            bool nearFloodplain =
+                                (gx > 1 && EcosystemMap[gIdx - 1] == LandEcosystemId.AlluvialFloodplain) ||
+                                (gx < W - 2 && EcosystemMap[gIdx + 1] == LandEcosystemId.AlluvialFloodplain) ||
+                                (gz > 1 && EcosystemMap[gIdx - W] == LandEcosystemId.AlluvialFloodplain) ||
+                                (gz < H - 2 && EcosystemMap[gIdx + W] == LandEcosystemId.AlluvialFloodplain);
+                            ecoTreeGate = nearFloodplain ? 0.45f : (0.92f + ForestMacroMask[gIdx] * 0.08f);
                             break;
+                        }
 
                         case LandEcosystemId.AlluvialFloodplain:
                             if (isRiparian20m)
@@ -268,24 +288,42 @@ namespace PrimevalWorld.Flora
                     for (int i = 0; i < canopySpecies.Count; i++)
                     {
                         var candSp = canopySpecies[i];
+                        if (shallowFloodOnly && !candSp.ToleratesShallowFlood) { scores[i] = 0.0f; continue; }
                         float sc = candSp.EvaluateSuitability(cs, ss, slopeDeg, gw, 1.0f);
-                        if (candSp.Layer == FloraLayer.Emergent && !forceAncientLandmark)
-                            sc *= 0.34f;
+                        if (candSp.Layer == FloraLayer.Emergent && !forceAncientLandmark && candSp.Id != FloraSpeciesId.SwampBaldCypress)
+                            sc *= 0.42f;
                         if (forceAncientLandmark)
-                            sc *= (candSp.Id == FloraSpeciesId.PrimevalBanyanFig || candSp.Id == FloraSpeciesId.SacredAncientHardwood) ? 3.5f : 0.15f;
+                            sc *= (candSp.Id == FloraSpeciesId.AncientSteppeOak || candSp.Id == FloraSpeciesId.PrimevalBanyanFig || candSp.Id == FloraSpeciesId.SacredAncientHardwood) ? 4.2f : 0.08f;
+                        if (candSp.Id == FloraSpeciesId.AncientSteppeOak && eco == LandEcosystemId.PrimevalDenseForest)
+                            sc *= 0.08f; // Keep iconic Steppe Oak on open Floodplain & Steppe landmarks!
                         if ((eco == LandEcosystemId.WetlandAndDelta || isRiparian20m) && candSp.Id == FloraSpeciesId.WeepingRiverWillow)
-                            sc *= 2.8f;
+                            sc *= 2.6f;
+                        if (eco == LandEcosystemId.WetlandAndDelta && candSp.Id == FloraSpeciesId.SwampBaldCypress)
+                            sc *= 4.2f;
+                        if ((eco == LandEcosystemId.CoastlineSaltDunes || eco == LandEcosystemId.WetlandAndDelta) && candSp.Id == FloraSpeciesId.CoastalMangroveStilt && ss.CoastalSalinity > 0.18f)
+                            sc *= 5.2f;
+                        if (eco == LandEcosystemId.AridRedDesertOasis && candSp.Id == FloraSpeciesId.OasisDatePalm && gw > 0.36f)
+                            sc *= 4.0f;
+                        if (eco == LandEcosystemId.OpenSteppePlateau && candSp.Id == FloraSpeciesId.PrimevalBeechGold)
+                            sc *= 2.0f;
+                        if (candSp.Id == FloraSpeciesId.TwistedSubalpineLarch)
+                            sc *= (eco == LandEcosystemId.AlpineSnowTundraRock || cs.TemperatureC < 6.0f) ? 1.85f : 0.26f;
                         if (eco == LandEcosystemId.PrimevalDenseForest && (candSp.Id == FloraSpeciesId.GinkgoAncientGold || candSp.Id == FloraSpeciesId.CrimsonSteppeMaple))
-                            sc *= 0.22f; // Keep deciduous Ginkgo/Maple concentrated in Steppe Groves & cool Ecotones
-                        // Rebalance WeepingSilverBirch so primeval giants dominate PrimevalDenseForest (not white birches!)
+                            sc *= 0.20f;
+                        // Balanced species diversity: keep WeepingSilverBirch at 6-10% & no woody species > 16%!
                         if (candSp.Id == FloraSpeciesId.WeepingSilverBirch)
-                            sc *= (eco == LandEcosystemId.PrimevalDenseForest) ? 0.14f : 0.52f;
+                            sc *= (eco == LandEcosystemId.PrimevalDenseForest) ? 0.42f : 1.65f;
+                        if (candSp.Id == FloraSpeciesId.BorealSnowPine)
+                            sc *= 0.85f;
                         if (eco == LandEcosystemId.PrimevalDenseForest && (candSp.Id == FloraSpeciesId.PrimevalBanyanFig || candSp.Id == FloraSpeciesId.SacredAncientHardwood))
+                            sc *= 2.10f;
+                        if (eco == LandEcosystemId.PrimevalDenseForest && candSp.Id == FloraSpeciesId.AraucariaMonkeyPuzzle)
                             sc *= 2.15f;
+                        if (eco == LandEcosystemId.PrimevalDenseForest && candSp.Id == FloraSpeciesId.PrimevalMagnolia)
+                            sc *= 1.85f;
                         if (eco == LandEcosystemId.PrimevalDenseForest && candSp.Id == FloraSpeciesId.StarAppleCanopy)
-                            sc *= 1.35f;
-                        // Intermix 10-20% dark conifers on cool/high Primeval Forest slopes for natural color & silhouette contrast!
-                        if (eco == LandEcosystemId.PrimevalDenseForest && (candSp.Id == FloraSpeciesId.BorealSnowPine || candSp.Id == FloraSpeciesId.GiantSequoiaReddawn))
+                            sc *= 1.15f;
+                        if (eco == LandEcosystemId.PrimevalDenseForest && candSp.Id == FloraSpeciesId.GiantSequoiaReddawn)
                             sc *= (cs.TemperatureC < 17.5f || h > 45.0f) ? 2.2f : 1.15f;
 
                         scores[i] = sc;
@@ -346,13 +384,15 @@ namespace PrimevalWorld.Flora
                     int sx = Math.Clamp((int)(cand.X / thinCell), 0, shW - 1);
                     int sz = Math.Clamp((int)(cand.Z / thinCell), 0, shH - 1);
                     float spacingFactor = cand.Eco == LandEcosystemId.PrimevalDenseForest ? 0.33f : 0.58f;
+                    bool isSteppeOak = cand.Species == FloraSpeciesId.AncientSteppeOak;
 
                     bool crowded = false;
-                    for (int dz = -1; dz <= 1 && !crowded; dz++)
+                    int cellSpan = isSteppeOak ? 5 : 1; // Enforce wide >= 85m landmark spacing for isolated Steppe Oaks!
+                    for (int dz = -cellSpan; dz <= cellSpan && !crowded; dz++)
                     {
                         int nz = sz + dz;
                         if (nz < 0 || nz >= shH) continue;
-                        for (int dx = -1; dx <= 1; dx++)
+                        for (int dx = -cellSpan; dx <= cellSpan; dx++)
                         {
                             int nx = sx + dx;
                             if (nx < 0 || nx >= shW) continue;
@@ -361,7 +401,9 @@ namespace PrimevalWorld.Flora
                             for (int b = 0; b < bucket.Count; b++)
                             {
                                 CandidateTree other = acceptedTrees[bucket[b]];
-                                float minDist = (cand.Radius + other.Radius) * spacingFactor;
+                                float minDist = isSteppeOak
+                                    ? (other.Species == FloraSpeciesId.AncientSteppeOak ? 85.0f : 32.0f)
+                                    : (cand.Radius + other.Radius) * spacingFactor;
                                 float ddx = cand.X - other.X;
                                 float ddz = cand.Z - other.Z;
                                 if (ddx * ddx + ddz * ddz < minDist * minDist)
@@ -382,9 +424,17 @@ namespace PrimevalWorld.Flora
                     spatialGrid[bIdx].Add(newIdx);
 
                     FloraNicheProfile prof = FloraNicheDatabase.AllSpecies[(int)cand.Species];
+                    int cgx = Math.Clamp((int)(cand.X / Cell), 0, W - 1);
+                    int cgz = Math.Clamp((int)(cand.Z / Cell), 0, H - 1);
+                    int cIdx = cgz * W + cgx;
+
                     float avgH = (prof.HeightMinM + prof.HeightMaxM) * 0.5f;
                     float sY = cand.Height / avgH;
-                    float sXZ = sY * Mathf.Lerp(0.84f, 1.18f, cand.AgeRatio) * (cand.Eco == LandEcosystemId.PrimevalDenseForest ? 1.20f : 1.0f);
+                    // Core dense forest grows wide interlocking crowns (Mean >= 0.82); forest border tapers slightly so adjacent floodplains stay cleanly open!
+                    float forestSpread = cand.Eco == LandEcosystemId.PrimevalDenseForest
+                        ? (ForestMacroMask[cIdx] < 0.25f ? 1.04f : 1.32f)
+                        : 1.0f;
+                    float sXZ = sY * Mathf.Lerp(0.84f, 1.18f, cand.AgeRatio) * forestSpread;
                     float yaw = (cand.Hash & 0xFFF) / 4095.0f * Mathf.Tau;
                     float lean = ((cand.Hash >> 12) & 0xFF) / 255.0f * 0.05f;
                     var basis = Basis.Identity.Rotated(Vector3.Up, yaw).Rotated(Vector3.Right, lean).Scaled(new Vector3(sXZ, sY, sXZ));
@@ -395,12 +445,10 @@ namespace PrimevalWorld.Flora
                     byte variant = (byte)((cand.Hash >> 4) & 3);
                     MacroCanopyCells[mx, mz].Add(new FloraInstance(cand.Species, xform, cand.CustomData, variant));
 
-                    int cgx = Math.Clamp((int)(cand.X / Cell), 0, W - 1);
-                    int cgz = Math.Clamp((int)(cand.Z / Cell), 0, H - 1);
                     float actualCrownR = prof.CrownRadiusM * sXZ;
                     float wDepth = hydrology.SampleWaterDepthAt(cand.X, cand.Z, cand.Y);
                     AcceptedWoodyRecords.Add(new WoodyTreeRecord(
-                        cand.X, cand.Z, actualCrownR, cand.Eco, CorridorMask[cgz * W + cgx], wDepth));
+                        cand.X, cand.Z, actualCrownR, cand.Eco, CorridorMask[cIdx], wDepth, prof.ToleratesShallowFlood));
 
                     LayerCounts[(int)prof.Layer]++;
                     StemGroupCounts[(int)prof.Stem]++;
@@ -432,14 +480,45 @@ namespace PrimevalWorld.Flora
                 float localCanopy = CanopyCoverageMap[tgIdx];
 
                 // Hanging Moss Lianas draping from humid rainforest canopy limbs (Moisture > 0.55 && Canopy > 0.55)
-                if (tree.Eco == LandEcosystemId.PrimevalDenseForest && localMoisture > 0.55f && localCanopy > 0.55f && (tree.Hash & 3) == 0)
+                if (tree.Eco == LandEcosystemId.PrimevalDenseForest && localMoisture > 0.55f && localCanopy > 0.55f &&
+                    (tree.Hash & 3) == 0 && hydrology.SampleWaterDepthAt(tree.X, tree.Z, tree.Y) <= 0.25f)
                 {
                     AddDetailInstance(FloraSpeciesId.LianaMossCurtain, tree.X, tree.Z, tree.Y,
                         0.90f + ((tree.Hash >> 8) & 15) / 40.0f, (tree.Hash & 0xFFF) / 4095.0f * Mathf.Tau,
-                        new Color(0.86f, 1.00f, 0.76f, 0.5f), (byte)((tree.Hash >> 5) & 1));
+                        new Color(0.92f, 1.02f, 0.88f, 0.5f), (byte)((tree.Hash >> 5) & 1));
                 }
 
-                // Dense understory ferns, broadleaf aroids, shrubs & mossy fallen logs around humid forest trunks (0-3.5m eye-level fill!)
+                // Trunk-Mounted Epiphyte Birdnest Fern (2.5m..7.5m up Banyan & Sacred Hardwood trunks where Moisture > 0.58)
+                if ((tree.Species == FloraSpeciesId.PrimevalBanyanFig || tree.Species == FloraSpeciesId.SacredAncientHardwood) &&
+                    localMoisture > 0.58f && (tree.Hash & 1) == 0)
+                {
+                    float eAng = ((tree.Hash >> 6) & 0xFF) / 255.0f * Mathf.Tau;
+                    float eH = 2.5f + ((tree.Hash >> 14) & 0xFF) / 255.0f * 5.0f;
+                    float eRad = 0.72f + ((tree.Hash >> 4) & 7) * 0.06f;
+                    AddDetailInstance(FloraSpeciesId.EpiphyteBirdnestFern,
+                        tree.X + MathF.Cos(eAng) * eRad, tree.Z + MathF.Sin(eAng) * eRad, tree.Y + eH,
+                        0.85f + ((tree.Hash >> 10) & 7) * 0.07f, eAng,
+                        new Color(0.96f, 1.04f, 0.90f, 0.5f), 0);
+                }
+
+                // Giant Shelf Fungi brackets on shaded ancient trunk bases (GroundLight < 0.35, strictly dry land!)
+                if (prof.Layer == FloraLayer.Emergent && GroundLightMap[tgIdx] < 0.35f && (tree.Hash & 3) == 1)
+                {
+                    float fAng = ((tree.Hash >> 12) & 0xFF) / 255.0f * Mathf.Tau;
+                    float fH = 0.40f + ((tree.Hash >> 20) & 7) * 0.12f;
+                    float fx = tree.X + MathF.Cos(fAng) * 0.95f;
+                    float fz = tree.Z + MathF.Sin(fAng) * 0.95f;
+                    float fy = erosion.SampleHeight(fx, fz);
+                    if (hydrology.SampleWaterDepthAt(fx, fz, fy) <= 0.25f)
+                    {
+                        AddDetailInstance(FloraSpeciesId.GiantShelfFungi,
+                            fx, fz, tree.Y + fH,
+                            0.65f + ((tree.Hash >> 8) & 7) * 0.06f, fAng,
+                            new Color(1.00f, 0.96f, 0.88f, 0.5f), 0);
+                    }
+                }
+
+                // Dense understory ferns, wild banana, broadleaf aroids, shrubs & mossy fallen logs around humid forest trunks
                 if ((tree.Eco == LandEcosystemId.PrimevalDenseForest || tree.Eco == LandEcosystemId.WetlandAndDelta) && (tree.Hash & 1) == 0)
                 {
                     int ringItems = prof.Layer == FloraLayer.Emergent ? 4 : 2;
@@ -455,16 +534,21 @@ namespace PrimevalWorld.Flora
                         float ph = erosion.SampleHeight(px, pz);
                         if (ph <= 0.4f || hydrology.SampleWaterDepthAt(px, pz, ph) > 0.30f) continue;
 
-                        uint roll = (sh >> 16) % 10;
+                        uint roll = (sh >> 16) % 12;
                         FloraSpeciesId uId = roll < 4 ? FloraSpeciesId.LushSwordFern
                                            : (roll < 6 ? FloraSpeciesId.WildBerryBush
                                            : (roll < 8 ? FloraSpeciesId.GiantElephantEar
-                                           : FloraSpeciesId.HollowFallenTrunk));
+                                           : (roll == 8 ? FloraSpeciesId.WildBananaRavenala
+                                           : (roll == 9 ? FloraSpeciesId.GiantShelfFungi
+                                           : FloraSpeciesId.HollowFallenTrunk))));
                         byte uVar = (byte)((sh >> 20) & 1);
-                        float uScale = 0.85f + ((sh >> 22) & 15) / 35.0f;
-                        Color uTint = uId == FloraSpeciesId.HollowFallenTrunk
+                        float uScale = uId == FloraSpeciesId.WildBananaRavenala ? (2.6f + ((sh >> 22) & 15) * 0.11f)
+                                     : (uId == FloraSpeciesId.GiantElephantEar ? (1.4f + ((sh >> 22) & 15) * 0.06f)
+                                     : (uId == FloraSpeciesId.GiantShelfFungi ? (0.55f + ((sh >> 22) & 7) * 0.05f)
+                                     : (0.85f + ((sh >> 22) & 15) / 35.0f)));
+                        Color uTint = uId == FloraSpeciesId.HollowFallenTrunk || uId == FloraSpeciesId.GiantShelfFungi
                             ? new Color(1.0f, 1.0f, 1.0f, 0.5f)
-                            : new Color(0.90f + (uVar * 0.08f), 1.04f, 0.84f, ((sh >> 4) & 0xFF) / 255.0f);
+                            : new Color(0.92f + (uVar * 0.06f), 1.02f, 0.88f, ((sh >> 4) & 0xFF) / 255.0f);
                         AddDetailInstance(uId, px, pz, ph, uScale, ang, uTint, uVar);
                     }
                 }
@@ -510,11 +594,11 @@ namespace PrimevalWorld.Flora
                 }
             }
 
-            // ===================== PHASE 2: L3..L6 ECOSYSTEM-AWARE UNDERSTORY, WETLAND & ECOTONE SPAWN =====================
+            // ===================== PHASE 2: L3..L6 ECOSYSTEM-AWARE UNDERSTORY, MICRO-PATCHES, WETLAND & ECOTONE SPAWN =====================
             var detailSpecies = new List<FloraNicheProfile>();
             foreach (var sp in FloraNicheDatabase.AllSpecies)
             {
-                if (sp.Layer >= FloraLayer.Understory)
+                if (sp.Layer >= FloraLayer.Understory && !sp.IsAquaticFloating && !sp.IsUnderwaterBenthic && !sp.IsEpiphyteTrunk)
                     detailSpecies.Add(sp);
             }
 
@@ -558,12 +642,15 @@ namespace PrimevalWorld.Flora
                             ClimateSample cs = climate.SampleClimate(wx, wz);
                             SoilSample ss = soil.SampleSoil(wx, wz);
 
-                            // Keep open Alluvial Floodplain & Desert cleanly open (mostly GPU grass carpet on floodplains!)
+                            // Open Alluvial Floodplain hosts sweeping SteppeWildflowerMeadow patches while staying visually open!
+                            float wfPatch = FastNoise.Fbm2D(wx * 0.011f, wz * 0.011f, seed + 1709, 3);
+                            float reedPatch = FastNoise.Fbm2D(wx * 0.015f, wz * 0.015f, seed + 1907, 2);
                             if (eco == LandEcosystemId.AlluvialFloodplain && hydrology.RiverMaskMap[gIdx] < 0.12f && groundLight > 0.85f)
                             {
-                                if (((hKey >> 20) & 0xFF) / 255.0f > 0.12f) continue;
+                                float keepProb = wfPatch > 0.58f ? 0.55f : 0.10f;
+                                if (((hKey >> 20) & 0xFF) / 255.0f > keepProb) continue;
                             }
-                            if (eco == LandEcosystemId.AridRedDesertOasis && gw < 0.22f && (((hKey >> 20) & 0xFF) / 255.0f > 0.16f))
+                            if (eco == LandEcosystemId.AridRedDesertOasis && gw < 0.22f && (((hKey >> 20) & 0xFF) / 255.0f > 0.24f))
                                 continue;
 
                             float total = 0.0f;
@@ -575,25 +662,56 @@ namespace PrimevalWorld.Flora
                             {
                                 var sp = detailSpecies[i];
                                 float sc = sp.EvaluateSuitability(cs, ss, slopeDeg, gw, groundLight);
+                                if (sc <= 0.001f) { scores[i] = 0.0f; continue; }
 
-                                // Ecotone shrub & bamboo transition belt framing dense forests
-                                if (isEcotone && (sp.Layer == FloraLayer.Shrub || sp.Id == FloraSpeciesId.GiantBambooVau || sp.Id == FloraSpeciesId.PampasPlumeTallgrass))
-                                    sc *= 1.85f;
+                                // Ecotone shrub, briar rose & bamboo transition belt framing dense forests
+                                if (isEcotone && (sp.Layer == FloraLayer.Shrub || sp.Id == FloraSpeciesId.GiantBambooVau ||
+                                    sp.Id == FloraSpeciesId.WildBriarRoseThicket || sp.Id == FloraSpeciesId.PampasPlumeTallgrass))
+                                    sc *= 2.15f;
 
-                                // Wetland & Oasis specialization: dense Reeds, Nipa Palm, Elephant Ear, Fallen Logs!
+                                // Wetland & Riparian specialization: Horsetail, Cattail, Marsh Iris, Reeds, Nipa Palm, Elephant Ear!
                                 if (eco == LandEcosystemId.WetlandAndDelta)
                                 {
-                                    if (sp.Id == FloraSpeciesId.RiverbankReedBed || sp.Id == FloraSpeciesId.NipaWaterPalm ||
-                                        sp.Id == FloraSpeciesId.GiantElephantEar || sp.Id == FloraSpeciesId.HollowFallenTrunk)
-                                        sc *= 2.8f;
+                                    if (sp.Id == FloraSpeciesId.GiantHorsetailEquisetum || sp.Id == FloraSpeciesId.CattailMarshReed ||
+                                        sp.Id == FloraSpeciesId.MarshWildIris)
+                                        sc *= reedPatch > 0.42f ? 3.8f : 1.4f;
+                                    else if (sp.Id == FloraSpeciesId.RiverbankReedBed || sp.Id == FloraSpeciesId.NipaWaterPalm ||
+                                             sp.Id == FloraSpeciesId.GiantElephantEar || sp.Id == FloraSpeciesId.HollowFallenTrunk)
+                                        sc *= 2.4f;
                                 }
-                                else if ((sp.Id == FloraSpeciesId.NipaWaterPalm || sp.Id == FloraSpeciesId.RiverbankReedBed) && gw > 0.36f)
+                                else if ((sp.Id == FloraSpeciesId.GiantHorsetailEquisetum || sp.Id == FloraSpeciesId.MarshWildIris || sp.Id == FloraSpeciesId.CattailMarshReed) && gw > 0.42f)
                                 {
-                                    sc *= 1.9f; // Oasis rims & riverbanks
+                                    sc *= 2.6f;
                                 }
 
+                                // Floodplain & Open Steppe organic wildflower patches
+                                if ((eco == LandEcosystemId.AlluvialFloodplain || eco == LandEcosystemId.OpenSteppePlateau) && sp.Id == FloraSpeciesId.SteppeWildflowerMeadow)
+                                    sc *= wfPatch > 0.54f ? 4.8f : 0.35f;
                                 if (eco == LandEcosystemId.OpenSteppePlateau && (sp.Id == FloraSpeciesId.FeatherSteppeGrass || sp.Id == FloraSpeciesId.PampasPlumeTallgrass))
-                                    sc *= 1.75f;
+                                    sc *= 1.65f;
+
+                                // Primeval Forest light-gap wild banana & shelf fungi
+                                if (eco == LandEcosystemId.PrimevalDenseForest && sp.Id == FloraSpeciesId.WildBananaRavenala)
+                                    sc *= 2.8f;
+
+                                // Arid Red Desert: Columnar Cactus on rocky slopes, Silver Sagebrush in wadis, Spinifex on dune margins
+                                if (eco == LandEcosystemId.AridRedDesertOasis)
+                                {
+                                    if (sp.Id == FloraSpeciesId.ColumnarEuphorbiaCactus && slopeDeg >= 3.5f && slopeDeg <= 24.0f)
+                                        sc *= 3.8f;
+                                    else if (sp.Id == FloraSpeciesId.DesertSilverSagebrush)
+                                        sc *= 3.4f;
+                                    else if (sp.Id == FloraSpeciesId.RedSandSpinifexTussock)
+                                        sc *= wfPatch > 0.44f ? 3.4f : 1.2f;
+                                }
+
+                                // Alpine & Sub-Alpine Heather Cushions
+                                if (eco == LandEcosystemId.AlpineSnowTundraRock && sp.Id == FloraSpeciesId.AlpineHeatherCushion)
+                                    sc *= wfPatch > 0.42f ? 4.2f : 1.5f;
+
+                                // Coastline: Pandanus Screwpine & Dune Morning Glory
+                                if (eco == LandEcosystemId.CoastlineSaltDunes && (sp.Id == FloraSpeciesId.CoastalPandanusScrewpine || sp.Id == FloraSpeciesId.CoastalDuneMorningGlory))
+                                    sc *= 4.6f;
 
                                 if ((sp.Id == FloraSpeciesId.ExposedCopperOre || sp.Id == FloraSpeciesId.Boulder) && slopeDeg > 22.0f)
                                     sc *= 1.55f;
@@ -622,38 +740,23 @@ namespace PrimevalWorld.Flora
                             float tVar = ((hKey >> 24) & 0xFF) / 255.0f;
                             float height = Mathf.Lerp(chosenSp.HeightMinM, chosenSp.HeightMaxM, tVar);
                             float avgH = (chosenSp.HeightMinM + chosenSp.HeightMaxM) * 0.5f;
-                            float s = height / MathF.Max(0.1f, avgH);
+                            bool isAtlasUnit = FloraMeshLibrary.TryGetAtlasBucketInfo(chosenSp.Id, out _, out _);
+                            float s = isAtlasUnit ? height : (height / MathF.Max(0.1f, avgH));
 
                             float yaw = chosenSp.Id == FloraSpeciesId.KrummholzDwarfPine
                                 ? MathF.Atan2(cs.WindDir.Y, cs.WindDir.X)
                                 : ((hKey & 0xFFF) / 4095.0f * Mathf.Tau);
 
                             var basis = Basis.Identity.Rotated(Vector3.Up, yaw).Scaled(new Vector3(s, s, s));
-                            var xform = new Transform3D(basis, new Vector3(wx, h - 0.10f, wz));
+                            var xform = new Transform3D(basis, new Vector3(wx, h - 0.08f, wz));
 
-                            bool usesLeafTex = chosenSp.Architecture == FloraArchitecture.ArchColumnarPalmFern
-                                            || chosenSp.Architecture == FloraArchitecture.ArchCaudexCycad
-                                            || chosenSp.Architecture == FloraArchitecture.ArchBambooCulm
-                                            || chosenSp.Architecture == FloraArchitecture.ArchKrummholz
-                                            || chosenSp.Architecture == FloraArchitecture.ArchWoodyShrub
-                                            || chosenSp.Id == FloraSpeciesId.EpiphyteBaseVine;
-
-                            Color custom;
-                            if (usesLeafTex)
-                            {
-                                float v = 0.88f + (((hKey >> 4) & 0xFF) / 255.0f) * 0.24f;
-                                custom = new Color(v, v * 1.03f, v * 0.94f, tVar);
-                            }
-                            else
-                            {
-                                Color baseC = chosenSp.BaseTint;
-                                float shift = (((hKey >> 4) & 0xFF) / 255.0f - 0.5f) * 0.10f;
-                                custom = new Color(
-                                    Math.Clamp(baseC.R + shift, 0.05f, 1.0f),
-                                    Math.Clamp(baseC.G + shift, 0.05f, 1.0f),
-                                    Math.Clamp(baseC.B - shift * 0.5f, 0.05f, 1.0f),
-                                    tVar);
-                            }
+                            Color baseC = chosenSp.BaseTint;
+                            float shift = (((hKey >> 4) & 0xFF) / 255.0f - 0.5f) * 0.10f;
+                            Color custom = new Color(
+                                Math.Clamp(baseC.R + shift, 0.78f, 1.18f),
+                                Math.Clamp(baseC.G + shift, 0.78f, 1.18f),
+                                Math.Clamp(baseC.B - shift * 0.5f, 0.78f, 1.18f),
+                                tVar);
 
                             cellList.Add(new FloraInstance(chosenSp.Id, xform, custom, (byte)((hKey >> 2) & 1)));
                         }
@@ -661,7 +764,69 @@ namespace PrimevalWorld.Flora
                 }
             });
 
-            // Aggregate L3..L6 counts
+            // ===================== PHASE 2B: AQUATIC FLOATING (WATER LILY) & SHALLOW BENTHIC (SEA KELP) =====================
+            Parallel.For(0, MicroRows, mz =>
+            {
+                float zStart = mz * MicroCellSize;
+                for (int mx = 0; mx < MicroCols; mx++)
+                {
+                    float xStart = mx * MicroCellSize;
+                    var cellList = MicroDetailCells[mx, mz];
+                    const float aqStep = 14.0f;
+                    int nSteps = (int)(MicroCellSize / aqStep);
+
+                    for (int sz = 0; sz < nSteps; sz++)
+                    {
+                        for (int sx = 0; sx < nSteps; sx++)
+                        {
+                            uint hKey = Hash2D(mx * 13 + sx, mz * 13 + sz, seed + 2903);
+                            float wx = xStart + (sx + 0.15f + ((hKey & 0xFF) / 255.0f) * 0.70f) * aqStep;
+                            float wz = zStart + (sz + 0.15f + (((hKey >> 8) & 0xFF) / 255.0f) * 0.70f) * aqStep;
+                            if (wx < 15f || wx > WorldPhysicsConfig.WorldWidth - 15f || wz < 15f || wz > WorldPhysicsConfig.WorldDepth - 15f)
+                                continue;
+
+                            int gx = Math.Clamp((int)(wx / Cell), 0, W - 1);
+                            int gz = Math.Clamp((int)(wz / Cell), 0, H - 1);
+                            int gIdx = gz * W + gx;
+
+                            float terrainY = erosion.SampleHeight(wx, wz);
+                            float waterDepth = hydrology.SampleWaterDepthAt(wx, wz, terrainY);
+                            if (waterDepth < 0.15f || waterDepth > 2.80f) continue;
+
+                            float sal = soil.SampleSoil(wx, wz).CoastalSalinity;
+                            float patch = FastNoise.Fbm2D(wx * 0.014f, wz * 0.014f, seed + 3109, 2);
+                            if (patch < 0.46f) continue;
+
+                            float yaw = (hKey & 0xFFF) / 4095.0f * Mathf.Tau;
+                            float tVar = ((hKey >> 16) & 0xFF) / 255.0f;
+
+                            // 1) Primeval Water Lily: calm shallow freshwater (0.15m..1.25m), placed at Y = localWaterY + 0.03f!
+                            if (hydrology.HasInlandWater[gIdx] && sal < 0.15f && hydrology.WaterVelocityMap[gIdx] < 2.8f &&
+                                waterDepth >= 0.15f && waterDepth <= 1.25f)
+                            {
+                                float localWaterY = terrainY + waterDepth;
+                                float padScale = 1.05f + tVar * 0.65f;
+                                var xform = new Transform3D(Basis.Identity.Rotated(Vector3.Up, yaw).Scaled(new Vector3(padScale, 1.0f, padScale)),
+                                    new Vector3(wx, localWaterY + 0.03f, wz));
+                                cellList.Add(new FloraInstance(FloraSpeciesId.PrimevalWaterLily, xform, new Color(0.98f, 1.02f, 0.96f, tVar), 0));
+                            }
+                            // 2) Shallow Sea Kelp: salty shallow coastal seafloor (0.45m..2.80m), anchored at terrainY, height <= waterDepth - 0.15m!
+                            else if (sal > 0.40f && terrainY < WorldPhysicsConfig.SeaLevel - 0.40f &&
+                                     waterDepth >= 0.45f && waterDepth <= 2.80f)
+                            {
+                                float maxKelpH = MathF.Max(0.28f, waterDepth - 0.18f);
+                                float kelpH = MathF.Min(maxKelpH, 0.65f + tVar * 1.55f);
+                                float kelpW = 0.75f + tVar * 0.45f;
+                                var xform = new Transform3D(Basis.Identity.Rotated(Vector3.Up, yaw).Scaled(new Vector3(kelpW, kelpH, kelpW)),
+                                    new Vector3(wx, terrainY - 0.05f, wz));
+                                cellList.Add(new FloraInstance(FloraSpeciesId.ShallowSeaKelp, xform, new Color(0.88f, 1.00f, 0.88f, tVar), 0));
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Aggregate L3..L6 counts & verify strict aquatic depth invariants
             for (int mz = 0; mz < MicroRows; mz++)
             {
                 for (int mx = 0; mx < MicroCols; mx++)
@@ -672,8 +837,24 @@ namespace PrimevalWorld.Flora
                         FloraSpeciesId sp = list[i].Species;
                         FloraNicheProfile prof = FloraNicheDatabase.AllSpecies[(int)sp];
                         Vector3 o = list[i].Transform.Origin;
-                        if (hydrology.SampleWaterDepthAt(o.X, o.Z, o.Y + 0.10f) > 0.30f)
+                        if (prof.IsAquaticFloating)
+                        {
+                            float ty = erosion.SampleHeight(o.X, o.Z);
+                            float wd = hydrology.SampleWaterDepthAt(o.X, o.Z, ty);
+                            WaterLilyTotal++;
+                            if (wd >= 0.14f && wd <= 1.28f) WaterLilyValidDepth++;
+                        }
+                        else if (prof.IsUnderwaterBenthic)
+                        {
+                            float ty = erosion.SampleHeight(o.X, o.Z);
+                            float wd = hydrology.SampleWaterDepthAt(o.X, o.Z, ty);
+                            SeaKelpTotal++;
+                            if (wd >= 0.42f && wd <= 2.85f) SeaKelpValidDepth++;
+                        }
+                        else if (!prof.IsEpiphyteTrunk && hydrology.SampleWaterDepthAt(o.X, o.Z, o.Y + 0.10f) > 0.30f)
+                        {
                             DeepWaterDetailCount++;
+                        }
                         LayerCounts[(int)prof.Layer]++;
                         StemGroupCounts[(int)prof.Stem]++;
                         SpeciesCounts[(int)sp]++;

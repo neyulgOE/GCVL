@@ -230,7 +230,8 @@ namespace PrimevalWorld.Flora
                     if (hasOverlap[i]) ecoOverlapCnt[e]++;
                 }
                 if (t.CorridorValue >= 0.35f) corridorTrees++;
-                if (t.WaterDepthM > 0.30f) deepWaterWoody++;
+                float maxAllowedDepth = t.ToleratesShallowFlood ? 0.45f : 0.30f;
+                if (t.WaterDepthM > maxAllowedDepth) deepWaterWoody++;
             }
 
             sw.Stop();
@@ -291,7 +292,27 @@ namespace PrimevalWorld.Flora
                     $"  {names[e]} | {areaKm2,9:F2} | {treesPerKm2,9:F0} | {meanCov,5:F2} / {p50Cov,4:F2} / {p95Cov,4:F2}   | {minNn,5:F2}m / {meanNn,5:F2}m | {overlapPct,7:F1}% | {status}"));
             }
 
-            string waterEval = totalDeepWater == 0 ? "[PASS]" : $"[GAP: {totalDeepWater} in >0.3m water!]";
+            int activeFloraSpecies = 0;
+            int maxWoodyCount = 0;
+            string maxWoodyKey = "-";
+            int birchCount = spawner.SpeciesCounts[(int)FloraSpeciesId.WeepingSilverBirch];
+            for (int s = 0; s < FloraNicheDatabase.AllSpecies.Length; s++)
+            {
+                var prof = FloraNicheDatabase.AllSpecies[s];
+                int c = spawner.SpeciesCounts[s];
+                if (!prof.IsGeological && c > 0) activeFloraSpecies++;
+                if (prof.Layer <= FloraLayer.Canopy && c > maxWoodyCount)
+                {
+                    maxWoodyCount = c;
+                    maxWoodyKey = prof.SpeciesKey;
+                }
+            }
+            float maxWoodyPct = nTrees > 0 ? maxWoodyCount * 100.0f / nTrees : 0.0f;
+            float birchPct = nTrees > 0 ? birchCount * 100.0f / nTrees : 0.0f;
+
+            string waterEval = deepWaterWoody == 0 && totalDeepWater == 0 ? "[PASS]" : $"[GAP: woody={deepWaterWoody}, detail={spawner.DeepWaterDetailCount}]";
+            sb.AppendLine(string.Create(inv, $"[SpeciesAudit] ActiveFloraSpecies={activeFloraSpecies}/59 | MaxWoody={maxWoodyKey} ({maxWoodyPct:F1}%, Target <= 16%) | Birch={birchCount:N0} ({birchPct:F1}%, Target 6-10%)"));
+            sb.AppendLine(string.Create(inv, $"[AquaticAudit] DeepWaterWoody(>0.30m, flood-exempt<=0.45m)={deepWaterWoody} | AquaticFloating(water_lily)={spawner.WaterLilyValidDepth:N0}/{spawner.WaterLilyTotal:N0} (0.15-1.25m) | UnderwaterBenthic(sea_kelp)={spawner.SeaKelpValidDepth:N0}/{spawner.SeaKelpTotal:N0} (0.45-2.80m)"));
             sb.AppendLine(string.Create(inv, $"[IntegrityCheck] CorridorWoodyTrees={corridorPct:F2}% ({corridorTrees:N0}/{nTrees:N0}) | DeepWaterFlora(>0.30m)={totalDeepWater} (Woody={deepWaterWoody}, Detail={spawner.DeepWaterDetailCount}) -> {waterEval}"));
             GD.Print(sb.ToString());
         }

@@ -40,6 +40,16 @@ namespace PrimevalWorld.Flora
         ArchSucculentAndGround = 13 // 14. Thùa gai, Sen đá, Trầu bà, Rêu, Nấm, Gỗ mục, Đất sét, Quặng, Đá
     }
 
+    public enum FoodTag : byte
+    {
+        None = 0,
+        Grazing = 1,
+        Browse = 2,
+        Berry = 3,
+        Aquatic = 4,
+        Thorny = 5,
+    }
+
     public enum FloraSpeciesId : byte
     {
         // Layer 1: Emergent (4) - WoodyBranching (22-32m)
@@ -72,7 +82,7 @@ namespace PrimevalWorld.Flora
         SnowberryAlpineShrub = 20,
         AridThornScrub = 21,
 
-        // Layer 5: Herb / Soft / Succulent / Vine (9) - HerbaceousGround (0.25-1.8m)
+        // Layer 5: Herb / Soft / Succulent / Vine (10) - HerbaceousGround (0.25-1.8m)
         PampasPlumeTallgrass = 22,
         RiverbankReedBed = 23,
         GiantElephantEar = 24,
@@ -93,6 +103,43 @@ namespace PrimevalWorld.Flora
         // Phase 1 Rainforest Understory & Hanging Liana Curtain (2)
         LianaMossCurtain = 36,
         LushSwordFern = 37,
+
+        // 55+ Species Pack Expansion (24 new prehistoric flora species across all 7 ecosystems)
+        // 1. Primeval Forest & Epiphytes (5)
+        AraucariaMonkeyPuzzle = 38,
+        PrimevalMagnolia = 39,
+        WildBananaRavenala = 40,
+        EpiphyteBirdnestFern = 41,
+        GiantShelfFungi = 42,
+
+        // 2. Wetland Delta & Aquatic (5)
+        SwampBaldCypress = 43,
+        GiantHorsetailEquisetum = 44,
+        CattailMarshReed = 45,
+        MarshWildIris = 46,
+        PrimevalWaterLily = 47,
+
+        // 3. Floodplain, Ecotone & Autumn Steppe (4)
+        AncientSteppeOak = 48,
+        PrimevalBeechGold = 49,
+        SteppeWildflowerMeadow = 50,
+        WildBriarRoseThicket = 51,
+
+        // 4. Arid Red Desert, Wadi & Oasis (4)
+        OasisDatePalm = 52,
+        ColumnarEuphorbiaCactus = 53,
+        DesertSilverSagebrush = 54,
+        RedSandSpinifexTussock = 55,
+
+        // 5. Alpine & Sub-Alpine (2)
+        TwistedSubalpineLarch = 56,
+        AlpineHeatherCushion = 57,
+
+        // 6. Coastline, Estuary & Shallow Benthic (4)
+        CoastalMangroveStilt = 58,
+        CoastalPandanusScrewpine = 59,
+        CoastalDuneMorningGlory = 60,
+        ShallowSeaKelp = 61,
     }
 
     /// <summary>
@@ -130,6 +177,14 @@ namespace PrimevalWorld.Flora
 
         public Color BaseTint { get; init; }
         public Color MapColor { get; init; }
+
+        // Fauna Phase 5 & Special Ecological Habit Flags
+        public FoodTag Food { get; init; } = FoodTag.None;
+        public bool IsAquaticFloating { get; init; } = false;
+        public bool IsUnderwaterBenthic { get; init; } = false;
+        public bool IsEpiphyteTrunk { get; init; } = false;
+        public bool ToleratesShallowFlood { get; init; } = false;
+        public bool IsGeological { get; init; } = false;
 
         public float EvaluateSuitability(
             in ClimateSample climate,
@@ -247,11 +302,12 @@ namespace PrimevalWorld.Flora
             {
                 Id = FloraSpeciesId.WeepingSilverBirch, SpeciesKey = "weeping_silver_birch", DisplayName = "Bạch Dương Rủ",
                 Layer = FloraLayer.Canopy, Stem = StemGroup.WoodyBranching, Architecture = FloraArchitecture.ArchWeepingTree,
-                IdealTempC = 10.0f, TempToleranceC = 7.5f, IdealMoisture = 0.48f, MoistureTolerance = 0.28f,
-                MinGroundwater = 0.04f, MaxWindSpeedMs = 20.5f, MaxSlopeDeg = 26.0f, MinSoilDepth = 0.14f, SalinityTolerance = 0.20f,
-                SoilAffinity = new[] { 0.65f, 0.85f, 0.95f, 0.04f, 0.06f, 0.28f },
-                LightMin = 0.0f, LightMax = 1.0f, CrownRadiusM = 4.8f, HeightMinM = 10.0f, HeightMaxM = 14.5f, WindStiffness = 0.84f,
-                BaseTint = new Color(0.92f, 1.04f, 0.86f), MapColor = new Color(0.36f, 0.66f, 0.26f)
+                IdealTempC = 10.5f, TempToleranceC = 6.8f, IdealMoisture = 0.52f, MoistureTolerance = 0.26f,
+                MinGroundwater = 0.02f, MaxWindSpeedMs = 20.0f, MaxSlopeDeg = 24.0f, MinSoilDepth = 0.14f, SalinityTolerance = 0.18f,
+                SoilAffinity = new[] { 0.72f, 0.65f, 0.92f, 0.02f, 0.04f, 0.25f },
+                LightMin = 0.15f, LightMax = 1.0f, CrownRadiusM = 4.8f, HeightMinM = 10.0f, HeightMaxM = 14.5f, WindStiffness = 0.84f,
+                BaseTint = new Color(0.92f, 1.04f, 0.86f), MapColor = new Color(0.36f, 0.66f, 0.26f),
+                Food = FoodTag.Browse
             },
             new FloraNicheProfile
             {
@@ -529,7 +585,7 @@ namespace PrimevalWorld.Flora
                 MinGroundwater = 0.35f, MaxWindSpeedMs = 26.0f, MaxSlopeDeg = 20.0f, MinSoilDepth = 0.10f, SalinityTolerance = 0.40f,
                 SoilAffinity = new[] { 1.0f, 0.55f, 0.25f, 0.25f, 0.35f, 0.10f },
                 LightMin = 0.0f, LightMax = 1.0f, CrownRadiusM = 1.2f, HeightMinM = 0.35f, HeightMaxM = 0.70f, WindStiffness = 1.0f,
-                BaseTint = new Color(0.42f, 0.34f, 0.26f), MapColor = new Color(0.42f, 0.34f, 0.26f)
+                BaseTint = new Color(0.42f, 0.34f, 0.26f), MapColor = new Color(0.42f, 0.34f, 0.26f), IsGeological = true
             },
             new FloraNicheProfile
             {
@@ -539,7 +595,7 @@ namespace PrimevalWorld.Flora
                 MinGroundwater = 0.0f, MaxWindSpeedMs = 28.0f, MaxSlopeDeg = 55.0f, MinSoilDepth = 0.0f, SalinityTolerance = 0.50f,
                 SoilAffinity = new[] { 0.10f, 0.20f, 0.35f, 0.55f, 0.10f, 1.0f },
                 LightMin = 0.25f, LightMax = 1.0f, CrownRadiusM = 1.2f, HeightMinM = 0.7f, HeightMaxM = 1.5f, WindStiffness = 1.0f,
-                BaseTint = new Color(0.28f, 0.54f, 0.44f), MapColor = new Color(0.28f, 0.54f, 0.44f)
+                BaseTint = new Color(0.28f, 0.54f, 0.44f), MapColor = new Color(0.28f, 0.54f, 0.44f), IsGeological = true
             },
             new FloraNicheProfile
             {
@@ -549,7 +605,7 @@ namespace PrimevalWorld.Flora
                 MinGroundwater = 0.0f, MaxWindSpeedMs = 28.0f, MaxSlopeDeg = 55.0f, MinSoilDepth = 0.0f, SalinityTolerance = 0.80f,
                 SoilAffinity = new[] { 0.25f, 0.35f, 0.50f, 0.70f, 0.35f, 1.0f },
                 LightMin = 0.0f, LightMax = 1.0f, CrownRadiusM = 1.3f, HeightMinM = 0.7f, HeightMaxM = 1.7f, WindStiffness = 1.0f,
-                BaseTint = new Color(0.42f, 0.41f, 0.39f), MapColor = new Color(0.42f, 0.41f, 0.39f)
+                BaseTint = new Color(0.42f, 0.41f, 0.39f), MapColor = new Color(0.42f, 0.41f, 0.39f), IsGeological = true
             },
 
             // ===================== PHASE 1: HANGING MOSS LIANA & LUSH SWORD FERN =====================
@@ -571,7 +627,285 @@ namespace PrimevalWorld.Flora
                 MinGroundwater = 0.0f, MaxWindSpeedMs = 19.0f, MaxSlopeDeg = 30.0f, MinSoilDepth = 0.10f, SalinityTolerance = 0.18f,
                 SoilAffinity = new[] { 1.0f, 1.0f, 0.25f, 0.01f, 0.05f, 0.12f },
                 LightMin = 0.0f, LightMax = 0.72f, CrownRadiusM = 1.4f, HeightMinM = 0.8f, HeightMaxM = 1.5f, WindStiffness = 0.30f,
-                BaseTint = new Color(0.92f, 1.08f, 0.84f), MapColor = new Color(0.16f, 0.46f, 0.13f)
+                BaseTint = new Color(0.92f, 1.08f, 0.84f), MapColor = new Color(0.16f, 0.46f, 0.13f),
+                Food = FoodTag.Browse
+            },
+
+            // ===================== 24 NEW PREHISTORIC FLORA SPECIES (38..61) =====================
+            // 1. Primeval Forest & Epiphytes (5)
+            new FloraNicheProfile
+            {
+                Id = FloraSpeciesId.AraucariaMonkeyPuzzle, SpeciesKey = "araucaria_monkey_puzzle", DisplayName = "Bách Tán Cổ Sinh",
+                Layer = FloraLayer.Emergent, Stem = StemGroup.WoodyBranching, Architecture = FloraArchitecture.ArchEmergentSequoia,
+                IdealTempC = 15.5f, TempToleranceC = 6.5f, IdealMoisture = 0.66f, MoistureTolerance = 0.28f,
+                MinGroundwater = 0.02f, MaxWindSpeedMs = 20.0f, MaxSlopeDeg = 27.0f, MinSoilDepth = 0.28f, SalinityTolerance = 0.20f,
+                SoilAffinity = new[] { 0.65f, 1.0f, 0.35f, 0.02f, 0.08f, 0.12f },
+                LightMin = 0.0f, LightMax = 1.0f, CrownRadiusM = 7.4f, HeightMinM = 24.0f, HeightMaxM = 33.0f, WindStiffness = 0.90f,
+                BaseTint = new Color(0.94f, 1.00f, 0.92f), MapColor = new Color(0.08f, 0.30f, 0.16f),
+                Food = FoodTag.Browse
+            },
+            new FloraNicheProfile
+            {
+                Id = FloraSpeciesId.PrimevalMagnolia, SpeciesKey = "primeval_magnolia", DisplayName = "Mộc Lan Cổ Đại",
+                Layer = FloraLayer.Canopy, Stem = StemGroup.WoodyBranching, Architecture = FloraArchitecture.ArchCanopyBroadleaf,
+                IdealTempC = 21.5f, TempToleranceC = 7.5f, IdealMoisture = 0.72f, MoistureTolerance = 0.26f,
+                MinGroundwater = 0.04f, MaxWindSpeedMs = 17.5f, MaxSlopeDeg = 24.0f, MinSoilDepth = 0.24f, SalinityTolerance = 0.16f,
+                SoilAffinity = new[] { 0.95f, 1.0f, 0.20f, 0.01f, 0.04f, 0.02f },
+                LightMin = 0.0f, LightMax = 1.0f, CrownRadiusM = 6.4f, HeightMinM = 11.0f, HeightMaxM = 17.0f, WindStiffness = 0.84f,
+                BaseTint = new Color(1.00f, 1.00f, 0.98f), MapColor = new Color(0.22f, 0.50f, 0.24f),
+                Food = FoodTag.Browse
+            },
+            new FloraNicheProfile
+            {
+                Id = FloraSpeciesId.WildBananaRavenala, SpeciesKey = "wild_banana_ravenala", DisplayName = "Chuối Rừng Xẻ Rách",
+                Layer = FloraLayer.Understory, Stem = StemGroup.ColumnarCaudexCulm, Architecture = FloraArchitecture.ArchSoftTallHerb,
+                IdealTempC = 23.0f, TempToleranceC = 6.5f, IdealMoisture = 0.74f, MoistureTolerance = 0.26f,
+                MinGroundwater = 0.06f, MaxWindSpeedMs = 15.5f, MaxSlopeDeg = 22.0f, MinSoilDepth = 0.18f, SalinityTolerance = 0.15f,
+                SoilAffinity = new[] { 1.0f, 0.95f, 0.10f, 0.0f, 0.04f, 0.0f },
+                LightMin = 0.20f, LightMax = 0.75f, CrownRadiusM = 2.0f, HeightMinM = 2.6f, HeightMaxM = 4.5f, WindStiffness = 0.45f,
+                BaseTint = new Color(0.96f, 1.04f, 0.90f), MapColor = new Color(0.20f, 0.56f, 0.14f),
+                Food = FoodTag.Browse
+            },
+            new FloraNicheProfile
+            {
+                Id = FloraSpeciesId.EpiphyteBirdnestFern, SpeciesKey = "epiphyte_birdnest_fern", DisplayName = "Dương Xỉ Tổ Chim Ký Sinh",
+                Layer = FloraLayer.HerbGround, Stem = StemGroup.HerbaceousGround, Architecture = FloraArchitecture.ArchSucculentAndGround,
+                IdealTempC = 20.5f, TempToleranceC = 8.5f, IdealMoisture = 0.76f, MoistureTolerance = 0.22f,
+                MinGroundwater = 0.0f, MaxWindSpeedMs = 18.0f, MaxSlopeDeg = 35.0f, MinSoilDepth = 0.0f, SalinityTolerance = 0.12f,
+                SoilAffinity = new[] { 1.0f, 1.0f, 0.10f, 0.0f, 0.0f, 0.0f },
+                LightMin = 0.0f, LightMax = 0.55f, CrownRadiusM = 0.9f, HeightMinM = 0.6f, HeightMaxM = 1.2f, WindStiffness = 0.78f,
+                BaseTint = new Color(0.96f, 1.06f, 0.88f), MapColor = new Color(0.24f, 0.54f, 0.16f),
+                Food = FoodTag.None, IsEpiphyteTrunk = true
+            },
+            new FloraNicheProfile
+            {
+                Id = FloraSpeciesId.GiantShelfFungi, SpeciesKey = "giant_shelf_fungi", DisplayName = "Nấm Tán Gỗ Khổng Lồ",
+                Layer = FloraLayer.LitterSoil, Stem = StemGroup.HerbaceousGround, Architecture = FloraArchitecture.ArchSucculentAndGround,
+                IdealTempC = 17.5f, TempToleranceC = 10.5f, IdealMoisture = 0.72f, MoistureTolerance = 0.28f,
+                MinGroundwater = 0.0f, MaxWindSpeedMs = 22.0f, MaxSlopeDeg = 30.0f, MinSoilDepth = 0.05f, SalinityTolerance = 0.15f,
+                SoilAffinity = new[] { 0.95f, 1.0f, 0.20f, 0.0f, 0.02f, 0.08f },
+                LightMin = 0.0f, LightMax = 0.42f, CrownRadiusM = 0.8f, HeightMinM = 0.35f, HeightMaxM = 0.85f, WindStiffness = 1.0f,
+                BaseTint = new Color(1.00f, 0.96f, 0.88f), MapColor = new Color(0.62f, 0.46f, 0.26f),
+                Food = FoodTag.None
+            },
+
+            // 2. Wetland Delta & Aquatic (5)
+            new FloraNicheProfile
+            {
+                Id = FloraSpeciesId.SwampBaldCypress, SpeciesKey = "swamp_bald_cypress", DisplayName = "Bụt Mọc Đầm Lầy",
+                Layer = FloraLayer.Emergent, Stem = StemGroup.WoodyBranching, Architecture = FloraArchitecture.ArchButtressBroadleaf,
+                IdealTempC = 19.0f, TempToleranceC = 10.5f, IdealMoisture = 0.68f, MoistureTolerance = 0.32f,
+                MinGroundwater = 0.08f, MaxWindSpeedMs = 20.0f, MaxSlopeDeg = 14.0f, MinSoilDepth = 0.16f, SalinityTolerance = 0.35f,
+                SoilAffinity = new[] { 1.0f, 0.85f, 0.15f, 0.01f, 0.18f, 0.02f },
+                LightMin = 0.0f, LightMax = 1.0f, CrownRadiusM = 6.8f, HeightMinM = 16.0f, HeightMaxM = 25.0f, WindStiffness = 0.88f,
+                BaseTint = new Color(0.92f, 1.02f, 0.88f), MapColor = new Color(0.12f, 0.36f, 0.20f),
+                Food = FoodTag.Browse, ToleratesShallowFlood = true
+            },
+            new FloraNicheProfile
+            {
+                Id = FloraSpeciesId.GiantHorsetailEquisetum, SpeciesKey = "giant_horsetail_equisetum", DisplayName = "Mộc Tặc Cổ Sinh Khổng Lồ",
+                Layer = FloraLayer.Understory, Stem = StemGroup.ColumnarCaudexCulm, Architecture = FloraArchitecture.ArchBambooCulm,
+                IdealTempC = 17.0f, TempToleranceC = 11.0f, IdealMoisture = 0.66f, MoistureTolerance = 0.30f,
+                MinGroundwater = 0.16f, MaxWindSpeedMs = 19.0f, MaxSlopeDeg = 16.0f, MinSoilDepth = 0.10f, SalinityTolerance = 0.25f,
+                SoilAffinity = new[] { 1.0f, 0.85f, 0.25f, 0.02f, 0.12f, 0.04f },
+                LightMin = 0.15f, LightMax = 1.0f, CrownRadiusM = 1.4f, HeightMinM = 2.2f, HeightMaxM = 4.2f, WindStiffness = 0.55f,
+                BaseTint = new Color(0.94f, 1.04f, 0.86f), MapColor = new Color(0.18f, 0.48f, 0.18f),
+                Food = FoodTag.Grazing
+            },
+            new FloraNicheProfile
+            {
+                Id = FloraSpeciesId.CattailMarshReed, SpeciesKey = "cattail_marsh_reed", DisplayName = "Bồ Hoàng Đuôi Mèo",
+                Layer = FloraLayer.Shrub, Stem = StemGroup.HerbaceousGround, Architecture = FloraArchitecture.ArchSoftTallHerb,
+                IdealTempC = 18.0f, TempToleranceC = 11.5f, IdealMoisture = 0.68f, MoistureTolerance = 0.30f,
+                MinGroundwater = 0.14f, MaxWindSpeedMs = 22.0f, MaxSlopeDeg = 10.0f, MinSoilDepth = 0.08f, SalinityTolerance = 0.35f,
+                SoilAffinity = new[] { 1.0f, 0.65f, 0.25f, 0.04f, 0.22f, 0.02f },
+                LightMin = 0.30f, LightMax = 1.0f, CrownRadiusM = 1.2f, HeightMinM = 1.4f, HeightMaxM = 2.5f, WindStiffness = 0.30f,
+                BaseTint = new Color(0.98f, 1.00f, 0.92f), MapColor = new Color(0.32f, 0.46f, 0.18f),
+                Food = FoodTag.Aquatic
+            },
+            new FloraNicheProfile
+            {
+                Id = FloraSpeciesId.MarshWildIris, SpeciesKey = "marsh_wild_iris", DisplayName = "Diên Vĩ Đầm Lầy",
+                Layer = FloraLayer.HerbGround, Stem = StemGroup.HerbaceousGround, Architecture = FloraArchitecture.ArchSoftTallHerb,
+                IdealTempC = 16.5f, TempToleranceC = 10.5f, IdealMoisture = 0.66f, MoistureTolerance = 0.30f,
+                MinGroundwater = 0.16f, MaxWindSpeedMs = 20.0f, MaxSlopeDeg = 14.0f, MinSoilDepth = 0.08f, SalinityTolerance = 0.22f,
+                SoilAffinity = new[] { 1.0f, 0.70f, 0.30f, 0.02f, 0.12f, 0.02f },
+                LightMin = 0.35f, LightMax = 1.0f, CrownRadiusM = 0.9f, HeightMinM = 0.7f, HeightMaxM = 1.3f, WindStiffness = 0.32f,
+                BaseTint = new Color(1.00f, 0.98f, 1.02f), MapColor = new Color(0.42f, 0.36f, 0.72f),
+                Food = FoodTag.Aquatic
+            },
+            new FloraNicheProfile
+            {
+                Id = FloraSpeciesId.PrimevalWaterLily, SpeciesKey = "primeval_water_lily", DisplayName = "Sen Súng Mặt Nước",
+                Layer = FloraLayer.HerbGround, Stem = StemGroup.HerbaceousGround, Architecture = FloraArchitecture.ArchSucculentAndGround,
+                IdealTempC = 20.0f, TempToleranceC = 11.0f, IdealMoisture = 0.95f, MoistureTolerance = 0.25f,
+                MinGroundwater = 0.50f, MaxWindSpeedMs = 16.0f, MaxSlopeDeg = 5.0f, MinSoilDepth = 0.0f, SalinityTolerance = 0.12f,
+                SoilAffinity = new[] { 1.0f, 0.80f, 0.50f, 0.20f, 0.05f, 0.05f },
+                LightMin = 0.30f, LightMax = 1.0f, CrownRadiusM = 1.3f, HeightMinM = 0.15f, HeightMaxM = 0.35f, WindStiffness = 0.15f,
+                BaseTint = new Color(1.00f, 1.00f, 0.98f), MapColor = new Color(0.28f, 0.62f, 0.38f),
+                Food = FoodTag.Aquatic, IsAquaticFloating = true
+            },
+
+            // 3. Floodplain, Ecotone & Autumn Steppe (4)
+            new FloraNicheProfile
+            {
+                Id = FloraSpeciesId.AncientSteppeOak, SpeciesKey = "ancient_steppe_oak", DisplayName = "Sồi Cổ Thụ Đồng Bằng",
+                Layer = FloraLayer.Emergent, Stem = StemGroup.WoodyBranching, Architecture = FloraArchitecture.ArchButtressBroadleaf,
+                IdealTempC = 16.0f, TempToleranceC = 9.0f, IdealMoisture = 0.48f, MoistureTolerance = 0.28f,
+                MinGroundwater = 0.02f, MaxWindSpeedMs = 21.0f, MaxSlopeDeg = 18.0f, MinSoilDepth = 0.24f, SalinityTolerance = 0.22f,
+                SoilAffinity = new[] { 1.0f, 0.70f, 1.0f, 0.08f, 0.06f, 0.04f },
+                LightMin = 0.50f, LightMax = 1.0f, CrownRadiusM = 9.6f, HeightMinM = 14.0f, HeightMaxM = 20.0f, WindStiffness = 0.92f,
+                BaseTint = new Color(0.92f, 1.00f, 0.86f), MapColor = new Color(0.18f, 0.42f, 0.14f),
+                Food = FoodTag.Browse
+            },
+            new FloraNicheProfile
+            {
+                Id = FloraSpeciesId.PrimevalBeechGold, SpeciesKey = "primeval_beech_gold", DisplayName = "Dẻ Gai Vàng Cao Nguyên",
+                Layer = FloraLayer.Canopy, Stem = StemGroup.WoodyBranching, Architecture = FloraArchitecture.ArchCanopyBroadleaf,
+                IdealTempC = 13.5f, TempToleranceC = 6.5f, IdealMoisture = 0.52f, MoistureTolerance = 0.26f,
+                MinGroundwater = 0.02f, MaxWindSpeedMs = 20.0f, MaxSlopeDeg = 24.0f, MinSoilDepth = 0.20f, SalinityTolerance = 0.18f,
+                SoilAffinity = new[] { 0.60f, 0.90f, 1.0f, 0.05f, 0.05f, 0.12f },
+                LightMin = 0.0f, LightMax = 1.0f, CrownRadiusM = 6.6f, HeightMinM = 13.0f, HeightMaxM = 19.0f, WindStiffness = 0.85f,
+                BaseTint = new Color(1.02f, 0.96f, 0.82f), MapColor = new Color(0.68f, 0.56f, 0.18f),
+                Food = FoodTag.Browse
+            },
+            new FloraNicheProfile
+            {
+                Id = FloraSpeciesId.SteppeWildflowerMeadow, SpeciesKey = "steppe_wildflower_meadow", DisplayName = "Thảm Hoa Dại Thảo Nguyên",
+                Layer = FloraLayer.HerbGround, Stem = StemGroup.HerbaceousGround, Architecture = FloraArchitecture.ArchSoftTallHerb,
+                IdealTempC = 16.5f, TempToleranceC = 11.0f, IdealMoisture = 0.46f, MoistureTolerance = 0.30f,
+                MinGroundwater = 0.0f, MaxWindSpeedMs = 24.0f, MaxSlopeDeg = 22.0f, MinSoilDepth = 0.12f, SalinityTolerance = 0.25f,
+                SoilAffinity = new[] { 1.0f, 0.30f, 1.0f, 0.10f, 0.15f, 0.06f },
+                LightMin = 0.68f, LightMax = 1.0f, CrownRadiusM = 1.1f, HeightMinM = 0.35f, HeightMaxM = 0.85f, WindStiffness = 0.22f,
+                BaseTint = new Color(1.02f, 1.00f, 0.96f), MapColor = new Color(0.84f, 0.72f, 0.34f),
+                Food = FoodTag.Grazing
+            },
+            new FloraNicheProfile
+            {
+                Id = FloraSpeciesId.WildBriarRoseThicket, SpeciesKey = "wild_briar_rose_thicket", DisplayName = "Bụi Tầm Xuân Gai Bìa Rừng",
+                Layer = FloraLayer.Shrub, Stem = StemGroup.DwarfWoodyShrub, Architecture = FloraArchitecture.ArchWoodyShrub,
+                IdealTempC = 16.0f, TempToleranceC = 10.0f, IdealMoisture = 0.54f, MoistureTolerance = 0.28f,
+                MinGroundwater = 0.0f, MaxWindSpeedMs = 21.0f, MaxSlopeDeg = 25.0f, MinSoilDepth = 0.12f, SalinityTolerance = 0.22f,
+                SoilAffinity = new[] { 0.85f, 0.90f, 0.85f, 0.08f, 0.10f, 0.08f },
+                LightMin = 0.38f, LightMax = 0.88f, CrownRadiusM = 1.4f, HeightMinM = 1.0f, HeightMaxM = 2.0f, WindStiffness = 0.62f,
+                BaseTint = new Color(1.00f, 0.98f, 0.98f), MapColor = new Color(0.68f, 0.36f, 0.44f),
+                Food = FoodTag.Berry
+            },
+
+            // 4. Arid Red Desert, Wadi & Oasis (4)
+            new FloraNicheProfile
+            {
+                Id = FloraSpeciesId.OasisDatePalm, SpeciesKey = "oasis_date_palm", DisplayName = "Cọ Ốc Đảo Cổ Sinh",
+                Layer = FloraLayer.Canopy, Stem = StemGroup.ColumnarCaudexCulm, Architecture = FloraArchitecture.ArchColumnarPalmFern,
+                IdealTempC = 27.0f, TempToleranceC = 10.0f, IdealMoisture = 0.24f, MoistureTolerance = 0.28f,
+                MinGroundwater = 0.18f, MaxWindSpeedMs = 24.0f, MaxSlopeDeg = 16.0f, MinSoilDepth = 0.10f, SalinityTolerance = 0.45f,
+                SoilAffinity = new[] { 0.45f, 0.05f, 0.30f, 1.0f, 0.45f, 0.02f },
+                LightMin = 0.50f, LightMax = 1.0f, CrownRadiusM = 4.2f, HeightMinM = 9.0f, HeightMaxM = 15.0f, WindStiffness = 0.55f,
+                BaseTint = new Color(0.96f, 1.02f, 0.84f), MapColor = new Color(0.32f, 0.56f, 0.18f),
+                Food = FoodTag.Berry
+            },
+            new FloraNicheProfile
+            {
+                Id = FloraSpeciesId.ColumnarEuphorbiaCactus, SpeciesKey = "columnar_euphorbia_cactus", DisplayName = "Đại Kích Cột Hoang Mạc",
+                Layer = FloraLayer.Understory, Stem = StemGroup.ColumnarCaudexCulm, Architecture = FloraArchitecture.ArchSucculentAndGround,
+                IdealTempC = 29.0f, TempToleranceC = 8.5f, IdealMoisture = 0.12f, MoistureTolerance = 0.14f,
+                MinGroundwater = 0.0f, MaxWindSpeedMs = 26.0f, MaxSlopeDeg = 25.0f, MinSoilDepth = 0.06f, SalinityTolerance = 0.40f,
+                SoilAffinity = new[] { 0.02f, 0.0f, 0.18f, 1.0f, 0.15f, 0.25f },
+                LightMin = 0.70f, LightMax = 1.0f, CrownRadiusM = 1.4f, HeightMinM = 2.5f, HeightMaxM = 5.5f, WindStiffness = 0.98f,
+                BaseTint = new Color(0.30f, 0.48f, 0.24f), MapColor = new Color(0.30f, 0.48f, 0.24f),
+                Food = FoodTag.Thorny
+            },
+            new FloraNicheProfile
+            {
+                Id = FloraSpeciesId.DesertSilverSagebrush, SpeciesKey = "desert_silver_sagebrush", DisplayName = "Xô Thơm Bạc Khe Cạn",
+                Layer = FloraLayer.Shrub, Stem = StemGroup.DwarfWoodyShrub, Architecture = FloraArchitecture.ArchWoodyShrub,
+                IdealTempC = 24.0f, TempToleranceC = 11.0f, IdealMoisture = 0.18f, MoistureTolerance = 0.18f,
+                MinGroundwater = 0.0f, MaxWindSpeedMs = 26.0f, MaxSlopeDeg = 24.0f, MinSoilDepth = 0.08f, SalinityTolerance = 0.45f,
+                SoilAffinity = new[] { 0.05f, 0.02f, 0.45f, 1.0f, 0.25f, 0.15f },
+                LightMin = 0.65f, LightMax = 1.0f, CrownRadiusM = 1.1f, HeightMinM = 0.8f, HeightMaxM = 1.6f, WindStiffness = 0.72f,
+                BaseTint = new Color(0.96f, 1.02f, 0.98f), MapColor = new Color(0.56f, 0.64f, 0.56f),
+                Food = FoodTag.Browse
+            },
+            new FloraNicheProfile
+            {
+                Id = FloraSpeciesId.RedSandSpinifexTussock, SpeciesKey = "red_sand_spinifex_tussock", DisplayName = "Cỏ Búi Nhím Cát Đỏ",
+                Layer = FloraLayer.HerbGround, Stem = StemGroup.HerbaceousGround, Architecture = FloraArchitecture.ArchSoftTallHerb,
+                IdealTempC = 28.0f, TempToleranceC = 9.5f, IdealMoisture = 0.14f, MoistureTolerance = 0.16f,
+                MinGroundwater = 0.0f, MaxWindSpeedMs = 24.0f, MaxSlopeDeg = 22.0f, MinSoilDepth = 0.05f, SalinityTolerance = 0.45f,
+                SoilAffinity = new[] { 0.02f, 0.0f, 0.25f, 1.0f, 0.30f, 0.10f },
+                LightMin = 0.72f, LightMax = 1.0f, CrownRadiusM = 0.9f, HeightMinM = 0.4f, HeightMaxM = 0.9f, WindStiffness = 0.48f,
+                BaseTint = new Color(1.04f, 0.98f, 0.86f), MapColor = new Color(0.72f, 0.58f, 0.30f),
+                Food = FoodTag.Thorny
+            },
+
+            // 5. Alpine & Sub-Alpine (2)
+            new FloraNicheProfile
+            {
+                Id = FloraSpeciesId.TwistedSubalpineLarch, SpeciesKey = "twisted_subalpine_larch", DisplayName = "Thông Rụng Lá Cận Tuyết",
+                Layer = FloraLayer.Canopy, Stem = StemGroup.WoodyBranching, Architecture = FloraArchitecture.ArchAlpineConifer,
+                IdealTempC = 4.5f, TempToleranceC = 5.5f, IdealMoisture = 0.48f, MoistureTolerance = 0.28f,
+                MinGroundwater = 0.0f, MaxWindSpeedMs = 24.0f, MaxSlopeDeg = 28.0f, MinSoilDepth = 0.12f, SalinityTolerance = 0.15f,
+                SoilAffinity = new[] { 0.10f, 0.55f, 0.70f, 0.05f, 0.05f, 1.0f },
+                LightMin = 0.40f, LightMax = 1.0f, CrownRadiusM = 4.6f, HeightMinM = 9.0f, HeightMaxM = 15.0f, WindStiffness = 0.88f,
+                BaseTint = new Color(1.04f, 0.98f, 0.80f), MapColor = new Color(0.66f, 0.58f, 0.22f),
+                Food = FoodTag.Browse
+            },
+            new FloraNicheProfile
+            {
+                Id = FloraSpeciesId.AlpineHeatherCushion, SpeciesKey = "alpine_heather_cushion", DisplayName = "Thạch Nam Tím Đài Nguyên",
+                Layer = FloraLayer.Shrub, Stem = StemGroup.DwarfWoodyShrub, Architecture = FloraArchitecture.ArchWoodyShrub,
+                IdealTempC = 1.5f, TempToleranceC = 6.0f, IdealMoisture = 0.45f, MoistureTolerance = 0.30f,
+                MinGroundwater = 0.0f, MaxWindSpeedMs = 28.0f, MaxSlopeDeg = 34.0f, MinSoilDepth = 0.04f, SalinityTolerance = 0.25f,
+                SoilAffinity = new[] { 0.05f, 0.20f, 0.50f, 0.08f, 0.10f, 1.0f },
+                LightMin = 0.55f, LightMax = 1.0f, CrownRadiusM = 0.9f, HeightMinM = 0.3f, HeightMaxM = 0.8f, WindStiffness = 0.82f,
+                BaseTint = new Color(1.06f, 0.84f, 1.14f), MapColor = new Color(0.58f, 0.36f, 0.64f),
+                Food = FoodTag.Grazing
+            },
+
+            // 6. Coastline, Estuary & Shallow Benthic (4)
+            new FloraNicheProfile
+            {
+                Id = FloraSpeciesId.CoastalMangroveStilt, SpeciesKey = "coastal_mangrove_stilt", DisplayName = "Đước Rễ Chống Cửa Sông",
+                Layer = FloraLayer.Canopy, Stem = StemGroup.WoodyBranching, Architecture = FloraArchitecture.ArchCanopyBroadleaf,
+                IdealTempC = 21.0f, TempToleranceC = 10.5f, IdealMoisture = 0.65f, MoistureTolerance = 0.34f,
+                MinGroundwater = 0.02f, MaxWindSpeedMs = 24.0f, MaxSlopeDeg = 14.0f, MinSoilDepth = 0.08f, SalinityTolerance = 1.0f,
+                SoilAffinity = new[] { 0.95f, 0.25f, 0.05f, 0.05f, 1.0f, 0.02f },
+                LightMin = 0.35f, LightMax = 1.0f, CrownRadiusM = 5.4f, HeightMinM = 7.0f, HeightMaxM = 12.0f, WindStiffness = 0.82f,
+                BaseTint = new Color(0.88f, 1.00f, 0.84f), MapColor = new Color(0.10f, 0.38f, 0.22f),
+                Food = FoodTag.Browse, ToleratesShallowFlood = true
+            },
+            new FloraNicheProfile
+            {
+                Id = FloraSpeciesId.CoastalPandanusScrewpine, SpeciesKey = "coastal_pandanus_screwpine", DisplayName = "Dứa Dại Rễ Chống Bờ Biển",
+                Layer = FloraLayer.Understory, Stem = StemGroup.ColumnarCaudexCulm, Architecture = FloraArchitecture.ArchColumnarPalmFern,
+                IdealTempC = 22.0f, TempToleranceC = 10.0f, IdealMoisture = 0.52f, MoistureTolerance = 0.32f,
+                MinGroundwater = 0.0f, MaxWindSpeedMs = 26.0f, MaxSlopeDeg = 17.0f, MinSoilDepth = 0.08f, SalinityTolerance = 1.0f,
+                SoilAffinity = new[] { 0.35f, 0.10f, 0.10f, 0.15f, 1.0f, 0.05f },
+                LightMin = 0.55f, LightMax = 1.0f, CrownRadiusM = 2.4f, HeightMinM = 3.0f, HeightMaxM = 6.0f, WindStiffness = 0.68f,
+                BaseTint = new Color(0.96f, 1.04f, 0.88f), MapColor = new Color(0.24f, 0.52f, 0.20f),
+                Food = FoodTag.Thorny
+            },
+            new FloraNicheProfile
+            {
+                Id = FloraSpeciesId.CoastalDuneMorningGlory, SpeciesKey = "coastal_dune_morning_glory", DisplayName = "Rau Muống Biển & Cỏ Cát",
+                Layer = FloraLayer.HerbGround, Stem = StemGroup.HerbaceousGround, Architecture = FloraArchitecture.ArchSoftTallHerb,
+                IdealTempC = 21.0f, TempToleranceC = 11.0f, IdealMoisture = 0.45f, MoistureTolerance = 0.34f,
+                MinGroundwater = 0.0f, MaxWindSpeedMs = 28.0f, MaxSlopeDeg = 19.0f, MinSoilDepth = 0.04f, SalinityTolerance = 1.0f,
+                SoilAffinity = new[] { 0.20f, 0.05f, 0.10f, 0.15f, 1.0f, 0.04f },
+                LightMin = 0.65f, LightMax = 1.0f, CrownRadiusM = 1.1f, HeightMinM = 0.25f, HeightMaxM = 0.90f, WindStiffness = 0.26f,
+                BaseTint = new Color(1.00f, 1.00f, 1.02f), MapColor = new Color(0.56f, 0.44f, 0.68f),
+                Food = FoodTag.Grazing
+            },
+            new FloraNicheProfile
+            {
+                Id = FloraSpeciesId.ShallowSeaKelp, SpeciesKey = "shallow_sea_kelp", DisplayName = "Tảo Bẹ & Cỏ Biển Đáy Nông",
+                Layer = FloraLayer.HerbGround, Stem = StemGroup.HerbaceousGround, Architecture = FloraArchitecture.ArchSoftTallHerb,
+                IdealTempC = 18.0f, TempToleranceC = 14.0f, IdealMoisture = 1.0f, MoistureTolerance = 0.50f,
+                MinGroundwater = 0.0f, MaxWindSpeedMs = 30.0f, MaxSlopeDeg = 22.0f, MinSoilDepth = 0.0f, SalinityTolerance = 1.0f,
+                SoilAffinity = new[] { 0.40f, 0.10f, 0.10f, 0.10f, 1.0f, 0.20f },
+                LightMin = 0.25f, LightMax = 1.0f, CrownRadiusM = 1.2f, HeightMinM = 0.60f, HeightMaxM = 2.40f, WindStiffness = 0.15f,
+                BaseTint = new Color(0.88f, 1.00f, 0.86f), MapColor = new Color(0.14f, 0.44f, 0.36f),
+                Food = FoodTag.Aquatic, IsUnderwaterBenthic = true
             },
         };
     }

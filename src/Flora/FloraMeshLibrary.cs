@@ -37,43 +37,148 @@ namespace PrimevalWorld.Flora
 
         public static MeshKey GetCanonicalMeshKey(FloraSpeciesId species, byte variant)
         {
-            // Share morphological families cleanly to keep SceneTree nodes < 1,200 while rendering 3-4 distinct shapes!
+            // Strict Archetype Bucketing + Atlas UV Selection:
+            // Keeps total SceneTree nodes strictly < 1,200 even with 59+ flora species!
             return species switch
             {
+                // Primeval broadleaf giants (4 distinct variants on leaf_broadleaf.png)
                 FloraSpeciesId.PrimevalBanyanFig or FloraSpeciesId.SacredAncientHardwood or FloraSpeciesId.StarAppleCanopy =>
                     new MeshKey(FloraSpeciesId.SacredAncientHardwood, (byte)(variant & 3)),
-                FloraSpeciesId.GinkgoAncientGold => new MeshKey(FloraSpeciesId.GinkgoAncientGold, (byte)(variant & 1)),
+                FloraSpeciesId.AncientSteppeOak => new MeshKey(FloraSpeciesId.AncientSteppeOak, 0),
+                FloraSpeciesId.CoastalMangroveStilt => new MeshKey(FloraSpeciesId.CoastalMangroveStilt, 0),
+                FloraSpeciesId.PrimevalMagnolia => new MeshKey(FloraSpeciesId.PrimevalMagnolia, (byte)(variant & 1)),
+
+                // Autumn deciduous canopies (leaf_autumn.png)
+                FloraSpeciesId.GinkgoAncientGold or FloraSpeciesId.PrimevalBeechGold =>
+                    new MeshKey(FloraSpeciesId.GinkgoAncientGold, (byte)(variant & 1)),
                 FloraSpeciesId.CrimsonSteppeMaple => new MeshKey(FloraSpeciesId.CrimsonSteppeMaple, (byte)(variant & 1)),
+                FloraSpeciesId.WeepingSilverBirch => new MeshKey(FloraSpeciesId.WeepingSilverBirch, (byte)(variant & 1)),
+
+                // Conifers & Prehistoric Araucaria / Swamp Cypress / Subalpine Larch
                 FloraSpeciesId.BorealSnowPine or FloraSpeciesId.SilverGlacierSpruce or FloraSpeciesId.GiantSequoiaReddawn =>
                     new MeshKey(FloraSpeciesId.BorealSnowPine, (byte)(variant % 3)),
+                FloraSpeciesId.AraucariaMonkeyPuzzle => new MeshKey(FloraSpeciesId.AraucariaMonkeyPuzzle, 0),
+                FloraSpeciesId.SwampBaldCypress => new MeshKey(FloraSpeciesId.SwampBaldCypress, 0),
+                FloraSpeciesId.TwistedSubalpineLarch => new MeshKey(FloraSpeciesId.TwistedSubalpineLarch, 0),
+
+                // Riparian Willow & Arid Desert Trees
+                FloraSpeciesId.WeepingRiverWillow => new MeshKey(FloraSpeciesId.WeepingRiverWillow, 0),
                 FloraSpeciesId.DragonBloodTree or FloraSpeciesId.SavannaUmbrellaAcacia =>
                     new MeshKey(FloraSpeciesId.DragonBloodTree, (byte)(variant & 1)),
-                FloraSpeciesId.BaobabPrehistoric => new MeshKey(FloraSpeciesId.BaobabPrehistoric, (byte)(variant & 1)),
-                FloraSpeciesId.WeepingRiverWillow => new MeshKey(FloraSpeciesId.WeepingRiverWillow, (byte)(variant & 1)),
-                FloraSpeciesId.WeepingSilverBirch => new MeshKey(FloraSpeciesId.WeepingSilverBirch, (byte)(variant & 1)),
-                FloraSpeciesId.ArborescentTreeFern => new MeshKey(FloraSpeciesId.ArborescentTreeFern, (byte)(variant & 1)),
-                FloraSpeciesId.NipaWaterPalm => new MeshKey(FloraSpeciesId.NipaWaterPalm, (byte)(variant & 1)),
-                FloraSpeciesId.LushSwordFern => new MeshKey(FloraSpeciesId.LushSwordFern, (byte)(variant & 1)),
-                FloraSpeciesId.GiantElephantEar => new MeshKey(FloraSpeciesId.GiantElephantEar, (byte)(variant & 1)),
-                FloraSpeciesId.LianaMossCurtain => new MeshKey(FloraSpeciesId.LianaMossCurtain, (byte)(variant & 1)),
-                FloraSpeciesId.WildBerryBush or FloraSpeciesId.HawthornBerryShrub =>
-                    new MeshKey(FloraSpeciesId.WildBerryBush, (byte)(variant & 1)),
-                FloraSpeciesId.HollowFallenTrunk => new MeshKey(FloraSpeciesId.HollowFallenTrunk, (byte)(variant & 1)),
+                FloraSpeciesId.BaobabPrehistoric => new MeshKey(FloraSpeciesId.BaobabPrehistoric, 0),
+
+                // Columnar Palms, Tree Ferns, Pandanus & Columnar Cactus
+                FloraSpeciesId.ArborescentTreeFern => new MeshKey(FloraSpeciesId.ArborescentTreeFern, 0),
+                FloraSpeciesId.NipaWaterPalm => new MeshKey(FloraSpeciesId.NipaWaterPalm, 0),
+                FloraSpeciesId.OasisDatePalm => new MeshKey(FloraSpeciesId.OasisDatePalm, 0),
+                FloraSpeciesId.CoastalPandanusScrewpine => new MeshKey(FloraSpeciesId.CoastalPandanusScrewpine, 0),
+                FloraSpeciesId.ColumnarEuphorbiaCactus => new MeshKey(FloraSpeciesId.ColumnarEuphorbiaCactus, (byte)(variant & 1)),
+
+                // Shared Liana / Sword Fern / Berry Shrub / Fallen Log
+                FloraSpeciesId.LianaMossCurtain or FloraSpeciesId.EpiphyteBaseVine =>
+                    new MeshKey(FloraSpeciesId.LianaMossCurtain, 0),
+                FloraSpeciesId.LushSwordFern => new MeshKey(FloraSpeciesId.LushSwordFern, 0),
+                FloraSpeciesId.WildBerryBush or FloraSpeciesId.HawthornBerryShrub or FloraSpeciesId.SnowberryAlpineShrub =>
+                    new MeshKey(FloraSpeciesId.WildBerryBush, 0),
+                FloraSpeciesId.HollowFallenTrunk => new MeshKey(FloraSpeciesId.HollowFallenTrunk, 0),
+
+                // === SHARED ATLAS-BUCKETED MULTIMESH ARCHETYPES (16+ species packed into ONLY 4 MultiMeshes!) ===
+                // 1) Atlas A Upright Card Cluster (Banana, ElephantEar, Horsetail, Cattail, Wildflower, Heather)
+                FloraSpeciesId.WildBananaRavenala or FloraSpeciesId.GiantElephantEar or
+                FloraSpeciesId.GiantHorsetailEquisetum or FloraSpeciesId.CattailMarshReed or
+                FloraSpeciesId.SteppeWildflowerMeadow or FloraSpeciesId.AlpineHeatherCushion =>
+                    new MeshKey(FloraSpeciesId.SteppeWildflowerMeadow, 0),
+
+                // 2) Atlas A Horizontal Pad / Shelf Bracket (Water Lily, Giant Shelf Fungi)
+                FloraSpeciesId.PrimevalWaterLily or FloraSpeciesId.GiantShelfFungi =>
+                    new MeshKey(FloraSpeciesId.PrimevalWaterLily, 0),
+
+                // 3) Atlas B Upright Card Cluster (BirdnestFern, MarshIris, BriarRose, Sagebrush, Spinifex, MorningGlory, SeaKelp)
+                FloraSpeciesId.EpiphyteBirdnestFern or FloraSpeciesId.MarshWildIris or
+                FloraSpeciesId.WildBriarRoseThicket or FloraSpeciesId.DesertSilverSagebrush or
+                FloraSpeciesId.RedSandSpinifexTussock or FloraSpeciesId.CoastalDuneMorningGlory or
+                FloraSpeciesId.ShallowSeaKelp =>
+                    new MeshKey(FloraSpeciesId.MarshWildIris, 0),
+
+                // 4) Agave / Succulent / Giant Bamboo Strip Bucket (leaf_agave_bamboo.png)
+                FloraSpeciesId.RedDesertAgave or FloraSpeciesId.RedRockSucculent or FloraSpeciesId.GiantBambooVau =>
+                    new MeshKey(FloraSpeciesId.GiantBambooVau, 0),
+
                 _ => new MeshKey(species, 0),
             };
         }
 
+        public static bool IsAtlasBucketedKey(MeshKey key) =>
+            key.CanonicalSpecies == FloraSpeciesId.SteppeWildflowerMeadow ||
+            key.CanonicalSpecies == FloraSpeciesId.PrimevalWaterLily ||
+            key.CanonicalSpecies == FloraSpeciesId.MarshWildIris ||
+            key.CanonicalSpecies == FloraSpeciesId.GiantBambooVau;
+
+        /// <summary>
+        /// Exact sub-UV rect (with 0.004 mipmap bleed gutter) & physical motion flexScale for Atlas-bucketed species.
+        /// Passed in INSTANCE_CUSTOM (uvRect) + INSTANCE_COLOR.a (flexScale) so 16+ species share 4 MultiMeshes!
+        /// </summary>
+        public static bool TryGetAtlasBucketInfo(FloraSpeciesId sp, out Rect2 uvRect, out float flexScale)
+        {
+            switch (sp)
+            {
+                // Atlas A (flora_specialty_atlas_a.png)
+                case FloraSpeciesId.WildBananaRavenala:
+                    uvRect = new Rect2(0.004f, 0.004f, 0.242f, 0.492f); flexScale = 0.42f; return true;
+                case FloraSpeciesId.GiantElephantEar:
+                    uvRect = new Rect2(0.254f, 0.004f, 0.242f, 0.492f); flexScale = 0.36f; return true;
+                case FloraSpeciesId.GiantHorsetailEquisetum:
+                    uvRect = new Rect2(0.504f, 0.004f, 0.242f, 0.492f); flexScale = 0.48f; return true;
+                case FloraSpeciesId.CattailMarshReed:
+                    uvRect = new Rect2(0.754f, 0.004f, 0.242f, 0.492f); flexScale = 0.66f; return true;
+                case FloraSpeciesId.SteppeWildflowerMeadow:
+                    uvRect = new Rect2(0.004f, 0.504f, 0.492f, 0.492f); flexScale = 0.74f; return true;
+                case FloraSpeciesId.AlpineHeatherCushion:
+                    uvRect = new Rect2(0.004f, 0.504f, 0.492f, 0.492f); flexScale = 0.26f; return true;
+                case FloraSpeciesId.PrimevalWaterLily:
+                    uvRect = new Rect2(0.504f, 0.504f, 0.272f, 0.492f); flexScale = 0.94f; return true;
+                case FloraSpeciesId.GiantShelfFungi:
+                    uvRect = new Rect2(0.784f, 0.504f, 0.212f, 0.492f); flexScale = 0.00f; return true;
+
+                // Atlas B (flora_specialty_atlas_b.png)
+                case FloraSpeciesId.EpiphyteBirdnestFern:
+                    uvRect = new Rect2(0.254f, 0.004f, 0.242f, 0.492f); flexScale = 0.22f; return true;
+                case FloraSpeciesId.MarshWildIris:
+                    uvRect = new Rect2(0.504f, 0.004f, 0.242f, 0.492f); flexScale = 0.68f; return true;
+                case FloraSpeciesId.WildBriarRoseThicket:
+                    uvRect = new Rect2(0.754f, 0.004f, 0.242f, 0.492f); flexScale = 0.34f; return true;
+                case FloraSpeciesId.DesertSilverSagebrush:
+                    uvRect = new Rect2(0.004f, 0.504f, 0.242f, 0.492f); flexScale = 0.28f; return true;
+                case FloraSpeciesId.RedSandSpinifexTussock:
+                    uvRect = new Rect2(0.254f, 0.504f, 0.242f, 0.492f); flexScale = 0.52f; return true;
+                case FloraSpeciesId.CoastalDuneMorningGlory:
+                    uvRect = new Rect2(0.504f, 0.504f, 0.242f, 0.492f); flexScale = 0.72f; return true;
+                case FloraSpeciesId.ShallowSeaKelp:
+                    uvRect = new Rect2(0.754f, 0.504f, 0.242f, 0.492f); flexScale = 0.96f; return true;
+
+                // Agave / Bamboo Strip (leaf_agave_bamboo.png)
+                case FloraSpeciesId.RedDesertAgave:
+                case FloraSpeciesId.RedRockSucculent:
+                    uvRect = new Rect2(0.004f, 0.004f, 0.492f, 0.992f); flexScale = 0.08f; return true;
+                case FloraSpeciesId.GiantBambooVau:
+                    uvRect = new Rect2(0.504f, 0.004f, 0.492f, 0.992f); flexScale = 0.46f; return true;
+
+                default:
+                    uvRect = new Rect2(0.004f, 0.004f, 0.992f, 0.992f); flexScale = 0.5f; return false;
+            }
+        }
+
         public static bool IsCloseUnderstorySpecies(FloraSpeciesId id) => id switch
         {
-            FloraSpeciesId.LushSwordFern => true,
-            FloraSpeciesId.GiantElephantEar => true,
-            FloraSpeciesId.LianaMossCurtain => true,
-            FloraSpeciesId.HollowFallenTrunk => true,
-            FloraSpeciesId.WildBerryBush => true,
-            FloraSpeciesId.HawthornBerryShrub => true,
-            FloraSpeciesId.EpiphyteBaseVine => true,
-            FloraSpeciesId.WetMossPatch => true,
-            FloraSpeciesId.BiolumForestMushroom => true,
+            FloraSpeciesId.LushSwordFern or FloraSpeciesId.GiantElephantEar or FloraSpeciesId.LianaMossCurtain or
+            FloraSpeciesId.HollowFallenTrunk or FloraSpeciesId.WildBerryBush or FloraSpeciesId.HawthornBerryShrub or
+            FloraSpeciesId.SnowberryAlpineShrub or FloraSpeciesId.EpiphyteBaseVine or FloraSpeciesId.WetMossPatch or
+            FloraSpeciesId.BiolumForestMushroom or FloraSpeciesId.WildBananaRavenala or FloraSpeciesId.EpiphyteBirdnestFern or
+            FloraSpeciesId.GiantShelfFungi or FloraSpeciesId.GiantHorsetailEquisetum or FloraSpeciesId.CattailMarshReed or
+            FloraSpeciesId.MarshWildIris or FloraSpeciesId.PrimevalWaterLily or FloraSpeciesId.SteppeWildflowerMeadow or
+            FloraSpeciesId.WildBriarRoseThicket or FloraSpeciesId.DesertSilverSagebrush or FloraSpeciesId.RedSandSpinifexTussock or
+            FloraSpeciesId.AlpineHeatherCushion or FloraSpeciesId.CoastalDuneMorningGlory or FloraSpeciesId.ShallowSeaKelp or
+            FloraSpeciesId.RedDesertAgave or FloraSpeciesId.RedRockSucculent => true,
             _ => false,
         };
 
@@ -112,8 +217,8 @@ namespace PrimevalWorld.Flora
             }
             else
             {
-                // Single-surface meshes: Fallen Log uses bark_moss.gdshader; LOD2 & Herbs/Ferns/Lianas/Boulders use flora_wind.gdshader
-                bool barkOnly = species == FloraSpeciesId.HollowFallenTrunk;
+                // Single-surface meshes: Fallen Log & Columnar Cactus use bark_moss.gdshader; LOD2 & Herbs/Ferns/Lianas/Atlas use flora_wind.gdshader
+                bool barkOnly = species == FloraSpeciesId.HollowFallenTrunk || species == FloraSpeciesId.ColumnarEuphorbiaCactus;
                 Material? mat = barkOnly ? barkMat : leafMat;
                 if (mat != null) mesh.SurfaceSetMaterial(0, mat);
             }
@@ -129,13 +234,26 @@ namespace PrimevalWorld.Flora
 
         private static ArrayMesh BuildProceduralMesh(FloraNicheProfile p, int variant, int lod)
         {
-            if (p.Layer <= FloraLayer.Canopy || p.Id == FloraSpeciesId.ArborescentTreeFern || p.Id == FloraSpeciesId.NipaWaterPalm)
+            if (p.Layer <= FloraLayer.Canopy ||
+                p.Id == FloraSpeciesId.ArborescentTreeFern ||
+                p.Id == FloraSpeciesId.NipaWaterPalm ||
+                p.Id == FloraSpeciesId.OasisDatePalm ||
+                p.Id == FloraSpeciesId.CoastalPandanusScrewpine ||
+                p.Id == FloraSpeciesId.ColumnarEuphorbiaCactus)
                 return ProceduralTreeBuilder.BuildTree(p.Id, AgeStage.Mature, 2026, lod, variant);
 
-            if (p.Id == FloraSpeciesId.LianaMossCurtain)
+            if (p.Id == FloraSpeciesId.LianaMossCurtain || p.Id == FloraSpeciesId.EpiphyteBaseVine)
                 return CreateLianaMossCurtainMesh(variant);
             if (p.Id == FloraSpeciesId.LushSwordFern)
                 return CreateLushSwordFernMesh(variant);
+            if (p.Id == FloraSpeciesId.SteppeWildflowerMeadow)
+                return CreateAtlasUprightCardClusterMesh(leafType: 10); // Atlas A Upright Bucket
+            if (p.Id == FloraSpeciesId.PrimevalWaterLily)
+                return CreateAtlasHorizontalPadMesh(leafType: 10);      // Atlas A Horizontal Pad/Shelf Bucket
+            if (p.Id == FloraSpeciesId.MarshWildIris)
+                return CreateAtlasUprightCardClusterMesh(leafType: 11); // Atlas B Upright Bucket
+            if (p.Id == FloraSpeciesId.GiantBambooVau)
+                return CreateAtlasUprightCardClusterMesh(leafType: 13); // Agave/Bamboo Strip Bucket
             if (p.Id == FloraSpeciesId.GiantElephantEar)
                 return CreateGiantBroadleafAroidMesh(variant);
             if (p.Id == FloraSpeciesId.HollowFallenTrunk)
@@ -194,10 +312,65 @@ namespace PrimevalWorld.Flora
                     var col1 = new Color(bp, 1f, 1f, 0.24f + t1 * 0.48f);
                     // Crossed perpendicular ribbons so hanging moss curtains look volumetric from every camera angle!
                     AddLeafQuad(st, c0 - sideA, c0 + sideA, c1 + sideA * 0.82f, c1 - sideA * 0.82f,
-                        col0, col1, Vector3.Up, new Rect2(0, t0, 1, t1 - t0), leafType: 6, aoBot: 0.74f, aoTop: 0.90f);
+                        col0, col1, Vector3.Up, new Rect2(0.004f, t0, 0.992f, t1 - t0), leafType: 7, aoBot: 0.74f, aoTop: 0.90f);
                     AddLeafQuad(st, c0 - sideB, c0 + sideB, c1 + sideB * 0.82f, c1 - sideB * 0.82f,
-                        col0, col1, Vector3.Up, new Rect2(0, t0, 1, t1 - t0), leafType: 6, aoBot: 0.74f, aoTop: 0.90f);
+                        col0, col1, Vector3.Up, new Rect2(0.004f, t0, 0.992f, t1 - t0), leafType: 7, aoBot: 0.74f, aoTop: 0.90f);
                 }
+            }
+            return st.Commit();
+        }
+
+        /// <summary>
+        /// Unit-normalized 3-crossed curved 3D card cluster (1.0m height x 1.0m width, scaled per instance)
+        /// for Atlas-bucketed MultiMeshes (UV in [0..1] remapped via INSTANCE_CUSTOM sub-UV rect in shader!).
+        /// </summary>
+        private static ArrayMesh CreateAtlasUprightCardClusterMesh(int leafType)
+        {
+            var st = new SurfaceTool();
+            st.Begin(Mesh.PrimitiveType.Triangles);
+            // 3 intersecting slightly arched cards (12 tris total) -> rich 3D volume from all viewing angles!
+            for (int c = 0; c < 3; c++)
+            {
+                float a = c * (Mathf.Pi / 3.0f) + 0.18f;
+                Vector3 right = new Vector3(MathF.Cos(a), 0f, MathF.Sin(a)) * 0.62f;
+                Vector3 bend = new Vector3(-MathF.Sin(a), 0f, MathF.Cos(a)) * 0.14f;
+                Vector3 p0 = -right + new Vector3(0f, -0.05f, 0f);
+                Vector3 p1 = right + new Vector3(0f, -0.05f, 0f);
+                Vector3 m1 = right * 1.04f + bend * 0.5f + new Vector3(0f, 0.52f, 0f);
+                Vector3 m0 = -right * 1.04f + bend * 0.5f + new Vector3(0f, 0.52f, 0f);
+                Vector3 t1 = right * 0.86f + bend + new Vector3(0f, 1.02f, 0f);
+                Vector3 t0 = -right * 0.86f + bend + new Vector3(0f, 1.02f, 0f);
+
+                // Vertex COLOR.rgb = 1.0 (multiplied by INSTANCE_COLOR tint); COLOR.a = 1.0 (multiplied by INSTANCE_COLOR.a flex!)
+                var cRoot = new Color(1f, 1f, 1f, 0.20f);
+                var cMid = new Color(1f, 1f, 1f, 0.65f);
+                var cTop = new Color(1f, 1f, 1f, 1.00f);
+                AddLeafQuad(st, p0, p1, m1, m0, cRoot, cMid, Vector3.Up, new Rect2(0f, 0.50f, 1f, 0.50f), leafType, 0.72f, 0.92f);
+                AddLeafQuad(st, m0, m1, t1, t0, cMid, cTop, Vector3.Up, new Rect2(0f, 0.00f, 1f, 0.50f), leafType, 0.92f, 1.04f);
+            }
+            return st.Commit();
+        }
+
+        /// <summary>
+        /// Layered horizontal pads / terraced shelf brackets (Water Lily pads on calm water & Giant Shelf Fungi on logs/trunks).
+        /// </summary>
+        private static ArrayMesh CreateAtlasHorizontalPadMesh(int leafType)
+        {
+            var st = new SurfaceTool();
+            st.Begin(Mesh.PrimitiveType.Triangles);
+            var cFull = new Color(1f, 1f, 1f, 1.0f);
+            for (int k = 0; k < 2; k++)
+            {
+                float y = k * 0.14f + 0.02f;
+                float r = k == 0 ? 0.68f : 0.48f;
+                float ox = k * 0.18f;
+                float oz = k * -0.14f;
+                AddLeafQuad(st,
+                    new Vector3(ox - r, y, oz - r),
+                    new Vector3(ox + r, y, oz - r),
+                    new Vector3(ox + r, y + 0.03f, oz + r),
+                    new Vector3(ox - r, y + 0.03f, oz + r),
+                    cFull, cFull, Vector3.Up, new Rect2(0f, 0f, 1f, 1f), leafType, 0.88f, 1.02f);
             }
             return st.Commit();
         }
@@ -308,9 +481,9 @@ namespace PrimevalWorld.Flora
                 float h = maxH * (0.72f + (b % 3) * 0.14f);
                 Vector3 tip = new Vector3(MathF.Cos(a) * r, h, MathF.Sin(a) * r);
                 AddTaperedCylinder(barkSt, new Vector3(0f, -0.25f, 0f), tip, 0.07f, 0.025f, 4, stemCol, stemCol, 0, 0.85f);
-                AddLeafCardCluster(leafSt, tip * 0.82f, 1.05f, 0.78f, 3, 0, a, 0.18f, (b * 0.19f) % 1.0f);
+                AddLeafCardCluster(leafSt, tip * 0.82f, 1.05f, 0.78f, 3, 5, a, 0.18f, (b * 0.19f) % 1.0f, new Rect2(0.671f, 0.004f, 0.325f, 0.992f));
             }
-            AddLeafCardCluster(leafSt, new Vector3(0.0f, maxH * 0.65f, 0.0f), 1.35f, 0.95f, 4, 0, 0.3f, 0.18f, 0.5f);
+            AddLeafCardCluster(leafSt, new Vector3(0.0f, maxH * 0.65f, 0.0f), 1.35f, 0.95f, 4, 5, 0.3f, 0.18f, 0.5f, new Rect2(0.671f, 0.004f, 0.325f, 0.992f));
 
             barkSt.GenerateTangents();
             var mesh = new ArrayMesh();
@@ -495,9 +668,9 @@ namespace PrimevalWorld.Flora
         }
 
         private static void AddLeafCardCluster(
-            SurfaceTool st, Vector3 center, float radius, float halfHeight, int cardPairs, int leafType, float phase, float windFlex, float branchPhase)
+            SurfaceTool st, Vector3 center, float radius, float halfHeight, int cardPairs, int leafType, float phase, float windFlex, float branchPhase, Rect2? uvOverride = null)
         {
-            var uvR = new Rect2(0, 0, 1, 1);
+            Rect2 uvR = uvOverride ?? new Rect2(0.004f, 0.004f, 0.992f, 0.992f);
             var colBot = new Color(branchPhase, 1f, 1f, windFlex * 0.7f);
             var colTop = new Color(branchPhase, 1f, 1f, windFlex);
 
